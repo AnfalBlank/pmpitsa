@@ -1,0 +1,92 @@
+# Portal PM POS PINSYST & FMS - Pertamina International Timor, S.A.
+
+Aplikasi Web Enterprise terintegrasi untuk pengawasan operasional, inspeksi pemeliharaan rutin (*Preventive Maintenance*), pusat tiket kendala forecourt, dan penerbitan Berita Acara resmi digital di seluruh jaringan SPBU Pertamina International Timor, S.A. (PITL).
+
+---
+
+## 🌟 Fitur Utama
+
+- **Single Module View Architecture**: Navigasi sidebar terpadu untuk tampilan modul independen dan fokus (Ikhtisar & Status SPBU, Pusat Tiket Helpdesk, Perencanaan Jadwal PM, Arsip Berita Acara, Konfigurasi & Master Data, serta Manajemen Pengguna).
+- **Formulir Inspeksi Teknis PM Komprehensif**:
+  - Pemeriksaan parameter kelistrikan & voltase grounding (standar < 1.0 V).
+  - Status Controller POS PINSYST, ATG (Veeder-Root, OPW, Franklin), dan Dispenser Forecourt.
+  - Dokumentasi temuan kerusakan, tindakan perbaikan (*Corrective Repair*), serta rekomendasi suku cadang.
+  - Tanda tangan digital (*touch/mouse canvas sign-off*) Teknisi dan Pengawas PWS.
+- **Penerbitan & Pratinjau Berita Acara (BA) Resmi**:
+  - Generator format Berita Acara PDF standar kop resmi Pertamina International Timor, S.A.
+  - Arsip dokumen digital siap cetak dan sinkronisasi cloud Google Drive & Turso DB.
+  - Filter multi-dimensi: Filter Site SPBU, Filter Periode Tanggal (Hari Ini, 7 Hari, Bulan Ini, Tahun Ini, Custom), dan Status Pengesahan.
+- **Pusat Tiket Kendala Lapangan (Helpdesk)**:
+  - Pelaporan dan penanganan tiket gangguan dispenser, ATG, printer, dan jaringan.
+  - Filter berdasarkan SPBU, status pengerjaan, prioritas (Darurat s/d Rendah), dan rentang tanggal.
+- **Perencanaan & Jadwal Pemeliharaan**:
+  - Penjadwalan agenda kunjungan PM teknisi dengan status peringatan waktu (H-2).
+- **Role-Based Access Control (RBAC)**:
+  - **Admin IT Central**: Hak akses penuh seluruh modul, master konfigurasi data SPBU, brand hardware, produk BBM, dan manajemen user.
+  - **Supervisor (Pengawas PWS)**: Pengawasan kesiapan forecourt, verifikasi kendala tiket, dan pengesahan Berita Acara digital.
+  - **Teknisi Lapangan POS**: Formulir checklist inspeksi PM, pratinjau Berita Acara hasil kerja, dan pelaporan tiket.
+- **Tampilan Responsif & Selaras**:
+  - Desktop: Sidebar navigasi dengan logo resmi Pertamina International Timor dan header sinkron 64px (`h-16`).
+  - Mobile: Mobile Top Bar berlatar putih bersih dengan navigasi bawah (*Bottom Navigation Bar*) yang ergonomis.
+
+---
+
+## 🛠️ Tech Stack
+
+- **Framework**: [Next.js 14](https://nextjs.org/) (App Router & Server-Side API Handlers)
+- **Bahasa**: [TypeScript](https://www.typescriptlang.org/)
+- **Styling**: [Tailwind CSS](https://tailwindcss.com/)
+- **Ikonografi**: [Lucide React](https://lucide.dev/)
+- **Database**: [Turso Database](https://turso.tech/) (LibSQL edge database)
+- **Tanda Tangan Digital**: HTML5 Canvas Signature Pad
+
+---
+
+## 🚀 Memulai (Getting Started)
+
+### 1. Prasyarat
+- Node.js versi 18.17 atau lebih baru
+- npm atau yarn
+
+### 2. Instalasi Dependensi
+```bash
+git clone https://github.com/AnfalBlank/pmpitsa.git
+cd pmpitsa
+npm install
+```
+
+### 3. Konfigurasi Environment
+Salin file konfigurasi contoh:
+```bash
+cp .env.example .env.local
+```
+Sesuaikan `TURSO_DATABASE_URL` dan `TURSO_AUTH_TOKEN` dengan kredensial database Turso Anda.
+
+### 4. Menjalankan di Mode Development
+```bash
+npm run dev
+```
+Buka browser pada [http://localhost:3000](http://localhost:3000).
+
+### 5. Build Produksi
+```bash
+npm run build
+npm start
+```
+
+---
+
+## 👥 Akun Login Demo (RBAC)
+
+| Peran (Role) | Username | Password | Penugasan Default |
+| :--- | :--- | :--- | :--- |
+| **Admin IT Central** | `admin` | `password123` | Kantor Pusat IT Central |
+| **Supervisor SPBU Dili** | `supervisor` | `password123` | SPBU PITL-001 Dili Sentral |
+| **Supervisor SPBU Baucau** | `spv_baucau` | `password123` | SPBU PITL-002 Baucau |
+| **Teknisi Lapangan POS** | `teknisi` | `password123` | Teknisi Lapangan POS & FMS |
+| **Teknisi Elektrikal/ATG** | `teknisi_central` | `password123` | Teknisi Forecourt Central |
+
+---
+
+## 📄 Lisensi & Hak Cipta
+Hak Cipta © 2026 Pertamina International Timor, S.A. Seluruh hak cipta dilindungi.
