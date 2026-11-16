@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { requireSession } from '@/lib/session';
 import { getTursoClient, initTursoDatabase } from '@/lib/turso';
 import { 
   FuelProduct, 
@@ -117,6 +118,9 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
+    const auth = requireSession(req, 'config.manage');
+    if (auth.error) return auth.error;
+    const session = auth.session;
     await initTursoDatabase();
     const db = getTursoClient();
     const body = await req.json();
@@ -219,6 +223,9 @@ export async function POST(req: Request) {
 
 export async function DELETE(req: Request) {
   try {
+    const auth = requireSession(req, 'config.manage');
+    if (auth.error) return auth.error;
+    const session = auth.session;
     await initTursoDatabase();
     const db = getTursoClient();
     const { searchParams } = new URL(req.url);

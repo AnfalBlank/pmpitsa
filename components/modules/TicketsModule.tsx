@@ -21,6 +21,8 @@ import { UserSession, Site, SPBUTicket, TicketPriority, TicketCategory, TicketSt
 import { SAMPLE_SITES } from '@/lib/sample-data';
 import { saveTicket, updateTicketStatus } from '@/lib/storage';
 import { createTicketApi, updateTicketApi, deleteTicketApi } from '@/lib/api-client';
+import { useFeedback } from '@/components/feedback/FeedbackProvider';
+import { can, siteScope } from '@/lib/rbac';
 import { isDateInPeriod, PERIOD_OPTIONS, PeriodFilterKey } from '@/lib/date-filters';
 
 interface TicketsModuleProps {
@@ -40,7 +42,15 @@ export const TicketsModule: React.FC<TicketsModuleProps> = ({
   onTicketsUpdated,
   onStartRepairFromTicket,
 }) => {
-  const activeSites = sites && sites.length > 0 ? sites : SAMPLE_SITES;
+  const scope = siteScope(currentUser);
+  const allSites = sites && sites.length > 0 ? sites : SAMPLE_SITES;
+  // Supervisor: only own SPBU is selectable anywhere in this module
+  const activeSites = scope === null ? allSites : allSites.filter(s => s.id === scope);
+  const canCreate = can(currentUser.role, 'ticket.create');
+  const canUpdate = can(currentUser.role, 'ticket.update');
+  const canDelete = can(currentUser.role, 'ticket.delete');
+  const canRepair = can(currentUser.role, 'pm.perform');
+  const feedback = useFeedback();
   const technicians = (usersList || []).filter(u => u.role === 'TECHNICIAN');
 
   const [ticketSearch, setTicketSearch] = useState('');
@@ -53,7 +63,7 @@ export const TicketsModule: React.FC<TicketsModuleProps> = ({
 
   // New Ticket Modal
   const [isNewTicketModalOpen, setIsNewTicketModalOpen] = useState(false);
-  const [newTicketSiteId, setNewTicketSiteId] = useState<number>(currentUser.assignedSiteId || activeSites[0].id);
+  const [newTicketSiteId, setNewTicketSiteId] = useState<number>(scope ?? (currentUser.assignedSiteId || activeSites[0]?.id));
   const [newTicketTerminal, setNewTicketTerminal] = useState('POS-01');
   const [newTicketCategory, setNewTicketCategory] = useState<TicketCategory>('Dispenser & Forecourt');
   const [newTicketPriority, setNewTicketPriority] = useState<TicketPriority>('Tinggi');
@@ -113,9 +123,16 @@ export const TicketsModule: React.FC<TicketsModuleProps> = ({
   // Handle submit new ticket
   const handleCreateTicketSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTicketTitle.trim() || !newTicketDesc.trim()) return;
+    if (!newTicketTitle.trim() || !newTicketDesc.trim()) {
+      feedback.notify({ variant: 'warning', title: 'Data Belum Lengkap', message: 'Judul dan deskripsi kendala wajib diisi.' });
+      return;
+    }
 
     const targetSite = activeSites.find(s => s.id === newTicketSiteId) || activeSites[0];
+    if (!targetSite || (scope !== null && targetSite.id !== scope)) {
+      feedback.notify({ variant: 'forbidden', title: 'Akses Ditolak', message: 'Anda hanya dapat membuat tiket untuk SPBU yang ditugaskan kepada Anda.' });
+      return;
+    }
     const ticketNum = `TIK-PITL-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
 
     const defaultTechName = technicians.length > 0 
@@ -139,20 +156,40 @@ export const TicketsModule: React.FC<TicketsModuleProps> = ({
       assigned_to: defaultTechName,
     };
 
+    const result = await feedback.run(() => createTicketApi(newTicket), {
+      pending: 'Mengirim tiket ke server...',
+      success: {
+        title: 'Tiket Berhasil Dibuat',
+        message: <>Tiket <strong>{ticketNum}</strong> untuk {targetSite.site_name} telah tercatat dan diteruskan ke teknisi.</>,
+      },
+      error: { title: 'Gagal Membuat Tiket', message: 'Tiket belum tersimpan. Periksa koneksi lalu coba lagi.' },
+    });
+    if (!result.success) return;
+
     saveTicket(newTicket);
-    const updated = [newTicket, ...tickets];
-    onTicketsUpdated(updated);
+    onTicketsUpdated([newTicket, ...tickets]);
     setIsNewTicketModalOpen(false);
     setNewTicketTitle('');
     setNewTicketDesc('');
-
-    await createTicketApi(newTicket);
   };
 
   // Handle update status submit
   const handleUpdateStatusSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedTicketForUpdate) return;
+
+    const result = await feedback.run(
+      () => updateTicketApi(selectedTicketForUpdate.id, updateStatus, updateNotes, updateAssigned),
+      {
+        pending: 'Menyimpan perubahan status...',
+        success: {
+          title: 'Status Tiket Diperbarui',
+          message: <>Tiket <strong>{selectedTicketForUpdate.ticket_number}</strong> sekarang berstatus <strong>{updateStatus}</strong>.</>,
+        },
+        error: { title: 'Gagal Memperbarui Tiket', message: 'Perubahan status belum tersimpan.' },
+      }
+    );
+    if (!result.success) return;
 
     updateTicketStatus(
       selectedTicketForUpdate.id,
@@ -176,17 +213,24 @@ export const TicketsModule: React.FC<TicketsModuleProps> = ({
 
     onTicketsUpdated(updated);
     setSelectedTicketForUpdate(null);
-
-    await updateTicketApi(ticketId, updateStatus, updateNotes, updateAssigned);
   };
 
   // Handle delete ticket (Admin only)
   const handleDeleteTicket = async (ticketId: string) => {
-    if (window.confirm('Hapus tiket kendala ini secara permanen dari database Turso?')) {
-      const updated = tickets.filter(t => t.id !== ticketId);
-      onTicketsUpdated(updated);
-      await deleteTicketApi(ticketId);
-    }
+    const target = tickets.find(t => t.id === ticketId);
+    const ok = await feedback.confirm({
+      title: 'Hapus Tiket?',
+      message: <>Tiket <strong>{target?.ticket_number || ticketId}</strong> akan dihapus permanen dari database dan tidak dapat dikembalikan.</>,
+      confirmLabel: 'Ya, Hapus',
+      danger: true,
+    });
+    if (!ok) return;
+    const result = await feedback.run(() => deleteTicketApi(ticketId), {
+      pending: 'Menghapus tiket...',
+      success: { title: 'Tiket Dihapus', message: 'Tiket telah dihapus dari database.' },
+      error: { title: 'Gagal Menghapus Tiket', message: 'Tiket masih tersimpan di server.' },
+    });
+    if (result.success) onTicketsUpdated(tickets.filter(t => t.id !== ticketId));
   };
 
   return (
@@ -200,14 +244,16 @@ export const TicketsModule: React.FC<TicketsModuleProps> = ({
           </p>
         </div>
 
+        {canCreate && (
         <button
           type="button"
           onClick={() => setIsNewTicketModalOpen(true)}
           className="min-h-[44px] px-4 py-2 bg-[#ED1C24] hover:bg-red-700 text-white rounded-lg text-xs sm:text-sm font-bold flex items-center justify-center gap-2 shadow-xs transition-colors self-start sm:self-auto flex-shrink-0"
         >
           <Plus className="w-4 h-4" />
-          <span>+ Buat Tiket Kendala Baru</span>
+          <span>Buat Tiket Kendala Baru</span>
         </button>
+        )}
       </div>
 
       {/* Stat Cards - Uniform Restrained Palette */}
@@ -290,7 +336,7 @@ export const TicketsModule: React.FC<TicketsModuleProps> = ({
 
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-1">
           <div>
             <select
               value={ticketStatusFilter}
@@ -320,7 +366,7 @@ export const TicketsModule: React.FC<TicketsModuleProps> = ({
             </select>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="col-span-2 sm:col-span-1 flex items-center gap-2 empty:hidden">
             {isFilterActive && (
               <button
                 type="button"
@@ -466,7 +512,7 @@ export const TicketsModule: React.FC<TicketsModuleProps> = ({
 
                   {/* Right Actions */}
                   <div className="flex items-center gap-2 flex-shrink-0 self-start lg:self-center flex-wrap">
-                    {onStartRepairFromTicket && !isResolved && (
+                    {canRepair && onStartRepairFromTicket && !isResolved && (
                       <button
                         type="button"
                         onClick={() => onStartRepairFromTicket(t)}
@@ -477,6 +523,7 @@ export const TicketsModule: React.FC<TicketsModuleProps> = ({
                       </button>
                     )}
 
+                    {canUpdate && (
                     <button
                       type="button"
                       onClick={() => {
@@ -490,8 +537,9 @@ export const TicketsModule: React.FC<TicketsModuleProps> = ({
                       <MessageSquare className="w-3.5 h-3.5 text-blue-300" />
                       <span>Update Status</span>
                     </button>
+                    )}
 
-                    {currentUser.role === 'ADMIN' && (
+                    {canDelete && (
                       <button
                         type="button"
                         onClick={() => handleDeleteTicket(t.id)}
@@ -516,7 +564,7 @@ export const TicketsModule: React.FC<TicketsModuleProps> = ({
         <div 
           role="dialog"
           aria-modal="true"
-          className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4 backdrop-blur-xs overflow-y-auto"
+          className="fixed inset-0 z-50 bg-black/70 flex items-start sm:items-center justify-center p-3 sm:p-4 backdrop-blur-xs overflow-y-auto"
         >
           <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full border border-slate-300 overflow-hidden my-8 animate-in fade-in-50 zoom-in-95 duration-150">
             <div className="p-4 bg-[#0B2545] text-white flex items-center justify-between">
@@ -536,13 +584,14 @@ export const TicketsModule: React.FC<TicketsModuleProps> = ({
             </div>
 
             <form onSubmit={handleCreateTicketSubmit} className="p-5 space-y-3.5">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Site SPBU</label>
                   <select
                     value={newTicketSiteId}
                     onChange={(e) => setNewTicketSiteId(Number(e.target.value))}
-                    className="w-full min-h-[44px] px-3 text-xs bg-slate-50 border border-slate-300 rounded-lg font-medium text-slate-800 focus:ring-2 focus:ring-red-500 focus:outline-none"
+                    disabled={scope !== null}
+                    className="w-full disabled:opacity-80 disabled:cursor-not-allowed min-h-[44px] px-3 text-xs bg-slate-50 border border-slate-300 rounded-lg font-medium text-slate-800 focus:ring-2 focus:ring-red-500 focus:outline-none"
                   >
                     {activeSites.map(s => (
                       <option key={s.id} value={s.id}>{s.site_code} - {s.site_name}</option>
@@ -563,7 +612,7 @@ export const TicketsModule: React.FC<TicketsModuleProps> = ({
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Kategori Kerusakan</label>
                   <select
@@ -645,7 +694,7 @@ export const TicketsModule: React.FC<TicketsModuleProps> = ({
         <div 
           role="dialog"
           aria-modal="true"
-          className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4 backdrop-blur-xs overflow-y-auto"
+          className="fixed inset-0 z-50 bg-black/70 flex items-start sm:items-center justify-center p-3 sm:p-4 backdrop-blur-xs overflow-y-auto"
         >
           <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full border border-slate-300 overflow-hidden my-8 animate-in fade-in-50 zoom-in-95 duration-150">
             <div className="p-4 bg-[#0B2545] text-white flex items-center justify-between">
@@ -665,7 +714,7 @@ export const TicketsModule: React.FC<TicketsModuleProps> = ({
             </div>
 
             <form onSubmit={handleUpdateStatusSubmit} className="p-5 space-y-3.5">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Status Penanganan</label>
                   <select

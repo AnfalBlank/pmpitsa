@@ -35,6 +35,44 @@ body {
   background: #94a3b8;
 }
 
+/* ---------- Mobile helpers ---------- */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* Remove 300ms tap delay & grey flash on mobile */
+button, a, [role="button"], label, select, input, textarea {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* iOS Safari zooms the page when a focused field is < 16px. Keep fields at 16px on phones. */
+@media (max-width: 767px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* Hide scrollbar but keep scrolling (horizontal step tabs) */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Safe-area (iPhone home indicator / notch) for fixed bottom bars */
+.pb-safe-1\.5 {
+  padding-bottom: calc(0.375rem + env(safe-area-inset-bottom, 0px));
+}
+.pb-safe-2 {
+  padding-bottom: calc(0.5rem + env(safe-area-inset-bottom, 0px));
+}
+
 /* Focus styles for keyboard accessibility (R-32) */
 :focus-visible {
   outline: 2px solid #0b2545;

@@ -1,9 +1,15 @@
 import { NextResponse } from 'next/server';
+import { requireSession } from '@/lib/session';
+import { siteScope } from '@/lib/rbac';
 import { getTursoClient, initTursoDatabase } from '@/lib/turso';
 import { MaintenancePlan } from '@/lib/types';
 
 export async function GET(req: Request) {
   try {
+    const auth = requireSession(req);
+    if (auth.error) return auth.error;
+    const session = auth.session;
+    const scope = siteScope(session);
     await initTursoDatabase();
     const db = getTursoClient();
 
@@ -14,7 +20,11 @@ export async function GET(req: Request) {
     let query = 'SELECT * FROM maintenance_plans WHERE 1=1';
     const args: any[] = [];
 
-    if (siteId && siteId !== 'ALL') {
+    if (scope !== null) {
+      // Supervisor: always restricted to own SPBU regardless of query params
+      query += ' AND site_id = ?';
+      args.push(scope);
+    } else if (siteId && siteId !== 'ALL') {
       query += ' AND site_id = ?';
       args.push(Number(siteId));
     }
@@ -50,6 +60,9 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
+    const auth = requireSession(req, 'plan.create');
+    if (auth.error) return auth.error;
+    const session = auth.session;
     await initTursoDatabase();
     const db = getTursoClient();
 
@@ -119,6 +132,9 @@ export async function POST(req: Request) {
 
 export async function PUT(req: Request) {
   try {
+    const auth = requireSession(req);
+    if (auth.error) return auth.error;
+    const session = auth.session;
     await initTursoDatabase();
     const db = getTursoClient();
 
@@ -147,6 +163,9 @@ export async function PUT(req: Request) {
 
 export async function DELETE(req: Request) {
   try {
+    const auth = requireSession(req, 'plan.delete');
+    if (auth.error) return auth.error;
+    const session = auth.session;
     await initTursoDatabase();
     const db = getTursoClient();
 

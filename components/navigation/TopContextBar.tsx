@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { Site, UserSession } from '@/lib/types';
 import { AppModule } from './AppSidebar';
+import { ProfileMenu } from './ProfileMenu';
 
 interface TopContextBarProps {
   currentSite?: Site;
@@ -33,6 +34,7 @@ interface TopContextBarProps {
 }
 
 export const TopContextBar: React.FC<TopContextBarProps> = ({
+  currentSite,
   currentModule,
   currentUser,
   onLogout,
@@ -126,29 +128,20 @@ export const TopContextBar: React.FC<TopContextBarProps> = ({
             <span className="font-medium text-slate-800">Turso Cloud</span>
           </div>
 
-          {/* User Profile Pill */}
-          <div className="flex items-center gap-2 bg-slate-100 pl-2.5 pr-1.5 py-1 rounded-lg border border-slate-200">
-            <div className="flex items-center gap-1.5 text-xs">
-              <span className="font-bold text-slate-900">{currentUser.name.split(' ')[0]}</span>
-              <span className="text-[10px] font-bold text-slate-500 bg-white px-1.5 py-0.2 rounded border border-slate-200">
-                {roleLabel}
-              </span>
-            </div>
-
-            <button
-              type="button"
-              onClick={onLogout}
-              className="min-h-[32px] min-w-[32px] flex items-center justify-center rounded text-slate-400 hover:text-red-600 hover:bg-slate-200 transition-colors"
-              title="Keluar dari Akun"
-              aria-label="Logout"
-            >
-              <LogOut className="w-3.5 h-3.5" />
-            </button>
-          </div>
-
+          <ProfileMenu currentUser={currentUser} assignedSite={currentSite} onLogout={onLogout} />
         </div>
 
       </header>
+
+      {/* Mobile page title (desktop shows it in the header above) */}
+      {!['overview', 'form', 'preview', 'landing'].includes(currentModule) && (
+        <div className="lg:hidden px-4 sm:px-6 pt-5 -mb-3 max-w-7xl mx-auto w-full">
+          <h1 className="text-lg font-extrabold text-[#0B2545] leading-tight flex items-center gap-2">
+            {activeMeta.icon}
+            <span>{activeMeta.title}</span>
+          </h1>
+        </div>
+      )}
     </>
   );
 };

@@ -36,7 +36,7 @@ interface AppSidebarProps {
   currentModule: AppModule;
   onSelectModule: (module: AppModule) => void;
   onLogout: () => void;
-  onOpenLogin: () => void;
+  onOpenLogin?: () => void;
 }
 
 export const AppSidebar: React.FC<AppSidebarProps> = ({
@@ -236,38 +236,6 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
               </div>
             </div>
 
-            <div>
-              <span className="block px-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-                Kegiatan Lapangan
-              </span>
-              <div className="space-y-1">
-                <button
-                  type="button"
-                  onClick={() => onSelectModule('form')}
-                  className={`w-full min-h-[44px] px-3 py-2 rounded-lg text-left font-bold flex items-center gap-2.5 transition-colors group ${
-                    currentModule === 'form'
-                      ? 'bg-[#ED1C24] text-white'
-                      : 'text-slate-200 hover:bg-slate-800/90'
-                  }`}
-                >
-                  <ClipboardCheck className={`w-4 h-4 ${currentModule === 'form' ? 'text-white' : 'text-slate-300 group-hover:text-white'}`} />
-                  <span>Formulir Checklist PM</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => onSelectModule('preview')}
-                  className={`w-full min-h-[44px] px-3 py-2 rounded-lg text-left font-bold flex items-center gap-2.5 transition-colors group ${
-                    currentModule === 'preview'
-                      ? 'bg-[#ED1C24] text-white'
-                      : 'text-slate-200 hover:bg-slate-800/90'
-                  }`}
-                >
-                  <FileText className={`w-4 h-4 ${currentModule === 'preview' ? 'text-white' : 'text-slate-300 group-hover:text-white'}`} />
-                  <span>Pratinjau PDF Berita Acara</span>
-                </button>
-              </div>
-            </div>
           </>
         )}
 
@@ -353,38 +321,6 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
               </div>
             </div>
 
-            <div>
-              <span className="block px-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-                Kegiatan Lapangan
-              </span>
-              <div className="space-y-1">
-                <button
-                  type="button"
-                  onClick={() => onSelectModule('form')}
-                  className={`w-full min-h-[44px] px-3 py-2 rounded-lg text-left font-bold flex items-center gap-2.5 transition-colors group ${
-                    currentModule === 'form'
-                      ? 'bg-[#ED1C24] text-white'
-                      : 'text-slate-200 hover:bg-slate-800/90'
-                  }`}
-                >
-                  <ClipboardCheck className={`w-4 h-4 ${currentModule === 'form' ? 'text-white' : 'text-slate-300 group-hover:text-white'}`} />
-                  <span>Checklist Pemeriksaan PM</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => onSelectModule('preview')}
-                  className={`w-full min-h-[44px] px-3 py-2 rounded-lg text-left font-bold flex items-center gap-2.5 transition-colors group ${
-                    currentModule === 'preview'
-                      ? 'bg-[#ED1C24] text-white'
-                      : 'text-slate-200 hover:bg-slate-800/90'
-                  }`}
-                >
-                  <FileText className={`w-4 h-4 ${currentModule === 'preview' ? 'text-white' : 'text-slate-300 group-hover:text-white'}`} />
-                  <span>Pratinjau PDF Berita Acara</span>
-                </button>
-              </div>
-            </div>
           </>
         )}
 

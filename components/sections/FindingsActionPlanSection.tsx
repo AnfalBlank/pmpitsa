@@ -2,6 +2,9 @@
 
 import React, { useState } from 'react';
 import { PMReport, PMAttachment } from '@/lib/types';
+import { useFeedback } from '@/components/feedback/FeedbackProvider';
+
+const MAX_PHOTO_MB = 8;
 import { Camera, Image as ImageIcon, Plus, Trash2, Calendar, FileText, CheckCircle2, AlertTriangle } from 'lucide-react';
 
 interface FindingsActionPlanSectionProps {
@@ -15,6 +18,7 @@ export const FindingsActionPlanSection: React.FC<FindingsActionPlanSectionProps>
 }) => {
   const [selectedCategory, setSelectedCategory] = useState<PMAttachment['category']>('Kondisi Hardware');
   const [captionInput, setCaptionInput] = useState('');
+  const feedback = useFeedback();
 
   const updateField = <K extends keyof PMReport>(key: K, val: PMReport[K]) => {
     onChange({
@@ -28,7 +32,23 @@ export const FindingsActionPlanSection: React.FC<FindingsActionPlanSectionProps>
     if (!files || files.length === 0) return;
 
     const file = files[0];
+    e.target.value = '';
+    if (!file.type.startsWith('image/')) {
+      feedback.notify({ variant: 'warning', title: 'Format File Tidak Didukung', message: 'Hanya file gambar (JPG, PNG, HEIC) yang dapat dilampirkan.' });
+      return;
+    }
+    if (file.size > MAX_PHOTO_MB * 1024 * 1024) {
+      feedback.notify({
+        variant: 'warning',
+        title: 'Ukuran Foto Terlalu Besar',
+        message: `Ukuran maksimum ${MAX_PHOTO_MB} MB. Foto ini ${(file.size / 1024 / 1024).toFixed(1)} MB.`,
+      });
+      return;
+    }
     const reader = new FileReader();
+    reader.onerror = () => {
+      feedback.notify({ variant: 'error', title: 'Gagal Memuat Foto', message: 'File foto tidak dapat dibaca. Coba ambil ulang foto.' });
+    };
 
     reader.onload = (event) => {
       const dataUrl = event.target?.result as string;
@@ -46,17 +66,30 @@ export const FindingsActionPlanSection: React.FC<FindingsActionPlanSectionProps>
 
       updateField('attachments', [...report.attachments, newAttachment]);
       setCaptionInput('');
+      feedback.notify({
+        variant: 'success',
+        title: 'Foto Berhasil Dilampirkan',
+        message: `${newAttachment.caption} (${selectedCategory}) ditambahkan ke laporan.`,
+      });
     };
 
     reader.readAsDataURL(file);
-    e.target.value = '';
   };
 
-  const removeAttachment = (id: string) => {
+  const removeAttachment = async (id: string) => {
+    const att = report.attachments.find((a) => a.id === id);
+    const ok = await feedback.confirm({
+      title: 'Hapus Foto?',
+      message: `Foto "${att?.caption || att?.file_name || id}" akan dihapus dari laporan ini.`,
+      confirmLabel: 'Ya, Hapus',
+      danger: true,
+    });
+    if (!ok) return;
     updateField(
       'attachments',
       report.attachments.filter((a) => a.id !== id)
     );
+    feedback.notify({ variant: 'success', title: 'Foto Dihapus', message: 'Foto telah dihapus dari laporan.' });
   };
 
   const categories: PMAttachment['category'][] = [
@@ -282,7 +315,7 @@ export const FindingsActionPlanSection: React.FC<FindingsActionPlanSectionProps>
                     <button
                       type="button"
                       onClick={() => removeAttachment(att.id)}
-                      className="text-red-600 hover:text-red-800 p-1 text-xs font-semibold flex items-center gap-1"
+                      className="min-h-[40px] px-2 rounded text-red-600 hover:text-red-800 hover:bg-red-50 text-xs font-semibold flex items-center gap-1 flex-shrink-0"
                       title="Hapus foto ini"
                     >
                       <Trash2 className="w-3.5 h-3.5" />

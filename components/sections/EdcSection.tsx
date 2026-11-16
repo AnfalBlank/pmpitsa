@@ -116,6 +116,7 @@ export const EdcSection: React.FC<EdcSectionProps> = ({
                     onClick={() => removeEdcItem(idx)}
                     className="min-h-[36px] px-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded text-xs font-medium flex items-center gap-1"
                     title="Hapus unit EDC ini"
+                    aria-label="Hapus unit EDC ini"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                     <span className="hidden sm:inline">Hapus Unit</span>

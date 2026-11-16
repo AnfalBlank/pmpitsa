@@ -18,6 +18,8 @@ import { UserSession, Site, MaintenancePlan, WorkType } from '@/lib/types';
 import { SAMPLE_SITES } from '@/lib/sample-data';
 import { savePlan } from '@/lib/storage';
 import { createPlanApi, deletePlanApi } from '@/lib/api-client';
+import { useFeedback } from '@/components/feedback/FeedbackProvider';
+import { can } from '@/lib/rbac';
 import { isDateInPeriod, PERIOD_OPTIONS, PeriodFilterKey } from '@/lib/date-filters';
 
 interface ScheduleModuleProps {
@@ -39,6 +41,10 @@ export const ScheduleModule: React.FC<ScheduleModuleProps> = ({
 }) => {
   const activeSites = sites && sites.length > 0 ? sites : SAMPLE_SITES;
   const technicians = (usersList || []).filter(u => u.role === 'TECHNICIAN');
+  const canCreatePlan = can(currentUser.role, 'plan.create');
+  const canDeletePlan = can(currentUser.role, 'plan.delete');
+  const canExecute = can(currentUser.role, 'pm.perform');
+  const feedback = useFeedback();
 
   const [planSearch, setPlanSearch] = useState('');
   const [planSiteFilter, setPlanSiteFilter] = useState<number | 'ALL'>('ALL');
@@ -125,22 +131,38 @@ export const ScheduleModule: React.FC<ScheduleModuleProps> = ({
       notes: newPlanNotes || 'Jadwal pemeliharaan berkala forecourt',
     };
 
+    const result = await feedback.run(() => createPlanApi(newPlan), {
+      pending: 'Menyimpan jadwal ke server...',
+      success: {
+        title: 'Jadwal PM Tersimpan',
+        message: <>Kunjungan ke <strong>{targetSite.site_name}</strong> dijadwalkan pada <strong>{newPlanDate}</strong>.</>,
+      },
+      error: { title: 'Gagal Menyimpan Jadwal', message: 'Jadwal belum tersimpan. Periksa koneksi lalu coba lagi.' },
+    });
+    if (!result.success) return;
+
     savePlan(newPlan);
-    const updated = [newPlan, ...plans];
-    onPlansUpdated(updated);
+    onPlansUpdated([newPlan, ...plans]);
     setIsNewPlanModalOpen(false);
     setNewPlanNotes('');
-
-    await createPlanApi(newPlan);
   };
 
   // Handle delete plan (Admin only)
   const handleDeletePlan = async (planId: string) => {
-    if (window.confirm('Hapus jadwal pemeliharaan ini dari database Turso?')) {
-      const updated = plans.filter(p => p.id !== planId);
-      onPlansUpdated(updated);
-      await deletePlanApi(planId);
-    }
+    const target = plans.find(p => p.id === planId);
+    const ok = await feedback.confirm({
+      title: 'Hapus Jadwal PM?',
+      message: <>Jadwal {target ? <strong>{target.site_name} ({target.scheduled_date})</strong> : 'ini'} akan dihapus permanen.</>,
+      confirmLabel: 'Ya, Hapus',
+      danger: true,
+    });
+    if (!ok) return;
+    const result = await feedback.run(() => deletePlanApi(planId), {
+      pending: 'Menghapus jadwal...',
+      success: { title: 'Jadwal Dihapus', message: 'Jadwal pemeliharaan telah dihapus.' },
+      error: { title: 'Gagal Menghapus Jadwal', message: 'Jadwal masih tersimpan di server.' },
+    });
+    if (result.success) onPlansUpdated(plans.filter(p => p.id !== planId));
   };
 
   return (
@@ -154,14 +176,16 @@ export const ScheduleModule: React.FC<ScheduleModuleProps> = ({
           </p>
         </div>
 
+        {canCreatePlan && (
         <button
           type="button"
           onClick={() => setIsNewPlanModalOpen(true)}
           className="min-h-[44px] px-4 py-2 bg-[#0B2545] hover:bg-slate-800 text-white rounded-lg text-xs sm:text-sm font-bold flex items-center justify-center gap-2 shadow-xs transition-colors self-start sm:self-auto flex-shrink-0"
         >
           <Plus className="w-4 h-4 text-slate-200" />
-          <span>+ Jadwalkan Kunjungan PM Baru</span>
+          <span>Jadwalkan Kunjungan PM Baru</span>
         </button>
+        )}
       </div>
 
       {/* Stat Cards - Uniform Restrained Palette */}
@@ -259,7 +283,7 @@ export const ScheduleModule: React.FC<ScheduleModuleProps> = ({
             </select>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="col-span-2 sm:col-span-1 flex items-center gap-2 empty:hidden">
             {isFilterActive && (
               <button
                 type="button"
@@ -316,7 +340,7 @@ export const ScheduleModule: React.FC<ScheduleModuleProps> = ({
           </h3>
           <p className="text-xs text-slate-500 max-w-md mx-auto leading-relaxed">
             {plans.length === 0
-              ? 'Gunakan tombol "+ Jadwalkan Kunjungan PM Baru" di atas untuk menambahkan agenda pemeliharaan rutin SPBU.'
+              ? (canCreatePlan ? 'Gunakan tombol "Jadwalkan Kunjungan PM Baru" di atas untuk menambahkan agenda pemeliharaan rutin SPBU.' : 'Agenda pemeliharaan akan tampil di sini setelah dijadwalkan oleh Admin IT Central.')
               : 'Silakan sesuaikan kembali kata kunci pencarian, filter SPBU, atau rentang periode tanggal jadwal di atas.'}
           </p>
           {isFilterActive && (
@@ -393,7 +417,7 @@ export const ScheduleModule: React.FC<ScheduleModuleProps> = ({
 
                   {/* Right Actions */}
                   <div className="flex items-center gap-2 flex-shrink-0 self-start lg:self-center flex-wrap">
-                    {!isCompleted && (
+                    {canExecute && !isCompleted && (
                       <button
                         type="button"
                         onClick={() => onStartExecutionFromPlan(targetSite, p.plan_type, p.terminal_id)}
@@ -404,7 +428,7 @@ export const ScheduleModule: React.FC<ScheduleModuleProps> = ({
                       </button>
                     )}
 
-                    {currentUser.role === 'ADMIN' && (
+                    {canDeletePlan && (
                       <button
                         type="button"
                         onClick={() => handleDeletePlan(p.id)}
@@ -429,7 +453,7 @@ export const ScheduleModule: React.FC<ScheduleModuleProps> = ({
         <div 
           role="dialog"
           aria-modal="true"
-          className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4 backdrop-blur-xs overflow-y-auto"
+          className="fixed inset-0 z-50 bg-black/70 flex items-start sm:items-center justify-center p-3 sm:p-4 backdrop-blur-xs overflow-y-auto"
         >
           <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full border border-slate-300 overflow-hidden my-8 animate-in fade-in-50 zoom-in-95 duration-150">
             <div className="p-4 bg-[#0B2545] text-white flex items-center justify-between">
@@ -449,7 +473,7 @@ export const ScheduleModule: React.FC<ScheduleModuleProps> = ({
             </div>
 
             <form onSubmit={handleCreatePlanSubmit} className="p-5 space-y-3.5">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Target SPBU</label>
                   <select
@@ -480,7 +504,7 @@ export const ScheduleModule: React.FC<ScheduleModuleProps> = ({
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Jenis Pekerjaan</label>
                   <select
@@ -507,7 +531,7 @@ export const ScheduleModule: React.FC<ScheduleModuleProps> = ({
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Teknisi Ditugaskan</label>
                   {technicians.length > 0 ? (

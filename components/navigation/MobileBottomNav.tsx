@@ -29,6 +29,11 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   onSelectModule,
 }) => {
   const [openTicketCount, setOpenTicketCount] = useState(0);
+  const [adminMenuOpen, setAdminMenuOpen] = useState(false);
+
+  useEffect(() => {
+    setAdminMenuOpen(false);
+  }, [currentModule]);
 
   useEffect(() => {
     try {
@@ -46,9 +51,45 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   return (
     <nav 
       aria-label="Navigasi Bawah Mobile"
-      className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#0B2545] border-t border-slate-700/90 shadow-2xl px-2 py-1.5 pb-safe"
+      className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#0B2545] border-t border-slate-700/90 shadow-2xl px-2 pt-1.5 pb-safe-1.5"
     >
-      <div className="grid grid-cols-5 gap-1 items-center max-w-lg mx-auto">
+      {adminMenuOpen && currentUser.role === 'ADMIN' && (
+        <>
+          <button
+            type="button"
+            aria-label="Tutup menu admin"
+            onClick={() => setAdminMenuOpen(false)}
+            className="fixed inset-0 -z-10 bg-black/40 cursor-default"
+          />
+          <div
+            role="menu"
+            className="absolute bottom-full right-2 mb-2 w-60 bg-white rounded-xl shadow-2xl border border-slate-200 p-1.5"
+          >
+            {([
+              { mod: 'config' as AppModule, label: 'Konfigurasi & Master Data', Icon: Settings },
+              { mod: 'users' as AppModule, label: 'Manajemen User & Akses', Icon: Users },
+            ]).map(({ mod, label, Icon }) => (
+              <button
+                key={mod}
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setAdminMenuOpen(false);
+                  onSelectModule(mod);
+                }}
+                className={`w-full min-h-[48px] px-3 rounded-lg flex items-center gap-3 text-sm font-semibold text-left transition-colors ${
+                  currentModule === mod ? 'bg-red-50 text-red-700' : 'text-slate-800 hover:bg-slate-100'
+                }`}
+              >
+                <Icon className="w-4 h-4 flex-shrink-0" />
+                <span>{label}</span>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+
+      <div className={`grid ${currentUser.role === 'SUPERVISOR' ? 'grid-cols-4' : 'grid-cols-5'} gap-1 items-center max-w-lg mx-auto`}>
         
         {/* ==================================================== */}
         {/* ADMIN MOBILE TABS */}
@@ -66,19 +107,6 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
             >
               <LayoutDashboard className="w-4 h-4" />
               <span className="text-[10px] truncate">Ikhtisar</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => onSelectModule('config')}
-              className={`min-h-[48px] py-1 px-1 rounded-lg flex flex-col items-center justify-center gap-0.5 transition-colors ${
-                currentModule === 'config'
-                  ? 'bg-[#ED1C24] text-white shadow-xs font-bold'
-                  : 'text-slate-300 hover:text-white hover:bg-slate-800'
-              }`}
-            >
-              <Settings className="w-4 h-4" />
-              <span className="text-[10px] truncate">Konfig</span>
             </button>
 
             <button
@@ -114,15 +142,31 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
 
             <button
               type="button"
-              onClick={() => onSelectModule('users')}
+              onClick={() => onSelectModule('reports')}
+              aria-current={currentModule === 'reports' ? 'page' : undefined}
               className={`min-h-[48px] py-1 px-1 rounded-lg flex flex-col items-center justify-center gap-0.5 transition-colors ${
-                currentModule === 'users'
+                currentModule === 'reports'
                   ? 'bg-[#ED1C24] text-white shadow-xs font-bold'
                   : 'text-slate-300 hover:text-white hover:bg-slate-800'
               }`}
             >
-              <Users className="w-4 h-4" />
-              <span className="text-[10px] truncate">User</span>
+              <FileText className="w-4 h-4" />
+              <span className="text-[10px] truncate">Arsip BA</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setAdminMenuOpen((v) => !v)}
+              aria-expanded={adminMenuOpen}
+              aria-haspopup="menu"
+              className={`min-h-[48px] py-1 px-1 rounded-lg flex flex-col items-center justify-center gap-0.5 transition-colors ${
+                currentModule === 'config' || currentModule === 'users' || adminMenuOpen
+                  ? 'bg-[#ED1C24] text-white shadow-xs font-bold'
+                  : 'text-slate-300 hover:text-white hover:bg-slate-800'
+              }`}
+            >
+              <Settings className="w-4 h-4" />
+              <span className="text-[10px] truncate">Admin</span>
             </button>
           </>
         )}
@@ -189,18 +233,6 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
               <span className="text-[10px] truncate">Arsip BA</span>
             </button>
 
-            <button
-              type="button"
-              onClick={() => onSelectModule('form')}
-              className={`min-h-[48px] py-1 px-1 rounded-lg flex flex-col items-center justify-center gap-0.5 transition-colors ${
-                currentModule === 'form'
-                  ? 'bg-[#ED1C24] text-white shadow-xs font-bold'
-                  : 'text-slate-300 hover:text-white hover:bg-slate-800'
-              }`}
-            >
-              <ClipboardCheck className="w-4 h-4" />
-              <span className="text-[10px] truncate">Form PM</span>
-            </button>
           </>
         )}
 

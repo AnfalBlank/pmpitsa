@@ -1,8 +1,12 @@
 import { NextResponse } from 'next/server';
+import { requireSession } from '@/lib/session';
 import { getTursoClient, initTursoDatabase } from '@/lib/turso';
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
+    const auth = requireSession(req);
+    if (auth.error) return auth.error;
+    const session = auth.session;
     await initTursoDatabase();
     const db = getTursoClient();
     const res = await db.execute('SELECT id, username, name, role, role_title, employee_id, phone, assigned_site_id, created_at FROM users ORDER BY id ASC;');
@@ -27,6 +31,9 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
+    const auth = requireSession(req, 'user.manage');
+    if (auth.error) return auth.error;
+    const session = auth.session;
     const body = await req.json();
     const { username, password, name, role, role_title, employee_id, phone, assigned_site_id } = body;
 

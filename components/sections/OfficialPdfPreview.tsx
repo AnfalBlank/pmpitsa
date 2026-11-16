@@ -2,14 +2,16 @@
 
 import React, { useState } from 'react';
 import { PMReport } from '@/lib/types';
-import { saveReportApi } from '@/lib/api-client';
+import { useFeedback } from '@/components/feedback/FeedbackProvider';
 import { Printer, Cloud, CheckCircle2, Download, ExternalLink, ArrowLeft, Building2 } from 'lucide-react';
 
 interface OfficialPdfPreviewProps {
   report: PMReport;
   onBackToForm?: () => void;
   onBackToList?: () => void;
-  onSyncToServer?: () => void;
+  onSyncToServer?: () => void | Promise<void>;
+  /** Only technicians may sync/submit Berita Acara */
+  canSync?: boolean;
 }
 
 export const OfficialPdfPreview: React.FC<OfficialPdfPreviewProps> = ({
@@ -17,39 +19,52 @@ export const OfficialPdfPreview: React.FC<OfficialPdfPreviewProps> = ({
   onBackToForm,
   onBackToList,
   onSyncToServer,
+  canSync = false,
 }) => {
+  const feedback = useFeedback();
   const [isSyncing, setIsSyncing] = useState(false);
-  const [syncSuccessMessage, setSyncSuccessMessage] = useState<string | null>(null);
 
-  const handlePrint = () => {
-    window.print();
+  const handlePrint = async () => {
+    const ok = await feedback.confirm({
+      title: 'Cetak / Simpan PDF',
+      message: 'Dialog cetak akan terbuka. Pilih printer, atau pilih "Simpan sebagai PDF" untuk menyimpan file Berita Acara ke perangkat.',
+      confirmLabel: 'Buka Dialog Cetak',
+    });
+    if (!ok) return;
+    try {
+      window.print();
+    } catch (err: any) {
+      feedback.notify({ variant: 'error', title: 'Gagal Membuka Dialog Cetak', message: 'Browser ini tidak mendukung pencetakan langsung.', detail: err?.message });
+    }
   };
 
   const handleDownloadJson = () => {
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(report, null, 2));
-    const downloadAnchor = document.createElement('a');
-    downloadAnchor.setAttribute("href", dataStr);
-    downloadAnchor.setAttribute("download", `PM_Report_${report.site_code}_${report.execution_date}_${report.id}.json`);
-    document.body.appendChild(downloadAnchor);
-    downloadAnchor.click();
-    downloadAnchor.remove();
+    const fileName = `PM_Report_${report.site_code}_${report.execution_date}_${report.id}.json`;
+    try {
+      const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.href = url;
+      downloadAnchor.download = fileName;
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      feedback.notify({
+        variant: 'success',
+        title: 'File Berhasil Diunduh',
+        message: <>File <strong className="break-all">{fileName}</strong> tersimpan di folder unduhan perangkat Anda.</>,
+      });
+    } catch (err: any) {
+      feedback.notify({ variant: 'error', title: 'Gagal Mengunduh File', message: 'File JSON tidak dapat dibuat di perangkat ini.', detail: err?.message });
+    }
   };
 
   const handleDriveSync = async () => {
+    if (!onSyncToServer) return;
     setIsSyncing(true);
-    setSyncSuccessMessage(null);
-
     try {
-      await saveReportApi(report);
-      onSyncToServer?.();
-      setSyncSuccessMessage(
-        `Berhasil disinkronisasikan ke Database Turso & Google Drive! File ID: ${report.gdrive_pdf_id || 'GDRIVE-PDF-PITL-' + Date.now().toString().slice(-6)}`
-      );
-    } catch (err: any) {
-      onSyncToServer?.();
-      setSyncSuccessMessage(
-        `Tersimpan di penyimpanan lokal perangkat. Status sync Turso: ${err.message}`
-      );
+      await onSyncToServer();
     } finally {
       setIsSyncing(false);
     }
@@ -93,11 +108,11 @@ export const OfficialPdfPreview: React.FC<OfficialPdfPreviewProps> = ({
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={handleDownloadJson}
-            className="min-h-[44px] px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded font-semibold text-xs flex items-center gap-2 border border-slate-600 transition-colors"
+            className="min-h-[44px] px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded font-semibold text-xs flex items-center justify-center gap-2 border border-slate-600 transition-colors"
             title="Download Data JSON Laporan"
           >
             <Download className="w-4 h-4 text-blue-300" />
@@ -107,36 +122,32 @@ export const OfficialPdfPreview: React.FC<OfficialPdfPreviewProps> = ({
           <button
             type="button"
             onClick={handlePrint}
-            className="min-h-[44px] px-4 py-2 bg-white hover:bg-slate-100 text-slate-900 rounded font-semibold text-xs flex items-center gap-2 shadow-xs transition-colors"
+            className="min-h-[44px] px-4 py-2 bg-white hover:bg-slate-100 text-slate-900 rounded font-semibold text-xs flex items-center justify-center gap-2 shadow-xs transition-colors"
           >
             <Printer className="w-4 h-4 text-red-600" />
             <span>Cetak / Download PDF</span>
           </button>
 
+          {canSync && onSyncToServer && (
           <button
             type="button"
             disabled={isSyncing}
             onClick={handleDriveSync}
-            className="min-h-[44px] px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-slate-600 text-white rounded font-semibold text-xs flex items-center gap-2 shadow-xs transition-colors"
+            className="col-span-2 sm:col-span-1 min-h-[44px] px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-slate-600 text-white rounded font-semibold text-xs flex items-center justify-center gap-2 shadow-xs transition-colors"
           >
             <Cloud className="w-4 h-4" />
             <span>{isSyncing ? 'Menyimpan ke Turso...' : 'Sinkron ke Turso & Drive'}</span>
           </button>
+          )}
         </div>
       </div>
 
-      {syncSuccessMessage && (
-        <div className="no-print p-3 bg-emerald-50 border border-emerald-300 rounded text-xs text-emerald-900 font-semibold flex items-center gap-2">
-          <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-          <span>{syncSuccessMessage}</span>
-        </div>
-      )}
 
       {/* Official A4-like Document Paper */}
-      <div className="bg-white border border-slate-300 rounded-lg shadow-sm p-6 sm:p-10 max-w-4xl mx-auto text-slate-900 text-xs font-sans print:border-none print:shadow-none print:p-0">
+      <div className="bg-white border border-slate-300 rounded-lg shadow-sm p-4 sm:p-10 max-w-4xl mx-auto text-slate-900 text-xs font-sans print:border-none print:shadow-none print:p-0">
         
         {/* Document Letterhead with Official Logo */}
-        <div className="border-b-2 border-slate-900 pb-4 mb-5 flex items-start justify-between gap-4">
+        <div className="border-b-2 border-slate-900 pb-4 mb-5 flex flex-col sm:flex-row sm:items-start justify-between gap-3 sm:gap-4">
           <div className="flex items-center gap-3">
             <div className="w-16 h-16 rounded bg-white flex items-center justify-center p-1 flex-shrink-0 border border-slate-300 overflow-hidden">
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -151,7 +162,7 @@ export const OfficialPdfPreview: React.FC<OfficialPdfPreviewProps> = ({
             </div>
 
             <div>
-              <div className="flex items-center gap-1.5">
+              <div className="flex flex-wrap items-center gap-x-1.5">
                 <span className="text-sm font-black tracking-wider text-red-600 uppercase">
                   PERTAMINA
                 </span>
@@ -168,7 +179,7 @@ export const OfficialPdfPreview: React.FC<OfficialPdfPreviewProps> = ({
             </div>
           </div>
 
-          <div className="text-right font-mono text-[11px] space-y-0.5">
+          <div className="sm:text-right font-mono text-[11px] space-y-0.5 break-all sm:break-normal border-t border-slate-200 pt-2 sm:border-0 sm:pt-0">
             <div className="font-bold text-slate-900">
               {docNumber}
             </div>
@@ -186,6 +197,7 @@ export const OfficialPdfPreview: React.FC<OfficialPdfPreviewProps> = ({
           <h2 className="text-xs font-black uppercase text-slate-800 bg-slate-100 px-2.5 py-1 rounded-t border border-slate-300 border-b-0">
             I. DATA UMUM & LOKASI INSPEKSI
           </h2>
+          <div className="overflow-x-auto -mx-px">
           <table className="w-full border-collapse border border-slate-300 text-[11px]">
             <tbody>
               <tr>
@@ -208,6 +220,7 @@ export const OfficialPdfPreview: React.FC<OfficialPdfPreviewProps> = ({
               </tr>
             </tbody>
           </table>
+          </div>
         </div>
 
         {/* 2. Software Versions */}
@@ -215,6 +228,7 @@ export const OfficialPdfPreview: React.FC<OfficialPdfPreviewProps> = ({
           <h2 className="text-xs font-black uppercase text-slate-800 bg-slate-100 px-2.5 py-1 rounded-t border border-slate-300 border-b-0">
             II. INVENTARIS VERSI SOFTWARE & SISTEM OPERASI
           </h2>
+          <div className="overflow-x-auto -mx-px">
           <table className="w-full border-collapse border border-slate-300 text-[11px]">
             <tbody>
               <tr>
@@ -237,6 +251,7 @@ export const OfficialPdfPreview: React.FC<OfficialPdfPreviewProps> = ({
               </tr>
             </tbody>
           </table>
+          </div>
         </div>
 
         {/* 3. Hardware, Power, & Peripherals Checklist */}
@@ -244,6 +259,7 @@ export const OfficialPdfPreview: React.FC<OfficialPdfPreviewProps> = ({
           <h2 className="text-xs font-black uppercase text-slate-800 bg-slate-100 px-2.5 py-1 rounded-t border border-slate-300 border-b-0">
             III. HASIL PEMERIKSAAN HARDWARE, FORECOURT, & KESELAMATAN [B / R / X]
           </h2>
+          <div className="overflow-x-auto -mx-px">
           <table className="w-full border-collapse border border-slate-300 text-[11px]">
             <thead>
               <tr className="bg-slate-50 text-slate-700 font-semibold text-center">
@@ -290,6 +306,7 @@ export const OfficialPdfPreview: React.FC<OfficialPdfPreviewProps> = ({
               </tr>
             </tbody>
           </table>
+          </div>
         </div>
 
         {/* 4. EDC Terminals & Forecourt Tanks */}
@@ -298,6 +315,7 @@ export const OfficialPdfPreview: React.FC<OfficialPdfPreviewProps> = ({
             <h2 className="text-xs font-black uppercase text-slate-800 bg-slate-100 px-2.5 py-1 rounded-t border border-slate-300 border-b-0">
               IV. INVENTARIS EDC & SERIAL NUMBER
             </h2>
+            <div className="overflow-x-auto -mx-px">
             <table className="w-full border-collapse border border-slate-300 text-[10px]">
               <thead>
                 <tr className="bg-slate-50 font-semibold">
@@ -319,11 +337,13 @@ export const OfficialPdfPreview: React.FC<OfficialPdfPreviewProps> = ({
               </tbody>
             </table>
           </div>
+          </div>
 
           <div>
             <h2 className="text-xs font-black uppercase text-slate-800 bg-slate-100 px-2.5 py-1 rounded-t border border-slate-300 border-b-0">
               V. ATG & TANGKI PENDAM ({report.forecourt.atg_brand})
             </h2>
+            <div className="overflow-x-auto -mx-px">
             <table className="w-full border-collapse border border-slate-300 text-[10px]">
               <thead>
                 <tr className="bg-slate-50 font-semibold">
@@ -344,6 +364,7 @@ export const OfficialPdfPreview: React.FC<OfficialPdfPreviewProps> = ({
                 ))}
               </tbody>
             </table>
+          </div>
           </div>
         </div>
 
@@ -391,7 +412,7 @@ export const OfficialPdfPreview: React.FC<OfficialPdfPreviewProps> = ({
             VIII. LEMBAR PENGESAHAN PREVENTIVE MAINTENANCE
           </h2>
 
-          <div className="grid grid-cols-2 gap-8 text-center text-[11px]">
+          <div className="grid grid-cols-2 gap-4 sm:gap-8 text-center text-[11px]">
             
             {/* Teknisi */}
             <div>

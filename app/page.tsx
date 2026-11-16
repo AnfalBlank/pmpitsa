@@ -7,7 +7,6 @@ import { TopContextBar } from '@/components/navigation/TopContextBar';
 import { MobileBottomNav } from '@/components/navigation/MobileBottomNav';
 import { SectionTabs, TabKey } from '@/components/SectionTabs';
 import { BottomBar } from '@/components/BottomBar';
-import { LoginModal } from '@/components/LoginModal';
 import { LoginPage } from '@/components/auth/LoginPage';
 
 // Modular Single Views
@@ -58,14 +57,28 @@ import {
   fetchTicketsApi, 
   fetchPlansApi, 
   fetchReportsApi,
-  fetchSitesApi 
+  fetchSitesApi,
+  fetchUsersApi,
+  logoutApi,
+  checkSessionApi,
+  SESSION_EXPIRED_EVENT,
 } from '@/lib/api-client';
+import { useFeedback } from '@/components/feedback/FeedbackProvider';
+import { can, siteScope } from '@/lib/rbac';
 import { CheckCircle2, ChevronLeft, Building2, UserCheck, ShieldAlert } from 'lucide-react';
 
+// Module access per role. Only technicians can open the PM form / activity landing.
 const ROLE_ALLOWED_MODULES: Record<UserSession['role'], AppModule[]> = {
-  ADMIN: ['overview', 'tickets', 'schedule', 'reports', 'config', 'users', 'landing', 'preview', 'form'],
-  SUPERVISOR: ['overview', 'tickets', 'schedule', 'reports', 'landing', 'preview', 'form'],
+  ADMIN: ['overview', 'tickets', 'schedule', 'reports', 'config', 'users', 'preview'],
+  SUPERVISOR: ['overview', 'tickets', 'schedule', 'reports', 'preview'],
   TECHNICIAN: ['overview', 'tickets', 'schedule', 'reports', 'landing', 'preview', 'form'],
+};
+
+const MODULE_NAMES: Partial<Record<AppModule, string>> = {
+  form: 'Formulir Pemeriksaan PM',
+  landing: 'Pemilihan Kegiatan Lapangan',
+  config: 'Konfigurasi & Master Data',
+  users: 'Manajemen Pengguna',
 };
 
 export default function Home() {
@@ -74,7 +87,7 @@ export default function Home() {
   const [currentModule, setCurrentModule] = useState<AppModule>('overview');
   const [report, setReport] = useState<PMReport>(() => getCurrentReport());
   const [activeTab, setActiveTab] = useState<TabKey>('info');
-  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const feedback = useFeedback();
   const [lastSavedText, setLastSavedText] = useState('Tersimpan di perangkat');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -160,10 +173,9 @@ export default function Home() {
 
         // Fetch users for RBAC
         try {
-          const uRes = await fetch('/api/users');
-          const uData = await uRes.json();
-          if (isMounted && uData.success && Array.isArray(uData.users)) {
-            setUsersList(uData.users);
+          const users = await fetchUsersApi();
+          if (isMounted && users) {
+            setUsersList(users);
           }
         } catch {}
       } catch (err) {
@@ -178,12 +190,77 @@ export default function Home() {
     };
   }, []);
 
+  // Force logout when the server session is missing/expired (e.g. old login before
+  // session cookies existed, or 12h shift timeout)
+  const expiredHandledRef = React.useRef(false);
+  useEffect(() => {
+    const onExpired = async () => {
+      if (expiredHandledRef.current || !getCurrentUser()) return;
+      expiredHandledRef.current = true;
+      logoutUser();
+      setUser(null);
+      await feedback.notify({
+        variant: 'warning',
+        title: 'Sesi Login Berakhir',
+        message: 'Demi keamanan, silakan login kembali untuk melanjutkan.',
+        okLabel: 'Login Ulang',
+      });
+      expiredHandledRef.current = false;
+    };
+    window.addEventListener(SESSION_EXPIRED_EVENT, onExpired);
+    return () => window.removeEventListener(SESSION_EXPIRED_EVENT, onExpired);
+  }, [feedback]);
+
+  useEffect(() => {
+    if (!currentUser) return;
+    checkSessionApi().then((ok) => {
+      if (!ok) window.dispatchEvent(new CustomEvent(SESSION_EXPIRED_EVENT));
+    });
+  }, [currentUser]);
+
+  // Block modules the role may not open (also covers direct URLs like /form)
+  useEffect(() => {
+    if (!currentUser) return;
+    const allowed = ROLE_ALLOWED_MODULES[currentUser.role] || [];
+    if (!allowed.includes(currentModule)) {
+      const name = MODULE_NAMES[currentModule] || currentModule;
+      setCurrentModule('overview');
+      window.history.replaceState(null, '', '/dashboard');
+      feedback.notify({
+        variant: 'forbidden',
+        title: 'Akses Ditolak',
+        message: `Modul "${name}" tidak tersedia untuk peran Anda.`,
+      });
+    }
+  }, [currentUser, currentModule, feedback]);
+
+  // Scroll back to top whenever the form step or module changes (important on mobile
+  // where the "Lanjut" button sits at the bottom of a long page)
+  useEffect(() => {
+    if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'auto' });
+  }, [activeTab, currentModule]);
+
   // Auto-save on report change
+  const storageErrorShownRef = React.useRef(false);
   const handleReportChange = (updated: PMReport) => {
     setReport(updated);
-    saveCurrentReport(updated);
-    const now = new Date();
-    setLastSavedText(`Tersimpan otomatis ${now.toTimeString().substring(0, 5)}`);
+    try {
+      saveCurrentReport(updated);
+      storageErrorShownRef.current = false;
+      const now = new Date();
+      setLastSavedText(`Tersimpan otomatis ${now.toTimeString().substring(0, 5)}`);
+    } catch (err: any) {
+      setLastSavedText('Gagal simpan otomatis');
+      if (!storageErrorShownRef.current) {
+        storageErrorShownRef.current = true;
+        feedback.notify({
+          variant: 'error',
+          title: 'Penyimpanan Perangkat Penuh',
+          message: 'Perubahan terakhir belum tersimpan otomatis. Kurangi jumlah/ukuran foto lalu simpan draft kembali.',
+          detail: err?.message,
+        });
+      }
+    }
   };
 
   const showToast = (msg: string) => {
@@ -193,23 +270,53 @@ export default function Home() {
     }, 3000);
   };
 
+  const requirePM = (): boolean => {
+    if (currentUser && can(currentUser.role, 'pm.perform')) return true;
+    feedback.notify({
+      variant: 'forbidden',
+      title: 'Akses Ditolak',
+      message: 'Pelaksanaan PM, pengecekan, dan perbaikan hanya dapat dilakukan oleh akun Teknisi Lapangan.',
+    });
+    return false;
+  };
+
   const handleManualSave = () => {
-    saveCurrentReport(report);
-    const now = new Date();
-    setLastSavedText(`Draft tersimpan ${now.toTimeString().substring(0, 5)}`);
-    showToast('Draft pemeriksaan berhasil disimpan ke penyimpanan lokal');
+    if (!requirePM()) return;
+    try {
+      saveCurrentReport(report);
+      const now = new Date();
+      setLastSavedText(`Draft tersimpan ${now.toTimeString().substring(0, 5)}`);
+      feedback.notify({
+        variant: 'success',
+        title: 'Draft Tersimpan',
+        message: `Draft pemeriksaan ${report.site_name} (${report.terminal_id}) tersimpan di perangkat ini pukul ${now.toTimeString().substring(0, 5)}.`,
+      });
+    } catch (err: any) {
+      feedback.notify({
+        variant: 'error',
+        title: 'Gagal Menyimpan Draft',
+        message: 'Penyimpanan perangkat penuh atau tidak tersedia. Hapus beberapa foto lalu coba lagi.',
+        detail: err?.message,
+      });
+    }
   };
 
   const handleSubmitFinal = async () => {
+    if (!requirePM()) return;
     const updated = submitReport(report);
     setReport(updated);
     setReports(prev => [updated, ...prev.filter(r => r.id !== updated.id)]);
-    try {
-      await saveReportApi(updated);
-      showToast('Laporan berhasil disahkan dan disinkronkan ke Turso & Google Drive');
-    } catch {
-      showToast('Laporan disimpan di perangkat (Mode Offline)');
-    }
+    await feedback.run(() => saveReportApi(updated), {
+      pending: 'Mengirim Berita Acara ke server...',
+      success: {
+        title: 'Berita Acara Tersimpan',
+        message: <>Laporan <strong>#{updated.id}</strong> untuk {updated.site_name} berhasil disinkronkan ke database.</>,
+      },
+      error: {
+        title: 'Gagal Sinkron ke Server',
+        message: 'Laporan sudah tersimpan di perangkat ini. Buka halaman Berita Acara lalu tekan "Sinkron" lagi saat koneksi tersedia.',
+      },
+    });
   };
 
   const handleSelectSite = (site: Site) => {
@@ -228,7 +335,6 @@ export default function Home() {
   const handleLoginSuccess = (user: UserSession, selectedSite: Site) => {
     setUser(user);
     setCurrentUser(user);
-    setIsLoginModalOpen(false);
 
     let updated = { ...report };
     if (user.role === 'TECHNICIAN') {
@@ -250,10 +356,16 @@ export default function Home() {
     window.history.pushState(null, '', '/dashboard');
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    const ok = await feedback.confirm({
+      title: 'Keluar dari Akun?',
+      message: 'Draft yang belum disinkronkan tetap tersimpan di perangkat ini.',
+      confirmLabel: 'Keluar',
+    });
+    if (!ok) return;
+    await logoutApi();
     logoutUser();
     setUser(null);
-    showToast('Berhasil keluar dari sesi portal');
     window.history.pushState(null, '', '/');
   };
 
@@ -265,6 +377,7 @@ export default function Home() {
   };
 
   const handleStartExecutionFromPlan = (site: Site, workType: WorkType, terminalId: string) => {
+    if (!requirePM()) return;
     setSelectedSiteId(site.id);
     const updated: PMReport = {
       ...report,
@@ -289,6 +402,7 @@ export default function Home() {
   };
 
   const handleStartRepairFromTicket = (ticket: SPBUTicket) => {
+    if (!requirePM()) return;
     setSelectedSiteId(ticket.site_id);
     const targetSite = sites.find(s => s.id === ticket.site_id) || sites[0] || SAMPLE_SITES[0];
     
@@ -325,6 +439,7 @@ export default function Home() {
   };
 
   const handleProceedFromLanding = () => {
+    if (!requirePM()) return;
     if (report.work_type === 'QUICK_CHECK') {
       setActiveTab('quick_check');
     } else if (report.work_type === 'CORRECTIVE_REPAIR') {
@@ -340,7 +455,11 @@ export default function Home() {
     if (!currentUser) return;
     const allowed = ROLE_ALLOWED_MODULES[currentUser.role] || [];
     if (!allowed.includes(mod)) {
-      showToast(`Akses Dibatasi: Modul ${mod.toUpperCase()} hanya dapat diakses oleh Administrator IT Central`);
+      feedback.notify({
+        variant: 'forbidden',
+        title: 'Akses Ditolak',
+        message: `Modul "${MODULE_NAMES[mod] || mod}" tidak tersedia untuk peran Anda.`,
+      });
       return;
     }
     setCurrentModule(mod);
@@ -348,7 +467,19 @@ export default function Home() {
     window.history.pushState(null, '', `/${slug}`);
   };
 
-  const currentSite: Site = sites.find((s) => s.id === report.site_id) || sites[0] || SAMPLE_SITES[0];
+  // ---- Data scoping: Supervisor only ever sees their own SPBU ----
+  const scope = siteScope(currentUser);
+  const visibleSites = scope === null ? sites : sites.filter((s) => s.id === scope);
+  const visibleTickets = scope === null ? tickets : tickets.filter((t) => t.site_id === scope);
+  const visiblePlans = scope === null ? plans : plans.filter((p) => p.site_id === scope);
+  const visibleReports = scope === null ? reports : reports.filter((r) => r.site_id === scope);
+
+  const currentSite: Site =
+    (scope !== null ? visibleSites[0] : undefined) ||
+    sites.find((s) => s.id === report.site_id) ||
+    sites[0] ||
+    SAMPLE_SITES[0];
+  const assignedSite = sites.find((s) => s.id === currentUser?.assignedSiteId);
 
   const workTypeLabels = {
     PREVENTIVE_MAINTENANCE: 'Preventive Maintenance (PM)',
@@ -388,22 +519,22 @@ export default function Home() {
         currentModule={currentModule}
         onSelectModule={handleSelectModule}
         onLogout={handleLogout}
-        onOpenLogin={() => setIsLoginModalOpen(true)}
       />
 
       {/* 2. Mobile Top Bar */}
       <MobileTopBar
         currentUser={currentUser}
+        currentSite={assignedSite}
         onSelectModule={handleSelectModule}
         onLogout={handleLogout}
-        onOpenLogin={() => setIsLoginModalOpen(true)}
       />
 
       {/* 3. Main Workspace Container (offset by sidebar on desktop, padded bottom for mobile nav) */}
-      <div className="flex-1 min-w-0 flex flex-col lg:pl-64 xl:pl-72 pb-24 lg:pb-8">
+      <div className="flex-1 min-w-0 flex flex-col lg:pl-64 xl:pl-72 pb-28 lg:pb-8">
         
         {/* Desktop Top Context Bar */}
         <TopContextBar
+          currentSite={assignedSite}
           currentModule={currentModule}
           currentUser={currentUser}
           onLogout={handleLogout}
@@ -413,16 +544,27 @@ export default function Home() {
         {/* PURE SINGLE MODULE VIEW ROUTER (NO NESTED DUPLICATE TABS) */}
         {/* ========================================================= */}
         <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 w-full flex-1">
+
+          {scope !== null && ['overview', 'tickets', 'schedule', 'reports'].includes(currentModule) && (
+            <div className="mb-4 flex items-start gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3.5 py-2.5 text-xs text-blue-950">
+              <Building2 className="w-4 h-4 text-blue-700 flex-shrink-0 mt-0.5" />
+              <span>
+                Mode Pengawas: data yang ditampilkan hanya untuk{' '}
+                <strong>{assignedSite ? `${assignedSite.site_code} · ${assignedSite.site_name}` : `SPBU #${currentUser.assignedSiteId}`}</strong>.
+                Anda dapat melihat data dan membuat tiket kendala untuk SPBU ini.
+              </span>
+            </div>
+          )}
           
           {/* MODUL 1: IKHTISAR & STATUS SPBU */}
           {currentModule === 'overview' && (
             <OverviewModule
               currentUser={currentUser}
               currentSite={currentSite}
-              sites={sites}
-              tickets={tickets}
-              plans={plans}
-              reports={reports}
+              sites={visibleSites}
+              tickets={visibleTickets}
+              plans={visiblePlans}
+              reports={visibleReports}
               onStartExecution={handleStartExecutionFromPlan}
               onOpenCreateTicket={() => handleSelectModule('tickets')}
               onOpenCreatePlan={() => handleSelectModule('schedule')}
@@ -435,8 +577,8 @@ export default function Home() {
           {currentModule === 'tickets' && (
             <TicketsModule
               currentUser={currentUser}
-              tickets={tickets}
-              sites={sites}
+              tickets={visibleTickets}
+              sites={visibleSites}
               usersList={usersList}
               onTicketsUpdated={(updated) => setTickets(updated)}
               onStartRepairFromTicket={handleStartRepairFromTicket}
@@ -447,8 +589,8 @@ export default function Home() {
           {currentModule === 'schedule' && (
             <ScheduleModule
               currentUser={currentUser}
-              plans={plans}
-              sites={sites}
+              plans={visiblePlans}
+              sites={visibleSites}
               usersList={usersList}
               onPlansUpdated={(updated) => setPlans(updated)}
               onStartExecutionFromPlan={handleStartExecutionFromPlan}
@@ -459,8 +601,8 @@ export default function Home() {
           {currentModule === 'reports' && (
             <ReportsModule
               currentUser={currentUser}
-              reports={reports}
-              sites={sites}
+              reports={visibleReports}
+              sites={visibleSites}
               onReportsUpdated={(updated) => setReports(updated)}
               onOpenReportPdf={handleSelectPastReport}
             />
@@ -528,7 +670,8 @@ export default function Home() {
           {currentModule === 'preview' && (
             <OfficialPdfPreview
               report={report}
-              onBackToForm={() => setCurrentModule('form')}
+              canSync={can(currentUser.role, 'pm.perform')}
+              onBackToForm={can(currentUser.role, 'pm.perform') ? () => setCurrentModule('form') : undefined}
               onBackToList={() => {
                 setCurrentModule('reports');
                 window.history.pushState(null, '', '/reports');
@@ -545,21 +688,22 @@ export default function Home() {
               <div className="bg-white border border-slate-200 rounded-xl shadow-2xs px-4 sm:px-5 py-3">
                 <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
                   
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 min-w-0 w-full sm:w-auto">
                     <button
                       type="button"
                       onClick={() => setCurrentModule('overview')}
-                      className="min-h-[38px] px-3 py-1.5 rounded-lg border border-slate-300 bg-slate-50 hover:bg-slate-100 text-slate-800 font-bold flex items-center gap-1.5 transition-colors shadow-2xs"
+                      className="min-h-[44px] flex-shrink-0 px-3 py-1.5 rounded-lg border border-slate-300 bg-slate-50 hover:bg-slate-100 text-slate-800 font-bold flex items-center gap-1.5 transition-colors shadow-2xs"
                     >
                       <ChevronLeft className="w-4 h-4 text-slate-600" />
-                      <span>Kembali ke Ikhtisar</span>
+                      <span className="hidden sm:inline">Kembali ke Ikhtisar</span>
+                      <span className="sm:hidden">Kembali</span>
                     </button>
 
-                    <div className="flex items-center gap-1.5 bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200 text-slate-800">
-                      <span className="font-bold text-red-600 uppercase text-[10px] tracking-wider">
+                    <div className="flex items-center gap-1.5 bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200 text-slate-800 min-w-0">
+                      <span className="font-bold text-red-600 uppercase text-[10px] tracking-wider hidden sm:inline">
                         Modul:
                       </span>
-                      <span className="font-bold text-slate-900">
+                      <span className="font-bold text-slate-900 truncate">
                         {workTypeLabels[report.work_type]}
                       </span>
                     </div>
@@ -657,20 +801,13 @@ export default function Home() {
         onLogout={handleLogout}
       />
 
-      {/* Login Modal */}
-      <LoginModal
-        isOpen={isLoginModalOpen}
-        onClose={() => setIsLoginModalOpen(false)}
-        onLoginSuccess={handleLoginSuccess}
-        currentUser={currentUser}
-      />
 
       {/* Feedback Toast */}
       {toastMessage && (
         <div
           role="status"
           aria-live="polite"
-          className="fixed top-20 right-4 z-50 bg-[#0B2545] text-white text-xs font-semibold px-4 py-3 rounded-lg shadow-xl border border-slate-700 flex items-center gap-2 max-w-sm transition-all animate-in fade-in-50"
+          className="fixed top-20 left-4 right-4 sm:left-auto z-50 bg-[#0B2545] text-white text-xs font-semibold px-4 py-3 rounded-lg shadow-xl border border-slate-700 flex items-center gap-2 max-w-sm transition-all animate-in fade-in-50"
         >
           <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
           <span>{toastMessage}</span>

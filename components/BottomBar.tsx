@@ -63,7 +63,7 @@ export const BottomBar: React.FC<BottomBarProps> = ({
 
   return (
     <>
-      <footer className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-300 shadow-lg px-3 py-2 sm:px-6 lg:pl-64 xl:pl-72">
+      <footer className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-300 shadow-lg px-3 pt-2 pb-safe-2 sm:px-6 lg:pl-64 xl:pl-72">
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-2">
           
           {/* Previous / Back to Initiation Button */}
@@ -72,6 +72,7 @@ export const BottomBar: React.FC<BottomBarProps> = ({
             onClick={handlePrev}
             className="min-h-[44px] min-w-[44px] px-3 py-2 rounded-md border border-slate-300 text-slate-700 bg-white hover:bg-slate-100 text-xs font-semibold flex items-center gap-1 transition-colors"
             title={hasPrev ? "Langkah Sebelumnya" : "Kembali ke Pemilihan Kegiatan"}
+            aria-label={hasPrev ? "Langkah Sebelumnya" : "Kembali ke Pemilihan Kegiatan"}
           >
             <ChevronLeft className="w-4 h-4" />
             <span className="hidden sm:inline">{hasPrev ? 'Sebelumnya' : 'Halaman Depan'}</span>
@@ -85,11 +86,15 @@ export const BottomBar: React.FC<BottomBarProps> = ({
               className="min-h-[44px] px-3 sm:px-4 py-2 rounded-md border border-slate-300 bg-slate-50 hover:bg-slate-100 text-slate-800 text-xs font-bold flex items-center gap-1.5 transition-colors shadow-2xs"
             >
               <Save className="w-4 h-4 text-blue-700" />
-              <span>Simpan Draft</span>
+              <span className="hidden min-[380px]:inline">Simpan Draft</span>
+              <span className="min-[380px]:hidden">Simpan</span>
             </button>
 
             <span className="text-xs font-mono font-bold text-slate-500 hidden md:inline">
               Langkah {currentIndex >= 0 ? currentIndex + 1 : 1} dari {tabOrder.length}
+            </span>
+            <span className="text-[11px] font-mono font-bold text-slate-500 md:hidden" aria-label={`Langkah ${currentIndex + 1} dari ${tabOrder.length}`}>
+              {currentIndex >= 0 ? currentIndex + 1 : 1}/{tabOrder.length}
             </span>
           </div>
 
@@ -111,7 +116,8 @@ export const BottomBar: React.FC<BottomBarProps> = ({
                 className="min-h-[44px] px-4 py-2 rounded-md bg-red-600 hover:bg-red-700 text-white text-xs font-bold flex items-center gap-1.5 transition-colors shadow-sm"
               >
                 <CheckCircle className="w-4 h-4" />
-                <span>Finalisasi Laporan</span>
+                <span className="hidden min-[380px]:inline">Finalisasi Laporan</span>
+                <span className="min-[380px]:hidden">Finalisasi</span>
               </button>
             )}
           </div>
@@ -124,7 +130,7 @@ export const BottomBar: React.FC<BottomBarProps> = ({
         <div
           role="dialog"
           aria-modal="true"
-          className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4 backdrop-blur-xs"
+          className="fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center p-3 sm:p-4 backdrop-blur-xs overflow-y-auto"
         >
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full border border-slate-300 overflow-hidden">
             <div className="p-4 bg-[#0B2545] text-white">
@@ -136,7 +142,7 @@ export const BottomBar: React.FC<BottomBarProps> = ({
 
             <div className="p-4 space-y-3 text-xs text-slate-700">
               <div className="bg-slate-50 p-3 rounded border border-slate-200 space-y-1">
-                <div className="flex justify-between">
+                <div className="flex justify-between gap-3">
                   <span className="font-semibold text-slate-500">Jenis Kegiatan:</span>
                   <span className="font-bold text-red-700">
                     {report.work_type === 'PREVENTIVE_MAINTENANCE' 
@@ -146,21 +152,21 @@ export const BottomBar: React.FC<BottomBarProps> = ({
                       : 'Perbaikan (Corrective Repair)'}
                   </span>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex justify-between gap-3">
                   <span className="font-semibold text-slate-500">Site SPBU:</span>
-                  <span className="font-bold text-slate-900">{report.site_name}</span>
+                  <span className="font-bold text-slate-900 text-right">{report.site_name}</span>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex justify-between gap-3">
                   <span className="font-semibold text-slate-500">Terminal POS:</span>
                   <span className="font-mono font-bold text-blue-900">{report.terminal_id}</span>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex justify-between gap-3">
                   <span className="font-semibold text-slate-500">PWS Bertugas:</span>
                   <span className="font-bold text-slate-900">{report.supervisor_name}</span>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex justify-between gap-3">
                   <span className="font-semibold text-slate-500">Teknisi:</span>
-                  <span className="font-bold text-slate-900">{report.technician_name}</span>
+                  <span className="font-bold text-slate-900 text-right">{report.technician_name}</span>
                 </div>
               </div>
 

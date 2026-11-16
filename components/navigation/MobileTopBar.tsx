@@ -1,23 +1,24 @@
 'use client';
 
 import React from 'react';
-import { LogOut, User } from 'lucide-react';
+import { LogOut } from 'lucide-react';
 import { UserSession, Site } from '@/lib/types';
 import { AppModule } from './AppSidebar';
+import { ProfileMenu } from './ProfileMenu';
 
 interface MobileTopBarProps {
   currentUser: UserSession;
   currentSite?: Site;
   onSelectModule?: (module: AppModule) => void;
   onLogout: () => void;
-  onOpenLogin: () => void;
+  onOpenLogin?: () => void;
 }
 
 export const MobileTopBar: React.FC<MobileTopBarProps> = ({
   currentUser,
+  currentSite,
   onSelectModule,
   onLogout,
-  onOpenLogin,
 }) => {
   return (
     <header className="lg:hidden sticky top-0 z-30 h-16 bg-white border-b border-slate-200 shadow-2xs px-3 sm:px-4 flex items-center justify-between select-none">
@@ -47,19 +48,7 @@ export const MobileTopBar: React.FC<MobileTopBarProps> = ({
 
       {/* User Profile & Logout Actions */}
       <div className="flex items-center gap-2 flex-shrink-0">
-        <button
-          type="button"
-          onClick={onOpenLogin}
-          className="min-h-[40px] px-2.5 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-800 rounded-lg text-xs font-semibold flex items-center gap-2 border border-slate-200 transition-colors shadow-2xs"
-          title={`Profil: ${currentUser.name} (${currentUser.role})`}
-        >
-          <div className="w-6 h-6 rounded-full bg-[#0B2545] text-white font-black text-[11px] flex items-center justify-center shadow-xs flex-shrink-0">
-            {currentUser.name.charAt(0)}
-          </div>
-          <span className="font-bold text-slate-800 max-w-[70px] sm:max-w-[110px] truncate text-left hidden xs:inline sm:inline">
-            {currentUser.name.split(' ')[0]}
-          </span>
-        </button>
+        <ProfileMenu currentUser={currentUser} assignedSite={currentSite} onLogout={onLogout} compact />
 
         <button
           type="button"

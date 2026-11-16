@@ -1,9 +1,15 @@
 import { NextResponse } from 'next/server';
+import { requireSession, forbidden } from '@/lib/session';
+import { siteScope } from '@/lib/rbac';
 import { getTursoClient, initTursoDatabase } from '@/lib/turso';
 import { PMReport } from '@/lib/types';
 
 export async function GET(req: Request) {
   try {
+    const auth = requireSession(req);
+    if (auth.error) return auth.error;
+    const session = auth.session;
+    const scope = siteScope(session);
     await initTursoDatabase();
     const db = getTursoClient();
 
@@ -22,6 +28,9 @@ export async function GET(req: Request) {
       }
 
       const row = res.rows[0];
+      if (scope !== null && Number(row.site_id) !== scope) {
+        return forbidden('Akses ditolak: Berita Acara ini bukan milik SPBU Anda.');
+      }
       const parsedData: PMReport = JSON.parse(String(row.report_data));
       return NextResponse.json({ success: true, report: parsedData });
     }
@@ -29,7 +38,11 @@ export async function GET(req: Request) {
     let query = 'SELECT * FROM pm_reports WHERE 1=1';
     const args: any[] = [];
 
-    if (siteId && siteId !== 'ALL') {
+    if (scope !== null) {
+      // Supervisor: always restricted to own SPBU regardless of query params
+      query += ' AND site_id = ?';
+      args.push(scope);
+    } else if (siteId && siteId !== 'ALL') {
       query += ' AND site_id = ?';
       args.push(Number(siteId));
     }
@@ -73,6 +86,9 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
+    const auth = requireSession(req, 'report.sync');
+    if (auth.error) return auth.error;
+    const session = auth.session;
     await initTursoDatabase();
     const db = getTursoClient();
 
@@ -163,6 +179,9 @@ export async function POST(req: Request) {
 
 export async function DELETE(req: Request) {
   try {
+    const auth = requireSession(req, 'report.delete');
+    if (auth.error) return auth.error;
+    const session = auth.session;
     await initTursoDatabase();
     const db = getTursoClient();
 

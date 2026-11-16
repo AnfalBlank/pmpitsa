@@ -20,6 +20,8 @@ import {
 } from 'lucide-react';
 import { UserSession, Site, PMReport } from '@/lib/types';
 import { SAMPLE_SITES } from '@/lib/sample-data';
+import { useFeedback } from '@/components/feedback/FeedbackProvider';
+import { can } from '@/lib/rbac';
 import { deleteReportApi } from '@/lib/api-client';
 import { isDateInPeriod, PERIOD_OPTIONS, PeriodFilterKey } from '@/lib/date-filters';
 
@@ -98,12 +100,23 @@ export const ReportsModule: React.FC<ReportsModuleProps> = ({
   const quickCount = reports.filter(r => r.work_type === 'QUICK_CHECK').length;
   const repairCount = reports.filter(r => r.work_type === 'CORRECTIVE_REPAIR').length;
 
+  const feedback = useFeedback();
+  const canDeleteReport = can(currentUser.role, 'report.delete');
+
   const handleDeleteReport = async (reportId: string) => {
-    if (window.confirm(`Hapus Berita Acara #${reportId} dari database Turso?`)) {
-      const updated = reports.filter(r => r.id !== reportId);
-      onReportsUpdated(updated);
-      await deleteReportApi(reportId);
-    }
+    const ok = await feedback.confirm({
+      title: 'Hapus Berita Acara?',
+      message: <>Berita Acara <strong>#{reportId}</strong> akan dihapus permanen dari database dan arsip.</>,
+      confirmLabel: 'Ya, Hapus',
+      danger: true,
+    });
+    if (!ok) return;
+    const result = await feedback.run(() => deleteReportApi(reportId), {
+      pending: 'Menghapus Berita Acara...',
+      success: { title: 'Berita Acara Dihapus', message: `Dokumen #${reportId} telah dihapus dari arsip.` },
+      error: { title: 'Gagal Menghapus Berita Acara', message: 'Dokumen masih tersimpan di server.' },
+    });
+    if (result.success) onReportsUpdated(reports.filter(r => r.id !== reportId));
   };
 
   return (
@@ -132,10 +145,10 @@ export const ReportsModule: React.FC<ReportsModuleProps> = ({
             <ShieldCheck className="w-6 h-6 text-amber-700 flex-shrink-0" />
             <div>
               <h2 className="text-base font-extrabold text-amber-950">
-                Berita Acara Menunggu Pengesahan Anda ({pendingSignOffReports.length})
+                Berita Acara Belum Ditandatangani Pengawas ({pendingSignOffReports.length})
               </h2>
               <p className="text-xs text-amber-800">
-                Laporan pemeriksaan teknisi telah diserahkan. Lakukan verifikasi hasil temuan checklist dan sahkan secara digital.
+                Tanda tangan pengawas dibubuhkan langsung pada perangkat teknisi saat serah terima. Tinjau hasil checklist di bawah.
               </p>
             </div>
           </div>
@@ -162,7 +175,7 @@ export const ReportsModule: React.FC<ReportsModuleProps> = ({
                   className="min-h-[44px] px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-bold text-xs flex items-center justify-center gap-2 shadow-xs transition-colors flex-shrink-0"
                 >
                   <ShieldCheck className="w-4 h-4" />
-                  <span>Review & Sahkan Berita Acara</span>
+                  <span>Tinjau Berita Acara</span>
                 </button>
               </div>
             ))}
@@ -282,7 +295,7 @@ export const ReportsModule: React.FC<ReportsModuleProps> = ({
             </select>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="col-span-2 sm:col-span-1 flex items-center gap-2 empty:hidden">
             {isFilterActive && (
               <button
                 type="button"
@@ -433,7 +446,7 @@ export const ReportsModule: React.FC<ReportsModuleProps> = ({
                       <span>Tinjau Berita Acara</span>
                     </button>
 
-                    {currentUser.role === 'ADMIN' && (
+                    {canDeleteReport && (
                       <button
                         type="button"
                         onClick={() => handleDeleteReport(r.id)}

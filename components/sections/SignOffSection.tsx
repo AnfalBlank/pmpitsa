@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useEffect, useCallback } from 'react';
 import { PMReport } from '@/lib/types';
 import { PenTool, RotateCcw, CheckCircle2, ShieldCheck, UserCheck, AlertTriangle } from 'lucide-react';
 
@@ -13,159 +13,19 @@ export const SignOffSection: React.FC<SignOffSectionProps> = ({
   report,
   onChange,
 }) => {
-  const techCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  const spvCanvasRef = useRef<HTMLCanvasElement | null>(null);
-
-  const [isDrawingTech, setIsDrawingTech] = useState(false);
-  const [isDrawingSpv, setIsDrawingSpv] = useState(false);
-
-  // Helper to init canvas
-  const setupCanvas = (canvas: HTMLCanvasElement | null) => {
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    ctx.lineWidth = 2.5;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    ctx.strokeStyle = '#0B2545';
-  };
-
-  useEffect(() => {
-    setupCanvas(techCanvasRef.current);
-    setupCanvas(spvCanvasRef.current);
-  }, []);
-
-  const getCanvasCoordinates = (
-    canvas: HTMLCanvasElement,
-    e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>
-  ) => {
-    const rect = canvas.getBoundingClientRect();
-    if ('touches' in e) {
-      const touch = e.touches[0];
-      return {
-        x: touch.clientX - rect.left,
-        y: touch.clientY - rect.top,
-      };
-    } else {
-      return {
-        x: e.clientX - rect.left,
-        y: e.clientY - rect.top,
-      };
-    }
-  };
-
-  // Technician drawing handlers
-  const startTechDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
-    const canvas = techCanvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    const { x, y } = getCanvasCoordinates(canvas, e);
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-    setIsDrawingTech(true);
-  };
-
-  const drawTech = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
-    if (!isDrawingTech) return;
-    const canvas = techCanvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    const { x, y } = getCanvasCoordinates(canvas, e);
-    ctx.lineTo(x, y);
-    ctx.stroke();
-  };
-
-  const endTechDrawing = () => {
-    if (!isDrawingTech) return;
-    setIsDrawingTech(false);
-    const canvas = techCanvasRef.current;
-    if (!canvas) return;
-
-    const dataUrl = canvas.toDataURL('image/png');
+  const stamp = () => {
     const now = new Date();
-    const timeStr = `${now.toISOString().split('T')[0]} ${now.toTimeString().substring(0, 5)}`;
-
-    onChange({
-      ...report,
-      technician_signature: dataUrl,
-      technician_signed_at: timeStr,
-    });
+    return `${now.toISOString().split('T')[0]} ${now.toTimeString().substring(0, 5)}`;
   };
 
-  const clearTechSignature = () => {
-    const canvas = techCanvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    onChange({
-      ...report,
-      technician_signature: undefined,
-      technician_signed_at: undefined,
-    });
-  };
-
-  // Supervisor drawing handlers
-  const startSpvDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
-    const canvas = spvCanvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    ctx.strokeStyle = '#ED1C24';
-    const { x, y } = getCanvasCoordinates(canvas, e);
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-    setIsDrawingSpv(true);
-  };
-
-  const drawSpv = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
-    if (!isDrawingSpv) return;
-    const canvas = spvCanvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    const { x, y } = getCanvasCoordinates(canvas, e);
-    ctx.lineTo(x, y);
-    ctx.stroke();
-  };
-
-  const endSpvDrawing = () => {
-    if (!isDrawingSpv) return;
-    setIsDrawingSpv(false);
-    const canvas = spvCanvasRef.current;
-    if (!canvas) return;
-
-    const dataUrl = canvas.toDataURL('image/png');
-    const now = new Date();
-    const timeStr = `${now.toISOString().split('T')[0]} ${now.toTimeString().substring(0, 5)}`;
-
-    onChange({
-      ...report,
-      supervisor_signature: dataUrl,
-      supervisor_signed_at: timeStr,
-    });
-  };
-
-  const clearSpvSignature = () => {
-    const canvas = spvCanvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    onChange({
-      ...report,
-      supervisor_signature: undefined,
-      supervisor_signed_at: undefined,
-    });
-  };
+  const saveTechSignature = (dataUrl: string) =>
+    onChange({ ...report, technician_signature: dataUrl, technician_signed_at: stamp() });
+  const clearTechSignature = () =>
+    onChange({ ...report, technician_signature: undefined, technician_signed_at: undefined });
+  const saveSpvSignature = (dataUrl: string) =>
+    onChange({ ...report, supervisor_signature: dataUrl, supervisor_signed_at: stamp() });
+  const clearSpvSignature = () =>
+    onChange({ ...report, supervisor_signature: undefined, supervisor_signed_at: undefined });
 
   const hasBothSignatures = !!report.technician_signature && !!report.supervisor_signature;
 
@@ -216,27 +76,11 @@ export const SignOffSection: React.FC<SignOffSectionProps> = ({
               </p>
 
               {/* Canvas Box */}
-              <div className="relative border-2 border-dashed border-slate-300 rounded bg-white overflow-hidden touch-none">
-                <canvas
-                  ref={techCanvasRef}
-                  width={340}
-                  height={150}
-                  onMouseDown={startTechDrawing}
-                  onMouseMove={drawTech}
-                  onMouseUp={endTechDrawing}
-                  onMouseLeave={endTechDrawing}
-                  onTouchStart={startTechDrawing}
-                  onTouchMove={drawTech}
-                  onTouchEnd={endTechDrawing}
-                  className="w-full h-[150px] cursor-crosshair block"
-                />
-                
-                {/* Baseline Guide */}
-                <div className="absolute bottom-6 left-6 right-6 border-b border-slate-200 pointer-events-none" />
-                <span className="absolute bottom-1 right-2 text-[10px] text-slate-400 pointer-events-none">
-                  Area Tanda Tangan
-                </span>
-              </div>
+              <SignaturePad
+                value={report.technician_signature}
+                color="#0B2545"
+                onSave={saveTechSignature}
+              />
             </div>
 
             <div className="mt-3 pt-2 border-t border-slate-200 flex items-center justify-between">
@@ -247,7 +91,7 @@ export const SignOffSection: React.FC<SignOffSectionProps> = ({
               <button
                 type="button"
                 onClick={clearTechSignature}
-                className="min-h-[36px] px-2.5 py-1 text-slate-600 hover:text-slate-900 hover:bg-slate-200 rounded text-xs font-semibold flex items-center gap-1 transition-colors"
+                className="min-h-[44px] px-3 py-1 text-slate-600 hover:text-slate-900 hover:bg-slate-200 rounded text-xs font-semibold flex items-center gap-1 transition-colors"
               >
                 <RotateCcw className="w-3 h-3" />
                 <span>Ulangi</span>
@@ -285,27 +129,11 @@ export const SignOffSection: React.FC<SignOffSectionProps> = ({
               </p>
 
               {/* Canvas Box */}
-              <div className="relative border-2 border-dashed border-slate-300 rounded bg-white overflow-hidden touch-none">
-                <canvas
-                  ref={spvCanvasRef}
-                  width={340}
-                  height={150}
-                  onMouseDown={startSpvDrawing}
-                  onMouseMove={drawSpv}
-                  onMouseUp={endSpvDrawing}
-                  onMouseLeave={endSpvDrawing}
-                  onTouchStart={startSpvDrawing}
-                  onTouchMove={drawSpv}
-                  onTouchEnd={endSpvDrawing}
-                  className="w-full h-[150px] cursor-crosshair block"
-                />
-                
-                {/* Baseline Guide */}
-                <div className="absolute bottom-6 left-6 right-6 border-b border-slate-200 pointer-events-none" />
-                <span className="absolute bottom-1 right-2 text-[10px] text-slate-400 pointer-events-none">
-                  Area Tanda Tangan
-                </span>
-              </div>
+              <SignaturePad
+                value={report.supervisor_signature}
+                color="#ED1C24"
+                onSave={saveSpvSignature}
+              />
             </div>
 
             <div className="mt-3 pt-2 border-t border-slate-200 flex items-center justify-between">
@@ -316,7 +144,7 @@ export const SignOffSection: React.FC<SignOffSectionProps> = ({
               <button
                 type="button"
                 onClick={clearSpvSignature}
-                className="min-h-[36px] px-2.5 py-1 text-slate-600 hover:text-slate-900 hover:bg-slate-200 rounded text-xs font-semibold flex items-center gap-1 transition-colors"
+                className="min-h-[44px] px-3 py-1 text-slate-600 hover:text-slate-900 hover:bg-slate-200 rounded text-xs font-semibold flex items-center gap-1 transition-colors"
               >
                 <RotateCcw className="w-3 h-3" />
                 <span>Ulangi</span>
@@ -356,3 +184,134 @@ export const SignOffSection: React.FC<SignOffSectionProps> = ({
   );
 };
 
+
+interface SignaturePadProps {
+  value?: string;
+  color: string;
+  onSave: (dataUrl: string) => void;
+}
+
+/**
+ * Touch-friendly signature pad.
+ * - Uses Pointer Events (finger, stylus, mouse) with pointer capture.
+ * - Backing store is scaled to the rendered size x devicePixelRatio so strokes
+ *   follow the finger exactly and stay sharp on high-DPI phones.
+ * - Re-draws a previously saved signature (value) and after resize/rotation.
+ */
+const SignaturePad: React.FC<SignaturePadProps> = ({ value, color, onSave }) => {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const drawingRef = useRef(false);
+  const hasStrokeRef = useRef(false);
+  const lastValueRef = useRef<string | undefined>(undefined);
+
+  const paint = useCallback((dataUrl?: string) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    if (rect.width === 0) return;
+    canvas.width = Math.round(rect.width * dpr);
+    canvas.height = Math.round(rect.height * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = color;
+    if (dataUrl) {
+      const img = new Image();
+      img.onload = () => {
+        // Fit saved image into the current box, preserving aspect ratio
+        const scale = Math.min(rect.width / img.width, rect.height / img.height);
+        const w = img.width * scale;
+        const h = img.height * scale;
+        ctx.drawImage(img, (rect.width - w) / 2, (rect.height - h) / 2, w, h);
+      };
+      img.src = dataUrl;
+    }
+  }, [color]);
+
+  // Initial paint + repaint when value changes externally (e.g. "Ulangi" clears it)
+  useEffect(() => {
+    if (value === lastValueRef.current) return;
+    lastValueRef.current = value;
+    paint(value);
+  }, [value, paint]);
+
+  // Repaint on resize / orientation change
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || typeof ResizeObserver === 'undefined') return;
+    let prevWidth = canvas.getBoundingClientRect().width;
+    const ro = new ResizeObserver((entries) => {
+      const w = entries[0]?.contentRect.width ?? 0;
+      if (Math.abs(w - prevWidth) < 1) return;
+      prevWidth = w;
+      paint(lastValueRef.current);
+    });
+    ro.observe(canvas);
+    return () => ro.disconnect();
+  }, [paint]);
+
+  const point = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  };
+
+  const handleDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const ctx = e.currentTarget.getContext('2d');
+    if (!ctx) return;
+    e.preventDefault();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    const { x, y } = point(e);
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    // Draw a dot for single taps
+    ctx.lineTo(x + 0.01, y + 0.01);
+    ctx.stroke();
+    drawingRef.current = true;
+    hasStrokeRef.current = true;
+  };
+
+  const handleMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!drawingRef.current) return;
+    const ctx = e.currentTarget.getContext('2d');
+    if (!ctx) return;
+    e.preventDefault();
+    const { x, y } = point(e);
+    ctx.lineTo(x, y);
+    ctx.stroke();
+  };
+
+  const handleUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!drawingRef.current) return;
+    drawingRef.current = false;
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
+    if (!hasStrokeRef.current) return;
+    const dataUrl = e.currentTarget.toDataURL('image/png');
+    lastValueRef.current = dataUrl;
+    onSave(dataUrl);
+  };
+
+  return (
+    <div className="relative border-2 border-dashed border-slate-300 rounded bg-white overflow-hidden touch-none select-none">
+      <canvas
+        ref={canvasRef}
+        onPointerDown={handleDown}
+        onPointerMove={handleMove}
+        onPointerUp={handleUp}
+        onPointerCancel={handleUp}
+        className="w-full h-[180px] sm:h-[150px] cursor-crosshair block touch-none"
+        aria-label="Area tanda tangan digital"
+        role="img"
+      />
+      <div className="absolute bottom-6 left-6 right-6 border-b border-slate-200 pointer-events-none" />
+      <span className="absolute bottom-1 right-2 text-[10px] text-slate-400 pointer-events-none">
+        Area Tanda Tangan
+      </span>
+    </div>
+  );
+};

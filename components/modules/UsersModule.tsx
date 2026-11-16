@@ -15,6 +15,8 @@ import {
 } from 'lucide-react';
 import { UserSession, Site } from '@/lib/types';
 import { SAMPLE_SITES } from '@/lib/sample-data';
+import { useFeedback } from '@/components/feedback/FeedbackProvider';
+import { createUserApi, fetchUsersApi } from '@/lib/api-client';
 
 interface UsersModuleProps {
   currentUser: UserSession;
@@ -59,15 +61,16 @@ export const UsersModule: React.FC<UsersModuleProps> = ({
   const spvCount = usersList.filter(u => u.role === 'SUPERVISOR').length;
   const techCount = usersList.filter(u => u.role === 'TECHNICIAN').length;
 
+  const feedback = useFeedback();
+
   const handleCreateUserSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newUsername.trim() || !newFullName.trim()) return;
+    if (!newUsername.trim() || !newFullName.trim() || !newPassword) {
+      feedback.notify({ variant: 'warning', title: 'Data Belum Lengkap', message: 'Username, nama lengkap, dan password wajib diisi.' });
+      return;
+    }
 
-    try {
-      const res = await fetch('/api/users', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+    const payload = {
           username: newUsername.trim(),
           password: newPassword,
           name: newFullName.trim(),
@@ -76,25 +79,23 @@ export const UsersModule: React.FC<UsersModuleProps> = ({
           employee_id: `USR-${Date.now().toString().slice(-4)}`,
           phone: newUserPhone.trim() || '-',
           assigned_site_id: newUserRole === 'SUPERVISOR' ? newUserSiteId : 1,
-        }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        setIsNewUserModalOpen(false);
-        setNewUsername('');
-        setNewFullName('');
-        setNewUserPhone('');
-        const uRes = await fetch('/api/users');
-        const uData = await uRes.json();
-        if (uData.success && Array.isArray(uData.users)) {
-          onUsersUpdated(uData.users);
-        }
-      } else {
-        alert(data.message || 'Gagal menambahkan user');
-      }
-    } catch (err: any) {
-      alert('Gagal membuat user baru: ' + err.message);
-    }
+        };
+    const result = await feedback.run(() => createUserApi(payload), {
+      pending: 'Membuat akun pengguna...',
+      success: {
+        title: 'Akun Berhasil Dibuat',
+        message: <>Akun <strong>{payload.name}</strong> ({payload.username}) dapat langsung digunakan untuk login.</>,
+      },
+      error: { title: 'Gagal Membuat Akun', message: 'Akun belum tersimpan. Periksa data lalu coba lagi.' },
+    });
+    if (!result.success) return;
+
+    setIsNewUserModalOpen(false);
+    setNewUsername('');
+    setNewFullName('');
+    setNewUserPhone('');
+    const users = await fetchUsersApi();
+    if (users) onUsersUpdated(users);
   };
 
   return (
@@ -114,7 +115,7 @@ export const UsersModule: React.FC<UsersModuleProps> = ({
           className="min-h-[44px] px-4 py-2 bg-[#0B2545] hover:bg-slate-800 text-white rounded-lg text-xs sm:text-sm font-bold flex items-center justify-center gap-2 shadow-xs transition-colors self-start sm:self-auto flex-shrink-0"
         >
           <Plus className="w-4 h-4 text-slate-200" />
-          <span>+ Tambah Akun Petugas Baru</span>
+          <span>Tambah Akun Petugas Baru</span>
         </button>
       </div>
 
@@ -255,7 +256,7 @@ export const UsersModule: React.FC<UsersModuleProps> = ({
         <div 
           role="dialog"
           aria-modal="true"
-          className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4 backdrop-blur-xs overflow-y-auto"
+          className="fixed inset-0 z-50 bg-black/70 flex items-start sm:items-center justify-center p-3 sm:p-4 backdrop-blur-xs overflow-y-auto"
         >
           <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full border border-slate-300 overflow-hidden my-8 animate-in fade-in-50 zoom-in-95 duration-150">
             <div className="p-4 bg-[#0B2545] text-white flex items-center justify-between">
@@ -275,7 +276,7 @@ export const UsersModule: React.FC<UsersModuleProps> = ({
             </div>
 
             <form onSubmit={handleCreateUserSubmit} className="p-5 space-y-3.5">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Username Login</label>
                   <input
@@ -313,7 +314,7 @@ export const UsersModule: React.FC<UsersModuleProps> = ({
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Peran Akses (Role)</label>
                   <select

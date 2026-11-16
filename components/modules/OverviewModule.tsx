@@ -124,11 +124,11 @@ export const OverviewModule: React.FC<OverviewModuleProps> = ({
               </button>
               <button
                 type="button"
-                onClick={() => onStartExecution(currentSite, 'PREVENTIVE_MAINTENANCE', 'POS-01')}
+                onClick={() => onNavigateToModule('reports')}
                 className="min-h-[40px] px-3.5 py-1.5 bg-[#0B2545] hover:bg-slate-800 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-2xs transition-colors"
               >
-                <Wrench className="w-3.5 h-3.5 text-slate-300" />
-                <span>Mulai Checklist PM</span>
+                <ClipboardCheck className="w-3.5 h-3.5 text-slate-300" />
+                <span>Lihat Berita Acara</span>
               </button>
             </>
           )}
@@ -242,7 +242,7 @@ export const OverviewModule: React.FC<OverviewModuleProps> = ({
                   className="min-h-[38px] px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 transition-colors flex-shrink-0"
                 >
                   <ShieldCheck className="w-4 h-4" />
-                  <span>Review & Sahkan BA</span>
+                  <span>Tinjau BA</span>
                 </button>
               </div>
             ))}
@@ -346,11 +346,11 @@ export const OverviewModule: React.FC<OverviewModuleProps> = ({
 
                       <button
                         type="button"
-                        onClick={() => onStartExecution(site, 'PREVENTIVE_MAINTENANCE', 'POS-01')}
+                        onClick={() => onOpenCreatePlan()}
                         className="min-h-[38px] px-3.5 py-1.5 bg-[#0B2545] hover:bg-slate-800 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors shadow-2xs"
                       >
-                        <Wrench className="w-3.5 h-3.5 text-slate-300" />
-                        <span>Mulai PM</span>
+                        <Calendar className="w-3.5 h-3.5 text-slate-300" />
+                        <span>Jadwalkan PM</span>
                       </button>
                     </div>
 

@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getTursoClient, initTursoDatabase } from '@/lib/turso';
+import { createSessionToken, setSessionCookie } from '@/lib/session';
+import { can } from '@/lib/rbac';
 
 export async function POST(req: Request) {
   try {
@@ -68,28 +70,30 @@ export async function POST(req: Request) {
       assignedSiteId: Number(row.assigned_site_id || 1),
     };
 
-    // Role-Based Access Control matrix
+    // Role-Based Access Control matrix (derived from lib/rbac.ts)
     const rbac = {
-      role: role,
-      canCreateReport: true,
-      canEditReport: true,
-      canDeleteReport: role === 'ADMIN',
-      canSignAsSupervisor: role === 'SUPERVISOR' || role === 'ADMIN',
-      canSignAsTechnician: role === 'TECHNICIAN' || role === 'ADMIN',
-      canManageTickets: role === 'SUPERVISOR' || role === 'ADMIN',
-      canDeleteTickets: role === 'ADMIN',
-      canManageSchedule: role === 'SUPERVISOR' || role === 'ADMIN',
-      canDeleteSchedule: role === 'ADMIN',
-      canManageUsers: role === 'ADMIN',
-      canExportData: true,
+      role,
+      canPerformPM: can(role, 'pm.perform'),
+      canCreateTicket: can(role, 'ticket.create'),
+      canUpdateTicket: can(role, 'ticket.update'),
+      canDeleteTicket: can(role, 'ticket.delete'),
+      canManageSchedule: can(role, 'plan.create'),
+      canDeleteReport: can(role, 'report.delete'),
+      canManageUsers: can(role, 'user.manage'),
+      allSites: can(role, 'data.allSites'),
     };
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       message: `Login berhasil sebagai ${user.name} (${user.role})`,
       user,
       rbac,
     });
+    setSessionCookie(
+      response,
+      createSessionToken({ id: user.id, name: user.name, role: role as any, assignedSiteId: user.assignedSiteId })
+    );
+    return response;
   } catch (err: any) {
     console.error('Login error:', err);
     return NextResponse.json(

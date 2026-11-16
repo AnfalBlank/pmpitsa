@@ -56,6 +56,7 @@ import {
   deleteMasterConfigItemApi,
   cleanDummyDataApi
 } from '@/lib/api-client';
+import { useFeedback } from '@/components/feedback/FeedbackProvider';
 
 type ConfigSubTab = 'sites' | 'products' | 'atg' | 'dispensers' | 'hardware' | 'settings';
 
@@ -92,11 +93,16 @@ export const MasterConfigSection: React.FC = () => {
   const [editingHw, setEditingHw] = useState<HardwareMasterConfig | null>(null);
 
   const [isCleaningDummy, setIsCleaningDummy] = useState(false);
+  const feedback = useFeedback();
 
   const handleExecuteCleanDummy = async () => {
-    if (!window.confirm("PERINGATAN: Apakah Anda yakin ingin menghapus seluruh tiket gangguan, jadwal PM sampel, dan Berita Acara dummy dari database Turso? Master data SPBU, akun pengguna (RBAC), produk BBM, dan brand ATG akan tetap aman dipertahankan.")) {
-      return;
-    }
+    const ok = await feedback.confirm({
+      title: 'Bersihkan Data Dummy?',
+      message: 'Seluruh tiket gangguan, jadwal PM, dan Berita Acara akan dihapus dari database. Master data SPBU, akun pengguna, produk BBM, dan brand ATG tetap aman.',
+      confirmLabel: 'Ya, Bersihkan',
+      danger: true,
+    });
+    if (!ok) return;
     setIsCleaningDummy(true);
     try {
       const res = await cleanDummyDataApi();
@@ -107,15 +113,13 @@ export const MasterConfigSection: React.FC = () => {
           localStorage.setItem('pertamina_pm_plans_v1', JSON.stringify([]));
           localStorage.setItem('pertamina_pm_dummy_cleared', 'true');
         }
-        showFeedback('success', res.message || 'Seluruh data dummy berhasil dibersihkan.');
-        setTimeout(() => {
-          window.location.reload();
-        }, 1200);
-      } else {
-        showFeedback('error', res.message || 'Gagal membersihkan data dummy.');
+        await feedback.notify({ variant: 'success', title: 'Data Dummy Dibersihkan', message: res.message || 'Seluruh data dummy berhasil dibersihkan. Halaman akan dimuat ulang.' });
+        window.location.reload();
+      } else if ((res as any).code !== 'UNAUTHENTICATED') {
+        feedback.notify({ variant: (res as any).code === 'FORBIDDEN' ? 'forbidden' : 'error', title: 'Gagal Membersihkan Data', message: res.message || 'Gagal membersihkan data dummy.' });
       }
     } catch (err: any) {
-      showFeedback('error', err.message || 'Gagal membersihkan data dummy.');
+      feedback.notify({ variant: 'error', title: 'Gagal Membersihkan Data', message: err.message || 'Gagal membersihkan data dummy.' });
     } finally {
       setIsCleaningDummy(false);
     }
@@ -199,8 +203,11 @@ export const MasterConfigSection: React.FC = () => {
   }, []);
 
   const showFeedback = (type: 'success' | 'error', text: string) => {
-    setFeedbackMsg({ type, text });
-    setTimeout(() => setFeedbackMsg(null), 3500);
+    feedback.notify(
+      type === 'success'
+        ? { variant: 'success', title: 'Berhasil', message: text }
+        : { variant: 'warning', title: 'Periksa Kembali', message: text }
+    );
   };
 
   // ----------------------------------------------------
@@ -242,11 +249,15 @@ export const MasterConfigSection: React.FC = () => {
         regional: siteRegional.trim(),
         contact_person: sitePic.trim(),
       };
+      const res = await feedback.run(() => updateSiteApi(updated), {
+        pending: 'Menyimpan ke server...',
+        success: { title: 'Data Berhasil Disimpan', message: `Data SPBU ${updated.site_name} berhasil diperbarui.` },
+        error: { title: 'Gagal Menyimpan Data', message: 'Perubahan belum tersimpan. Periksa koneksi lalu coba lagi.' },
+      });
+      if (!res.success) return;
       saveSite(updated);
       setSites(prev => prev.map(s => s.id === updated.id ? updated : s));
       setIsSiteModalOpen(false);
-      showFeedback('success', `Data SPBU ${updated.site_name} berhasil diperbarui.`);
-      await updateSiteApi(updated);
     } else {
       const nextId = sites.length > 0 ? Math.max(...sites.map(s => s.id)) + 1 : 1;
       const created: Site = {
@@ -257,20 +268,28 @@ export const MasterConfigSection: React.FC = () => {
         regional: siteRegional.trim(),
         contact_person: sitePic.trim(),
       };
+      const res = await feedback.run(() => createSiteApi(created), {
+        pending: 'Menyimpan ke server...',
+        success: { title: 'Data Berhasil Disimpan', message: `SPBU baru ${created.site_name} berhasil ditambahkan.` },
+        error: { title: 'Gagal Menyimpan Data', message: 'Perubahan belum tersimpan. Periksa koneksi lalu coba lagi.' },
+      });
+      if (!res.success) return;
       saveSite(created);
       setSites(prev => [...prev, created]);
       setIsSiteModalOpen(false);
-      showFeedback('success', `SPBU baru ${created.site_name} berhasil ditambahkan.`);
-      await createSiteApi(created);
     }
   };
 
   const handleDeleteSite = async (siteId: number, siteName: string) => {
-    if (confirm(`Hapus SPBU "${siteName}" secara permanen dari sistem?`)) {
+    if (await feedback.confirm({ title: 'Konfirmasi Hapus', message: `Hapus SPBU "${siteName}" secara permanen dari sistem?` + ' Tindakan ini tidak dapat dibatalkan.', confirmLabel: 'Ya, Hapus', danger: true })) {
+      const res = await feedback.run(() => deleteSiteApi(siteId), {
+        pending: 'Menghapus data...',
+        success: { title: 'Data Berhasil Dihapus', message: `SPBU ${siteName} berhasil dihapus.` },
+        error: { title: 'Gagal Menghapus Data', message: 'Data masih tersimpan di server.' },
+      });
+      if (!res.success) return;
       deleteSite(siteId);
       setSites(prev => prev.filter(s => s.id !== siteId));
-      showFeedback('success', `SPBU ${siteName} berhasil dihapus.`);
-      await deleteSiteApi(siteId);
     }
   };
 
@@ -322,6 +341,18 @@ export const MasterConfigSection: React.FC = () => {
       notes: prodNotes.trim() || undefined,
     };
 
+    const res = await feedback.run(() => saveMasterConfigApi('product', { item }), {
+
+      pending: 'Menyimpan ke server...',
+
+      success: { title: 'Data Berhasil Disimpan', message: `Produk BBM ${item.name} berhasil disimpan.` },
+
+      error: { title: 'Gagal Menyimpan Data', message: 'Perubahan belum tersimpan. Periksa koneksi lalu coba lagi.' },
+
+    });
+
+    if (!res.success) return;
+
     saveProduct(item);
     if (editingProduct) {
       setProducts(prev => prev.map(p => p.id === item.id ? item : p));
@@ -329,16 +360,18 @@ export const MasterConfigSection: React.FC = () => {
       setProducts(prev => [...prev, item]);
     }
     setIsProductModalOpen(false);
-    showFeedback('success', `Produk BBM ${item.name} berhasil disimpan.`);
-    await saveMasterConfigApi('product', { item });
   };
 
   const handleDeleteProduct = async (prodId: string, prodName: string) => {
-    if (confirm(`Hapus produk "${prodName}" dari katalog?`)) {
+    if (await feedback.confirm({ title: 'Konfirmasi Hapus', message: `Hapus produk "${prodName}" dari katalog?` + ' Tindakan ini tidak dapat dibatalkan.', confirmLabel: 'Ya, Hapus', danger: true })) {
+      const res = await feedback.run(() => deleteMasterConfigItemApi('product', prodId), {
+        pending: 'Menghapus data...',
+        success: { title: 'Data Berhasil Dihapus', message: `Produk BBM ${prodName} dihapus.` },
+        error: { title: 'Gagal Menghapus Data', message: 'Data masih tersimpan di server.' },
+      });
+      if (!res.success) return;
       deleteProduct(prodId);
       setProducts(prev => prev.filter(p => p.id !== prodId));
-      showFeedback('success', `Produk BBM ${prodName} dihapus.`);
-      await deleteMasterConfigItemApi('product', prodId);
     }
   };
 
@@ -393,6 +426,18 @@ export const MasterConfigSection: React.FC = () => {
       notes: atgNotes.trim() || undefined,
     };
 
+    const res = await feedback.run(() => saveMasterConfigApi('atg', { item }), {
+
+      pending: 'Menyimpan ke server...',
+
+      success: { title: 'Data Berhasil Disimpan', message: `Brand ATG ${item.brand_name} ${item.model_series} berhasil disimpan.` },
+
+      error: { title: 'Gagal Menyimpan Data', message: 'Perubahan belum tersimpan. Periksa koneksi lalu coba lagi.' },
+
+    });
+
+    if (!res.success) return;
+
     saveAtgBrand(item);
     if (editingAtg) {
       setAtgBrands(prev => prev.map(a => a.id === item.id ? item : a));
@@ -400,16 +445,18 @@ export const MasterConfigSection: React.FC = () => {
       setAtgBrands(prev => [...prev, item]);
     }
     setIsAtgModalOpen(false);
-    showFeedback('success', `Brand ATG ${item.brand_name} ${item.model_series} berhasil disimpan.`);
-    await saveMasterConfigApi('atg', { item });
   };
 
   const handleDeleteAtg = async (atgId: string, label: string) => {
-    if (confirm(`Hapus konfigurasi ATG "${label}"?`)) {
+    if (await feedback.confirm({ title: 'Konfirmasi Hapus', message: `Hapus konfigurasi ATG "${label}"?` + ' Tindakan ini tidak dapat dibatalkan.', confirmLabel: 'Ya, Hapus', danger: true })) {
+      const res = await feedback.run(() => deleteMasterConfigItemApi('atg', atgId), {
+        pending: 'Menghapus data...',
+        success: { title: 'Data Berhasil Dihapus', message: `ATG ${label} berhasil dihapus.` },
+        error: { title: 'Gagal Menghapus Data', message: 'Data masih tersimpan di server.' },
+      });
+      if (!res.success) return;
       deleteAtgBrand(atgId);
       setAtgBrands(prev => prev.filter(a => a.id !== atgId));
-      showFeedback('success', `ATG ${label} berhasil dihapus.`);
-      await deleteMasterConfigItemApi('atg', atgId);
     }
   };
 
@@ -458,6 +505,18 @@ export const MasterConfigSection: React.FC = () => {
       notes: dspNotes.trim() || undefined,
     };
 
+    const res = await feedback.run(() => saveMasterConfigApi('dispenser', { item }), {
+
+      pending: 'Menyimpan ke server...',
+
+      success: { title: 'Data Berhasil Disimpan', message: `Brand Dispenser ${item.brand_name} berhasil disimpan.` },
+
+      error: { title: 'Gagal Menyimpan Data', message: 'Perubahan belum tersimpan. Periksa koneksi lalu coba lagi.' },
+
+    });
+
+    if (!res.success) return;
+
     saveDispenserBrand(item);
     if (editingDispenser) {
       setDispenserBrands(prev => prev.map(d => d.id === item.id ? item : d));
@@ -465,16 +524,18 @@ export const MasterConfigSection: React.FC = () => {
       setDispenserBrands(prev => [...prev, item]);
     }
     setIsDispenserModalOpen(false);
-    showFeedback('success', `Brand Dispenser ${item.brand_name} berhasil disimpan.`);
-    await saveMasterConfigApi('dispenser', { item });
   };
 
   const handleDeleteDispenser = async (dspId: string, label: string) => {
-    if (confirm(`Hapus konfigurasi Dispenser "${label}"?`)) {
+    if (await feedback.confirm({ title: 'Konfirmasi Hapus', message: `Hapus konfigurasi Dispenser "${label}"?` + ' Tindakan ini tidak dapat dibatalkan.', confirmLabel: 'Ya, Hapus', danger: true })) {
+      const res = await feedback.run(() => deleteMasterConfigItemApi('dispenser', dspId), {
+        pending: 'Menghapus data...',
+        success: { title: 'Data Berhasil Dihapus', message: `Dispenser ${label} berhasil dihapus.` },
+        error: { title: 'Gagal Menghapus Data', message: 'Data masih tersimpan di server.' },
+      });
+      if (!res.success) return;
       deleteDispenserBrand(dspId);
       setDispenserBrands(prev => prev.filter(d => d.id !== dspId));
-      showFeedback('success', `Dispenser ${label} berhasil dihapus.`);
-      await deleteMasterConfigItemApi('dispenser', dspId);
     }
   };
 
@@ -517,6 +578,18 @@ export const MasterConfigSection: React.FC = () => {
       status: hwStatus,
     };
 
+    const res = await feedback.run(() => saveMasterConfigApi('hardware', { item }), {
+
+      pending: 'Menyimpan ke server...',
+
+      success: { title: 'Data Berhasil Disimpan', message: `Hardware ${item.brand_model} berhasil disimpan.` },
+
+      error: { title: 'Gagal Menyimpan Data', message: 'Perubahan belum tersimpan. Periksa koneksi lalu coba lagi.' },
+
+    });
+
+    if (!res.success) return;
+
     saveHardwareConfig(item);
     if (editingHw) {
       setHardwareConfigs(prev => prev.map(h => h.id === item.id ? item : h));
@@ -524,16 +597,18 @@ export const MasterConfigSection: React.FC = () => {
       setHardwareConfigs(prev => [...prev, item]);
     }
     setIsHwModalOpen(false);
-    showFeedback('success', `Hardware ${item.brand_model} berhasil disimpan.`);
-    await saveMasterConfigApi('hardware', { item });
   };
 
   const handleDeleteHw = async (hwId: string, label: string) => {
-    if (confirm(`Hapus hardware "${label}"?`)) {
+    if (await feedback.confirm({ title: 'Konfirmasi Hapus', message: `Hapus hardware "${label}"?` + ' Tindakan ini tidak dapat dibatalkan.', confirmLabel: 'Ya, Hapus', danger: true })) {
+      const res = await feedback.run(() => deleteMasterConfigItemApi('hardware', hwId), {
+        pending: 'Menghapus data...',
+        success: { title: 'Data Berhasil Dihapus', message: `Hardware ${label} berhasil dihapus.` },
+        error: { title: 'Gagal Menghapus Data', message: 'Data masih tersimpan di server.' },
+      });
+      if (!res.success) return;
       deleteHardwareConfig(hwId);
       setHardwareConfigs(prev => prev.filter(h => h.id !== hwId));
-      showFeedback('success', `Hardware ${label} berhasil dihapus.`);
-      await deleteMasterConfigItemApi('hardware', hwId);
     }
   };
 
@@ -542,9 +617,13 @@ export const MasterConfigSection: React.FC = () => {
   // ----------------------------------------------------
   const handleSaveSystemSettings = async (e: React.FormEvent) => {
     e.preventDefault();
+    const res = await feedback.run(() => saveMasterConfigApi('settings', { settings: systemSettings }), {
+      pending: 'Menyimpan ke server...',
+      success: { title: 'Data Berhasil Disimpan', message: 'Konfigurasi Parameter Sistem berhasil disimpan.' },
+      error: { title: 'Gagal Menyimpan Data', message: 'Perubahan belum tersimpan. Periksa koneksi lalu coba lagi.' },
+    });
+    if (!res.success) return;
     saveSystemSettings(systemSettings);
-    showFeedback('success', 'Konfigurasi Parameter Sistem berhasil disimpan.');
-    await saveMasterConfigApi('settings', { settings: systemSettings });
   };
 
   return (
@@ -1117,7 +1196,7 @@ export const MasterConfigSection: React.FC = () => {
                 </span>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
                     Batas Bawah Voltase UPS
@@ -1182,7 +1261,7 @@ export const MasterConfigSection: React.FC = () => {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
                     Yurisdiksi Negara
@@ -1283,7 +1362,7 @@ export const MasterConfigSection: React.FC = () => {
       {/* MODAL 1: ADD / EDIT SITE */}
       {/* ==================================================== */}
       {isSiteModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-start sm:items-center justify-center p-3 sm:p-4 overflow-y-auto">
           <div className="bg-white rounded-2xl max-w-lg w-full border border-slate-200 shadow-2xl overflow-hidden animate-in fade-in-50 zoom-in-95">
             <div className="bg-[#0B2545] p-4 text-white flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -1396,7 +1475,7 @@ export const MasterConfigSection: React.FC = () => {
       {/* MODAL 2: ADD / EDIT PRODUCT */}
       {/* ==================================================== */}
       {isProductModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-start sm:items-center justify-center p-3 sm:p-4 overflow-y-auto">
           <div className="bg-white rounded-2xl max-w-lg w-full border border-slate-200 shadow-2xl overflow-hidden animate-in fade-in-50 zoom-in-95">
             <div className="bg-[#0B2545] p-4 text-white flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -1415,7 +1494,7 @@ export const MasterConfigSection: React.FC = () => {
             </div>
 
             <form onSubmit={handleSaveProduct} className="p-5 space-y-3.5">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
                     Kode Produk (Contoh: PTX)
@@ -1543,7 +1622,7 @@ export const MasterConfigSection: React.FC = () => {
       {/* MODAL 3: ADD / EDIT ATG */}
       {/* ==================================================== */}
       {isAtgModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-start sm:items-center justify-center p-3 sm:p-4 overflow-y-auto">
           <div className="bg-white rounded-2xl max-w-lg w-full border border-slate-200 shadow-2xl overflow-hidden animate-in fade-in-50 zoom-in-95">
             <div className="bg-[#0B2545] p-4 text-white flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -1562,7 +1641,7 @@ export const MasterConfigSection: React.FC = () => {
             </div>
 
             <form onSubmit={handleSaveAtg} className="p-5 space-y-3.5">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
                     Brand Manufacturer
@@ -1605,7 +1684,7 @@ export const MasterConfigSection: React.FC = () => {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
                     Default Port
@@ -1679,7 +1758,7 @@ export const MasterConfigSection: React.FC = () => {
       {/* MODAL 4: ADD / EDIT DISPENSER */}
       {/* ==================================================== */}
       {isDispenserModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-start sm:items-center justify-center p-3 sm:p-4 overflow-y-auto">
           <div className="bg-white rounded-2xl max-w-lg w-full border border-slate-200 shadow-2xl overflow-hidden animate-in fade-in-50 zoom-in-95">
             <div className="bg-[#0B2545] p-4 text-white flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -1698,7 +1777,7 @@ export const MasterConfigSection: React.FC = () => {
             </div>
 
             <form onSubmit={handleSaveDispenser} className="p-5 space-y-3.5">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
                     Brand Dispenser
@@ -1741,7 +1820,7 @@ export const MasterConfigSection: React.FC = () => {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
                     Maksimal Nozzle
@@ -1794,7 +1873,7 @@ export const MasterConfigSection: React.FC = () => {
       {/* MODAL 5: ADD / EDIT HARDWARE */}
       {/* ==================================================== */}
       {isHwModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-start sm:items-center justify-center p-3 sm:p-4 overflow-y-auto">
           <div className="bg-white rounded-2xl max-w-lg w-full border border-slate-200 shadow-2xl overflow-hidden animate-in fade-in-50 zoom-in-95">
             <div className="bg-[#0B2545] p-4 text-white flex items-center justify-between">
               <div className="flex items-center gap-2">

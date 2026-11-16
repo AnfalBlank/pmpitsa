@@ -262,6 +262,7 @@ export const ForecourtSection: React.FC<ForecourtSectionProps> = ({
                     onClick={() => removeTank(idx)}
                     className="min-h-[36px] px-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded text-xs font-medium flex items-center gap-1"
                     title="Hapus Tangki"
+                    aria-label="Hapus Tangki"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                     <span className="hidden sm:inline">Hapus</span>
@@ -384,8 +385,9 @@ export const ForecourtSection: React.FC<ForecourtSectionProps> = ({
                   <button
                     type="button"
                     onClick={() => removeNozzle(idx)}
-                    className="text-red-500 hover:text-red-700 p-1"
+                    className="min-h-[40px] min-w-[40px] flex items-center justify-center rounded text-red-500 hover:text-red-700 hover:bg-red-50"
                     title="Hapus Nozzle"
+                    aria-label="Hapus Nozzle"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>

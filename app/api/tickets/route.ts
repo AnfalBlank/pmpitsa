@@ -1,9 +1,15 @@
 import { NextResponse } from 'next/server';
+import { requireSession, forbidden } from '@/lib/session';
+import { siteScope } from '@/lib/rbac';
 import { getTursoClient, initTursoDatabase } from '@/lib/turso';
 import { SPBUTicket } from '@/lib/types';
 
 export async function GET(req: Request) {
   try {
+    const auth = requireSession(req);
+    if (auth.error) return auth.error;
+    const session = auth.session;
+    const scope = siteScope(session);
     await initTursoDatabase();
     const db = getTursoClient();
 
@@ -15,7 +21,11 @@ export async function GET(req: Request) {
     let query = 'SELECT * FROM tickets WHERE 1=1';
     const args: any[] = [];
 
-    if (siteId && siteId !== 'ALL') {
+    if (scope !== null) {
+      // Supervisor: always restricted to own SPBU regardless of query params
+      query += ' AND site_id = ?';
+      args.push(scope);
+    } else if (siteId && siteId !== 'ALL') {
       query += ' AND site_id = ?';
       args.push(Number(siteId));
     }
@@ -62,6 +72,9 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
+    const auth = requireSession(req, 'ticket.create');
+    if (auth.error) return auth.error;
+    const session = auth.session;
     await initTursoDatabase();
     const db = getTursoClient();
 
@@ -85,6 +98,11 @@ export async function POST(req: Request) {
         { success: false, message: 'Field judul, deskripsi, dan site SPBU wajib diisi.' },
         { status: 400 }
       );
+    }
+
+    const scope = siteScope(session);
+    if (scope !== null && Number(site_id) !== scope) {
+      return forbidden('Akses ditolak: Pengawas hanya dapat membuat tiket untuk SPBU yang ditugaskan.');
     }
 
     const id = `TIK-${Date.now()}`;
@@ -143,6 +161,9 @@ export async function POST(req: Request) {
 
 export async function PUT(req: Request) {
   try {
+    const auth = requireSession(req, 'ticket.update');
+    if (auth.error) return auth.error;
+    const session = auth.session;
     await initTursoDatabase();
     const db = getTursoClient();
 
@@ -175,6 +196,9 @@ export async function PUT(req: Request) {
 
 export async function DELETE(req: Request) {
   try {
+    const auth = requireSession(req, 'ticket.delete');
+    if (auth.error) return auth.error;
+    const session = auth.session;
     await initTursoDatabase();
     const db = getTursoClient();
 
