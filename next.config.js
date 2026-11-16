@@ -1,6 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  experimental: {
+    // pdfmake/pdfkit must run as plain Node modules (server-side BA PDF)
+    serverComponentsExternalPackages: ['pdfmake', 'pdfkit'],
+  },
   async rewrites() {
     return [
       { source: '/dashboard', destination: '/' },

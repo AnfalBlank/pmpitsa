@@ -247,6 +247,25 @@ export interface PMReport {
   updated_at: string;
   synced_to_server: boolean;
   gdrive_pdf_id?: string;
+
+  /** Set when this report is a corrective repair started from a ticket */
+  ticket_id?: string;
+  ticket_number?: string;
+
+  /** Google Drive archive info, filled by the server after upload */
+  gdrive?: GDriveArchiveInfo;
+}
+
+export interface GDriveArchiveInfo {
+  folder_id: string;
+  folder_url: string;
+  folder_path: string;
+  pdf_file_id: string;
+  pdf_url: string;
+  pdf_file_name: string;
+  /** attachment id -> Drive file id, so photos are only uploaded once */
+  photos: Record<string, string>;
+  uploaded_at: string;
 }
 
 export interface FuelProduct {

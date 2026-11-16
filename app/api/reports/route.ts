@@ -102,11 +102,22 @@ export async function POST(req: Request) {
     }
 
     const now = new Date().toISOString();
+    // Keep the Drive archive info written by /api/reports/drive if the client copy is older.
+    let gdrive = report.gdrive;
+    if (!gdrive) {
+      const prev = await db.execute({ sql: 'SELECT report_data FROM pm_reports WHERE id = ? LIMIT 1;', args: [report.id] });
+      if (prev.rows.length) {
+        try {
+          gdrive = JSON.parse(String(prev.rows[0].report_data)).gdrive;
+        } catch {}
+      }
+    }
     const updatedReport: PMReport = {
       ...report,
       synced_to_server: true,
       updated_at: now,
-      gdrive_pdf_id: report.gdrive_pdf_id || `GDRIVE-PDF-PITL-${Date.now().toString().slice(-6)}`,
+      gdrive,
+      gdrive_pdf_id: gdrive?.pdf_file_id,
     };
 
     const reportJson = JSON.stringify(updatedReport);

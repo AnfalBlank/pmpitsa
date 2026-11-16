@@ -401,6 +401,11 @@ export const ReportsModule: React.FC<ReportsModuleProps> = ({
                       }`}>
                         {r.overall_status}
                       </span>
+                      {r.ticket_number && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-800 border border-slate-300 font-mono">
+                          {r.ticket_number}
+                        </span>
+                      )}
                       {hasBothSignatures ? (
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-100 text-blue-900 border border-blue-200 flex items-center gap-1">
                           <CheckCircle2 className="w-3 h-3 text-blue-700" />
@@ -445,6 +450,19 @@ export const ReportsModule: React.FC<ReportsModuleProps> = ({
                       <FileText className="w-4 h-4 text-red-300" />
                       <span>Tinjau Berita Acara</span>
                     </button>
+
+                    {r.gdrive && (
+                      <a
+                        href={r.gdrive.folder_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="min-h-[40px] px-3 py-2 rounded-lg border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 text-xs font-bold flex items-center gap-1.5"
+                        title={`Folder Google Drive: ${r.gdrive.folder_path}`}
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                        <span>Drive</span>
+                      </a>
+                    )}
 
                     {canDeleteReport && (
                       <button

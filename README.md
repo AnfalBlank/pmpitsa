@@ -76,6 +76,37 @@ npm start
 
 ---
 
+## 📁 Export PDF & Arsip Google Drive
+
+- **Unduh PDF**: tombol *Unduh PDF* di halaman pratinjau Berita Acara membuat PDF A4 resmi di server (kop surat, tabel checklist sesuai jenis pekerjaan, tanda tangan, nomor halaman, dan lampiran foto dokumentasi).
+- **Arsip otomatis**: saat Teknisi menekan *Kirim & Arsipkan ke Drive*, Berita Acara disimpan ke database lalu PDF dan semua foto diunggah ke Google Drive:
+
+```
+<Folder induk>/
+  <KODE SPBU - Nama SPBU>/
+    <YYYY-MM-DD>/
+      PM Rutin - POS-01 (PM-123456)/              ← atau "Perbaikan TIK-PITL-2026-0042 - ..." / "Quick Check - ..."
+        BA_<KODE>_<tanggal>_PM-Rutin_PM-123456.pdf
+        Dokumentasi Foto/01_Kondisi Hardware_<keterangan>.jpg ...
+```
+
+  Bila unggahan gagal (mis. koneksi), tombol *Arsipkan ke Google Drive* di pratinjau dapat dipakai ulang oleh Teknisi atau Admin; file dengan nama sama diperbarui, tidak diduplikasi.
+
+### Konfigurasi Google Drive
+
+**Opsi A — akun Gmail pribadi (disarankan bila tidak memakai Google Workspace)**
+1. Di Google Cloud Console: buat project, aktifkan *Google Drive API*, buat *OAuth client ID* tipe **Desktop app**.
+2. Jalankan sekali di komputer lokal:
+   `GOOGLE_CLIENT_ID=... GOOGLE_CLIENT_SECRET=... node scripts/google-drive-auth.mjs`
+   lalu login dengan akun Google pemilik arsip. Salin `GOOGLE_REFRESH_TOKEN` yang muncul.
+3. Isi `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN` (dan opsional `GOOGLE_DRIVE_FOLDER_ID`) di environment hosting.
+   Catatan: selama OAuth consent screen berstatus *Testing*, refresh token kedaluwarsa setelah 7 hari — ubah ke *In production*.
+
+**Opsi B — Google Workspace (Shared Drive)**
+1. Buat *service account*, unduh key JSON, aktifkan *Google Drive API*.
+2. Buat folder di **Shared Drive**, tambahkan email service account sebagai *Content manager*.
+3. Isi `GOOGLE_SERVICE_ACCOUNT_EMAIL`, `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY` (isi `private_key`, `\n` boleh apa adanya) dan `GOOGLE_DRIVE_FOLDER_ID`.
+
 ## 👥 Akun Login Demo (RBAC)
 
 > Akun di bawah hanya dibuat oleh seeding database lokal (`/api/init-db`, tanpa login hanya di mode development; di production wajib sesi ADMIN). **Jangan gunakan password ini di production** — ganti segera. Password disimpan sebagai hash scrypt; password lama berbentuk teks biasa otomatis di-hash saat login berhasil pertama kali. Login dibatasi 5 percobaan gagal per username dan 20 per IP setiap 15 menit.

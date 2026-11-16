@@ -34,7 +34,7 @@ import { QuickCheckSection } from '@/components/sections/QuickCheckSection';
 import { CorrectiveRepairSection } from '@/components/sections/CorrectiveRepairSection';
 
 import { PMReport, Site, UserSession, SPBUTicket, MaintenancePlan, WorkType } from '@/lib/types';
-import { SAMPLE_SITES } from '@/lib/sample-data';
+import { SAMPLE_SITES, createDefaultPMReport } from '@/lib/sample-data';
 import { 
   getCurrentReport, 
   saveCurrentReport, 
@@ -55,6 +55,8 @@ import {
 import { 
   saveReportApi, 
   fetchTicketsApi, 
+  uploadBaToDriveApi,
+  downloadBaPdfApi,
   fetchPlansApi, 
   fetchReportsApi,
   fetchSitesApi,
@@ -301,21 +303,95 @@ export default function Home() {
     }
   };
 
+  const applyDriveInfo = (id: string, gdrive: PMReport['gdrive']) => {
+    if (!gdrive) return;
+    const patch = (r: PMReport) => (r.id === id ? { ...r, gdrive, gdrive_pdf_id: gdrive.pdf_file_id } : r);
+    setReport((prev) => {
+      const next = patch(prev);
+      if (next !== prev) submitReport(next);
+      return next;
+    });
+    setReports((prev) => {
+      const next = prev.map(patch);
+      saveAllReports(next);
+      return next;
+    });
+  };
+
+  const driveLink = (gdrive: NonNullable<PMReport['gdrive']>) => (
+    <a href={gdrive.folder_url} target="_blank" rel="noreferrer" className="font-semibold text-blue-700 underline break-words">
+      {gdrive.folder_path}
+    </a>
+  );
+
   const handleSubmitFinal = async () => {
     if (!requirePM()) return;
     const updated = submitReport(report);
     setReport(updated);
     setReports(prev => [updated, ...prev.filter(r => r.id !== updated.id)]);
-    await feedback.run(() => saveReportApi(updated), {
-      pending: 'Mengirim Berita Acara ke server...',
-      success: {
-        title: 'Berita Acara Tersimpan',
-        message: <>Laporan <strong>#{updated.id}</strong> untuk {updated.site_name} berhasil disinkronkan ke database.</>,
+    const result = await feedback.run(
+      async () => {
+        const saved = await saveReportApi(updated);
+        if (!saved.success) return saved as { success: false; message?: string; code?: string };
+        const drive = await uploadBaToDriveApi(updated.id);
+        return { success: true as const, drive };
       },
-      error: {
-        title: 'Gagal Sinkron ke Server',
-        message: 'Laporan sudah tersimpan di perangkat ini. Buka halaman Berita Acara lalu tekan "Sinkron" lagi saat koneksi tersedia.',
-      },
+      {
+        pending: 'Menyimpan Berita Acara & mengarsipkan ke Google Drive...',
+        success: (r: any) =>
+          r.drive?.success
+            ? {
+                title: 'Berita Acara Tersimpan & Diarsipkan',
+                message: (
+                  <>
+                    Laporan <strong>#{updated.id}</strong> tersimpan di database. PDF dan {updated.attachments.length} foto dokumentasi tersimpan di Google
+                    Drive: {driveLink(r.drive.gdrive)}
+                  </>
+                ),
+              }
+            : {
+                title: 'Tersimpan, Arsip Drive Gagal',
+                message: (
+                  <>
+                    Laporan <strong>#{updated.id}</strong> tersimpan di database, tetapi belum masuk Google Drive
+                    {r.drive?.code === 'DRIVE_NOT_CONFIGURED' ? ' (Google Drive belum diaktifkan oleh Admin).' : '.'} Tekan &quot;Arsipkan ke Google
+                    Drive&quot; di halaman pratinjau untuk mencoba lagi.
+                    {r.drive?.message && <span className="block mt-1 text-[11px] font-mono text-slate-500 break-words">{r.drive.message}</span>}
+                  </>
+                ),
+              },
+        error: {
+          title: 'Gagal Sinkron ke Server',
+          message: 'Laporan sudah tersimpan di perangkat ini. Buka halaman Berita Acara lalu tekan "Sinkron" lagi saat koneksi tersedia.',
+        },
+      }
+    );
+    if (result.success && (result as any).drive?.success) applyDriveInfo(updated.id, (result as any).drive.gdrive);
+  };
+
+  /** Re-upload (or first upload) of an already-synced BA to Google Drive */
+  const handleUploadToDrive = async (target: PMReport) => {
+    const result = await feedback.run(() => uploadBaToDriveApi(target.id), {
+      pending: 'Mengunggah Berita Acara & foto ke Google Drive...',
+      success: (r) => ({
+        title: 'Tersimpan di Google Drive',
+        message: <>PDF Berita Acara dan foto dokumentasi tersimpan di: {r.gdrive && driveLink(r.gdrive)}</>,
+      }),
+      error: { title: 'Gagal Mengunggah ke Google Drive', message: 'Periksa koneksi internet, atau hubungi Admin bila Google Drive belum dikonfigurasi.' },
+    });
+    if (result.success) applyDriveInfo(target.id, result.gdrive);
+  };
+
+  const handleDownloadPdf = async (target: PMReport) => {
+    // Technicians get the PDF of exactly what is on screen (may be an unsynced draft)
+    const draft = can(currentUser?.role, 'pm.perform');
+    await feedback.run(() => downloadBaPdfApi(target, { draft }), {
+      pending: 'Menyiapkan PDF Berita Acara...',
+      success: (r) => ({
+        title: 'PDF Berhasil Diunduh',
+        message: <>File <strong className="break-all">{r.fileName}</strong> tersimpan di folder unduhan perangkat Anda.</>,
+      }),
+      error: { title: 'Gagal Membuat PDF', message: 'PDF Berita Acara tidak dapat dibuat. Coba lagi beberapa saat.' },
     });
   };
 
@@ -376,11 +452,28 @@ export default function Home() {
     showToast(`Membuka Berita Acara #${pastReport.id}`);
   };
 
+  /** A blank Berita Acara (new ID, no signatures/photos) for a new job. */
+  const freshReportFor = (site: Site, workType: WorkType): PMReport => ({
+    ...createDefaultPMReport(site, currentUser || undefined, workType),
+    attachments: [],
+    technician_signature: undefined,
+    technician_signed_at: undefined,
+    supervisor_signature: undefined,
+    supervisor_signed_at: undefined,
+    synced_to_server: false,
+    gdrive: undefined,
+    gdrive_pdf_id: undefined,
+  });
+
+  /** Continue the open draft, or start a new BA when the current one was already submitted. */
+  const draftBase = (site: Site, workType: WorkType): PMReport =>
+    report.synced_to_server ? freshReportFor(site, workType) : { ...report, ticket_id: undefined, ticket_number: undefined };
+
   const handleStartExecutionFromPlan = (site: Site, workType: WorkType, terminalId: string) => {
     if (!requirePM()) return;
     setSelectedSiteId(site.id);
     const updated: PMReport = {
-      ...report,
+      ...draftBase(site, workType),
       site_id: site.id,
       site_code: site.site_code,
       site_name: site.site_name,
@@ -414,7 +507,9 @@ export default function Home() {
     else if (ticket.category === 'EDC & Jaringan') repairCat = 'EDC & Jaringan';
 
     const updated: PMReport = {
-      ...report,
+      ...draftBase(targetSite, 'CORRECTIVE_REPAIR'),
+      ticket_id: ticket.id,
+      ticket_number: ticket.ticket_number,
       site_id: ticket.site_id,
       site_code: ticket.site_code,
       site_name: ticket.site_name,
@@ -461,6 +556,11 @@ export default function Home() {
         message: `Modul "${MODULE_NAMES[mod] || mod}" tidak tersedia untuk peran Anda.`,
       });
       return;
+    }
+    if ((mod === 'landing' || mod === 'form') && report.synced_to_server && can(currentUser.role, 'pm.perform')) {
+      const site = sites.find((s) => s.id === report.site_id) || sites[0] || SAMPLE_SITES[0];
+      handleReportChange(freshReportFor(site, report.work_type));
+      showToast('Berita Acara sebelumnya sudah terkirim — memulai Berita Acara baru.');
     }
     setCurrentModule(mod);
     const slug = mod === 'overview' ? 'dashboard' : mod === 'config' ? 'setting' : mod;
@@ -677,6 +777,12 @@ export default function Home() {
                 window.history.pushState(null, '', '/reports');
               }}
               onSyncToServer={handleSubmitFinal}
+              onDownloadPdf={() => handleDownloadPdf(report)}
+              onUploadToDrive={
+                report.synced_to_server && (can(currentUser.role, 'report.sync') || can(currentUser.role, 'report.delete'))
+                  ? () => handleUploadToDrive(report)
+                  : undefined
+              }
             />
           )}
 

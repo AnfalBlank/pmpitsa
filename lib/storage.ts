@@ -130,7 +130,6 @@ export function submitReport(report: PMReport): PMReport {
     ...report,
     updated_at: new Date().toISOString(),
     synced_to_server: true,
-    gdrive_pdf_id: report.gdrive_pdf_id || `GDRIVE-PDF-PITL-${Date.now().toString().slice(-6)}`,
   };
 
   const all = getAllReports();

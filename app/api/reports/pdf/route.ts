@@ -1,0 +1,59 @@
+import { NextResponse } from 'next/server';
+import { requireSession, forbidden } from '@/lib/session';
+import { siteScope } from '@/lib/rbac';
+import { getTursoClient, ensureSchema } from '@/lib/turso';
+import { renderBaPdf } from '@/lib/pdf/render';
+import { baFileName } from '@/lib/pdf/ba-document';
+import type { PMReport } from '@/lib/types';
+
+export const runtime = 'nodejs';
+export const maxDuration = 60;
+
+function pdfResponse(report: PMReport, pdf: Buffer) {
+  const name = baFileName(report);
+  return new NextResponse(new Uint8Array(pdf), {
+    headers: {
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="${name}"`,
+      'Cache-Control': 'no-store',
+    },
+  });
+}
+
+/** GET /api/reports/pdf?id=... — PDF of a report stored on the server */
+export async function GET(req: Request) {
+  try {
+    const auth = requireSession(req);
+    if (auth.error) return auth.error;
+    const id = new URL(req.url).searchParams.get('id');
+    if (!id) return NextResponse.json({ success: false, message: 'ID laporan wajib disertakan.' }, { status: 400 });
+
+    await ensureSchema();
+    const res = await getTursoClient().execute({ sql: 'SELECT site_id, report_data FROM pm_reports WHERE id = ? LIMIT 1;', args: [id] });
+    if (!res.rows.length) return NextResponse.json({ success: false, message: 'Berita Acara belum tersimpan di server.' }, { status: 404 });
+
+    const scope = siteScope(auth.session);
+    if (scope !== null && Number(res.rows[0].site_id) !== scope) {
+      return forbidden('Akses ditolak: Berita Acara ini bukan milik SPBU Anda.');
+    }
+    const report: PMReport = JSON.parse(String(res.rows[0].report_data));
+    return pdfResponse(report, await renderBaPdf(report));
+  } catch (err: any) {
+    return NextResponse.json({ success: false, message: `Gagal membuat PDF: ${err.message}` }, { status: 500 });
+  }
+}
+
+/** POST /api/reports/pdf — PDF of a draft report sent in the body (technician only) */
+export async function POST(req: Request) {
+  try {
+    const auth = requireSession(req, 'pm.perform');
+    if (auth.error) return auth.error;
+    const report: PMReport = await req.json();
+    if (!report?.id || !report.site_name) {
+      return NextResponse.json({ success: false, message: 'Data laporan tidak lengkap.' }, { status: 400 });
+    }
+    return pdfResponse(report, await renderBaPdf(report));
+  } catch (err: any) {
+    return NextResponse.json({ success: false, message: `Gagal membuat PDF: ${err.message}` }, { status: 500 });
+  }
+}

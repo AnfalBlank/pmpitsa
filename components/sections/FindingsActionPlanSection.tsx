@@ -1,10 +1,11 @@
 'use client';
 
 import React, { useState } from 'react';
+import { compressImageFile } from '@/lib/image-compress';
 import { PMReport, PMAttachment } from '@/lib/types';
 import { useFeedback } from '@/components/feedback/FeedbackProvider';
 
-const MAX_PHOTO_MB = 8;
+const MAX_PHOTO_MB = 25; // raw camera file; it is compressed before attaching
 import { Camera, Image as ImageIcon, Plus, Trash2, Calendar, FileText, CheckCircle2, AlertTriangle } from 'lucide-react';
 
 interface FindingsActionPlanSectionProps {
@@ -45,35 +46,36 @@ export const FindingsActionPlanSection: React.FC<FindingsActionPlanSectionProps>
       });
       return;
     }
-    const reader = new FileReader();
-    reader.onerror = () => {
-      feedback.notify({ variant: 'error', title: 'Gagal Memuat Foto', message: 'File foto tidak dapat dibaca. Coba ambil ulang foto.' });
-    };
+    compressImageFile(file)
+      .then((dataUrl) => {
+        const now = new Date();
+        const timeStr = `${now.toISOString().split('T')[0]} ${now.toTimeString().substring(0, 5)}`;
 
-    reader.onload = (event) => {
-      const dataUrl = event.target?.result as string;
-      const now = new Date();
-      const timeStr = `${now.toISOString().split('T')[0]} ${now.toTimeString().substring(0, 5)}`;
+        const newAttachment: PMAttachment = {
+          id: `ATT-${Date.now().toString(36)}`,
+          file_name: file.name.replace(/\.[^.]+$/, '') + '.jpg',
+          file_url: dataUrl,
+          category: selectedCategory,
+          caption: captionInput || `Foto dokumentasi ${selectedCategory}`,
+          uploaded_at: timeStr,
+        };
 
-      const newAttachment: PMAttachment = {
-        id: `ATT-${Date.now().toString().slice(-6)}`,
-        file_name: file.name,
-        file_url: dataUrl,
-        category: selectedCategory,
-        caption: captionInput || `Foto dokumentasi ${selectedCategory}`,
-        uploaded_at: timeStr,
-      };
-
-      updateField('attachments', [...report.attachments, newAttachment]);
-      setCaptionInput('');
-      feedback.notify({
-        variant: 'success',
-        title: 'Foto Berhasil Dilampirkan',
-        message: `${newAttachment.caption} (${selectedCategory}) ditambahkan ke laporan.`,
+        updateField('attachments', [...report.attachments, newAttachment]);
+        setCaptionInput('');
+        feedback.notify({
+          variant: 'success',
+          title: 'Foto Berhasil Dilampirkan',
+          message: `${newAttachment.caption} (${selectedCategory}) ditambahkan ke laporan.`,
+        });
+      })
+      .catch((err) => {
+        feedback.notify({
+          variant: 'error',
+          title: 'Gagal Memuat Foto',
+          message: 'File foto tidak dapat dibaca. Coba ambil ulang foto atau pilih file JPG/PNG.',
+          detail: err?.message,
+        });
       });
-    };
-
-    reader.readAsDataURL(file);
   };
 
   const removeAttachment = async (id: string) => {

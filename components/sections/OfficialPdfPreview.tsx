@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { PMReport } from '@/lib/types';
 import { useFeedback } from '@/components/feedback/FeedbackProvider';
-import { Printer, Cloud, CheckCircle2, Download, ExternalLink, ArrowLeft, Building2 } from 'lucide-react';
+import { Printer, Cloud, Download, ExternalLink, ArrowLeft, FileDown, FolderOpen, HardDriveUpload } from 'lucide-react';
 
 interface OfficialPdfPreviewProps {
   report: PMReport;
@@ -12,6 +12,10 @@ interface OfficialPdfPreviewProps {
   onSyncToServer?: () => void | Promise<void>;
   /** Only technicians may sync/submit Berita Acara */
   canSync?: boolean;
+  /** Downloads the server-generated A4 PDF */
+  onDownloadPdf?: () => void | Promise<void>;
+  /** (Re)upload the synced BA + photos to Google Drive */
+  onUploadToDrive?: () => void | Promise<void>;
 }
 
 export const OfficialPdfPreview: React.FC<OfficialPdfPreviewProps> = ({
@@ -20,14 +24,27 @@ export const OfficialPdfPreview: React.FC<OfficialPdfPreviewProps> = ({
   onBackToList,
   onSyncToServer,
   canSync = false,
+  onDownloadPdf,
+  onUploadToDrive,
 }) => {
   const feedback = useFeedback();
   const [isSyncing, setIsSyncing] = useState(false);
+  const [busy, setBusy] = useState<'pdf' | 'drive' | null>(null);
+
+  const runBusy = async (kind: 'pdf' | 'drive', fn?: () => void | Promise<void>) => {
+    if (!fn || busy) return;
+    setBusy(kind);
+    try {
+      await fn();
+    } finally {
+      setBusy(null);
+    }
+  };
 
   const handlePrint = async () => {
     const ok = await feedback.confirm({
-      title: 'Cetak / Simpan PDF',
-      message: 'Dialog cetak akan terbuka. Pilih printer, atau pilih "Simpan sebagai PDF" untuk menyimpan file Berita Acara ke perangkat.',
+      title: 'Cetak Berita Acara',
+      message: 'Dialog cetak browser akan terbuka. Untuk file PDF resmi yang rapi (A4, lengkap dengan foto), gunakan tombol "Unduh PDF".',
       confirmLabel: 'Buka Dialog Cetak',
     });
     if (!ok) return;
@@ -119,13 +136,25 @@ export const OfficialPdfPreview: React.FC<OfficialPdfPreviewProps> = ({
             <span>Export JSON</span>
           </button>
 
+          {onDownloadPdf && (
+            <button
+              type="button"
+              disabled={busy !== null}
+              onClick={() => runBusy('pdf', onDownloadPdf)}
+              className="min-h-[44px] px-4 py-2 bg-white hover:bg-slate-100 disabled:opacity-60 text-slate-900 rounded font-bold text-xs flex items-center justify-center gap-2 shadow-xs transition-colors"
+            >
+              <FileDown className="w-4 h-4 text-red-600" />
+              <span>{busy === 'pdf' ? 'Membuat PDF...' : 'Unduh PDF'}</span>
+            </button>
+          )}
+
           <button
             type="button"
             onClick={handlePrint}
-            className="min-h-[44px] px-4 py-2 bg-white hover:bg-slate-100 text-slate-900 rounded font-semibold text-xs flex items-center justify-center gap-2 shadow-xs transition-colors"
+            className="min-h-[44px] px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded font-semibold text-xs flex items-center justify-center gap-2 border border-slate-600 transition-colors"
           >
-            <Printer className="w-4 h-4 text-red-600" />
-            <span>Cetak / Download PDF</span>
+            <Printer className="w-4 h-4 text-slate-300" />
+            <span>Cetak</span>
           </button>
 
           {canSync && onSyncToServer && (
@@ -136,12 +165,70 @@ export const OfficialPdfPreview: React.FC<OfficialPdfPreviewProps> = ({
             className="col-span-2 sm:col-span-1 min-h-[44px] px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-slate-600 text-white rounded font-semibold text-xs flex items-center justify-center gap-2 shadow-xs transition-colors"
           >
             <Cloud className="w-4 h-4" />
-            <span>{isSyncing ? 'Menyimpan ke Turso...' : 'Sinkron ke Turso & Drive'}</span>
+            <span>{isSyncing ? 'Menyimpan & mengarsipkan...' : 'Kirim & Arsipkan ke Drive'}</span>
           </button>
           )}
         </div>
       </div>
 
+
+      {/* Google Drive archive status */}
+      <div className="no-print max-w-4xl mx-auto bg-white border border-slate-200 rounded-lg px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3 text-xs">
+        <div className="flex items-start gap-2.5 min-w-0 flex-1">
+          <FolderOpen className={`w-5 h-5 flex-shrink-0 ${report.gdrive ? 'text-emerald-600' : 'text-slate-400'}`} />
+          {report.gdrive ? (
+            <div className="min-w-0">
+              <div className="font-bold text-slate-900">Tersimpan di Google Drive</div>
+              <div className="text-slate-600 break-words">{report.gdrive.folder_path}</div>
+              <div className="text-[11px] text-slate-500">
+                {report.gdrive.pdf_file_name} · {Object.keys(report.gdrive.photos || {}).length} foto · {new Date(report.gdrive.uploaded_at).toLocaleString('id-ID')}
+              </div>
+            </div>
+          ) : (
+            <div className="min-w-0">
+              <div className="font-bold text-slate-900">Belum diarsipkan ke Google Drive</div>
+              <div className="text-slate-600">
+                {report.synced_to_server
+                  ? 'Berita Acara sudah di server, tetapi PDF & foto belum masuk Google Drive.'
+                  : 'PDF & foto otomatis tersimpan ke Google Drive setelah Berita Acara dikirim.'}
+              </div>
+            </div>
+          )}
+        </div>
+        <div className="grid grid-cols-2 sm:flex gap-2">
+          {report.gdrive && (
+            <>
+              <a
+                href={report.gdrive.folder_url}
+                target="_blank"
+                rel="noreferrer"
+                className="min-h-[44px] px-3 rounded-lg border border-slate-300 hover:bg-slate-50 font-semibold text-slate-800 flex items-center justify-center gap-1.5"
+              >
+                <FolderOpen className="w-4 h-4" /> Folder
+              </a>
+              <a
+                href={report.gdrive.pdf_url}
+                target="_blank"
+                rel="noreferrer"
+                className="min-h-[44px] px-3 rounded-lg border border-slate-300 hover:bg-slate-50 font-semibold text-slate-800 flex items-center justify-center gap-1.5"
+              >
+                <ExternalLink className="w-4 h-4" /> PDF di Drive
+              </a>
+            </>
+          )}
+          {onUploadToDrive && (
+            <button
+              type="button"
+              disabled={busy !== null}
+              onClick={() => runBusy('drive', onUploadToDrive)}
+              className="col-span-2 min-h-[44px] px-3 rounded-lg bg-[#0B2545] hover:bg-slate-800 disabled:opacity-60 text-white font-bold flex items-center justify-center gap-1.5"
+            >
+              <HardDriveUpload className="w-4 h-4" />
+              {busy === 'drive' ? 'Mengunggah...' : report.gdrive ? 'Perbarui Arsip Drive' : 'Arsipkan ke Google Drive'}
+            </button>
+          )}
+        </div>
+      </div>
 
       {/* Official A4-like Document Paper */}
       <div className="bg-white border border-slate-300 rounded-lg shadow-sm p-4 sm:p-10 max-w-4xl mx-auto text-slate-900 text-xs font-sans print:border-none print:shadow-none print:p-0">
@@ -189,6 +276,11 @@ export const OfficialPdfPreview: React.FC<OfficialPdfPreviewProps> = ({
             <div className="text-slate-600">
               Status: <span className="font-bold">{report.overall_status}</span>
             </div>
+            {report.ticket_number && (
+              <div className="text-slate-600">
+                Tiket: <span className="font-bold">{report.ticket_number}</span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -405,6 +497,27 @@ export const OfficialPdfPreview: React.FC<OfficialPdfPreviewProps> = ({
             </div>
           </div>
         </div>
+
+        {/* Documentation photos */}
+        {report.attachments?.length > 0 && (
+          <div className="mb-6">
+            <h2 className="text-xs font-black uppercase text-slate-800 bg-slate-100 px-2.5 py-1 rounded-t border border-slate-300 border-b-0">
+              LAMPIRAN DOKUMENTASI FOTO ({report.attachments.length})
+            </h2>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 border border-slate-300 p-2.5">
+              {report.attachments.map((att, i) => (
+                <figure key={att.id} className="min-w-0">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={att.file_url} alt={att.caption} className="w-full aspect-[4/3] object-cover rounded border border-slate-200" />
+                  <figcaption className="mt-1 text-[10px] leading-tight">
+                    <span className="font-bold">Foto {i + 1}.</span> {att.caption}
+                    <span className="block text-slate-500">{att.category}</span>
+                  </figcaption>
+                </figure>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* 7. Sign-Off Section */}
         <div className="border border-slate-300 rounded p-4 bg-white">

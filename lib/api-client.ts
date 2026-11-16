@@ -1,4 +1,4 @@
-import { PMReport, SPBUTicket, MaintenancePlan, UserSession, Site } from './types';
+import { PMReport, SPBUTicket, MaintenancePlan, UserSession, Site, GDriveArchiveInfo } from './types';
 
 export const SESSION_EXPIRED_EVENT = 'pm:session-expired';
 
@@ -85,6 +85,69 @@ export async function saveReportApi(report: PMReport): Promise<{ success: boolea
     return await res.json();
   } catch (err: any) {
     return { success: false, message: err.message };
+  }
+}
+
+/**
+ * Downloads the official BA PDF (generated on the server).
+ * Uses the stored copy when the report is synced, otherwise sends the draft.
+ */
+export async function downloadBaPdfApi(
+  report: PMReport,
+  opts: { draft?: boolean } = {}
+): Promise<{ success: boolean; fileName?: string; message?: string; code?: string }> {
+  try {
+    const res = opts.draft
+      ? await apiFetch('/api/reports/pdf', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(report),
+        })
+      : await apiFetch(`/api/reports/pdf?id=${encodeURIComponent(report.id)}`);
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      return { success: false, code: data.code, message: data.message || `Server mengembalikan status ${res.status}` };
+    }
+    const blob = await res.blob();
+    const disp = res.headers.get('Content-Disposition') || '';
+    const fileName = /filename="([^"]+)"/.exec(disp)?.[1] || `BA_${report.site_code}_${report.execution_date}.pdf`;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    return { success: true, fileName };
+  } catch (err: any) {
+    return { success: false, message: 'Gagal terhubung ke server: ' + err.message };
+  }
+}
+
+export async function driveStatusApi(): Promise<boolean | null> {
+  try {
+    const res = await apiFetch('/api/reports/drive', { cache: 'no-store' });
+    const data = await res.json();
+    return data.success ? !!data.configured : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Uploads the stored BA PDF + documentation photos to Google Drive. */
+export async function uploadBaToDriveApi(
+  reportId: string
+): Promise<{ success: boolean; gdrive?: GDriveArchiveInfo; message?: string; code?: string }> {
+  try {
+    const res = await apiFetch('/api/reports/drive', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: reportId }),
+    });
+    return await res.json();
+  } catch (err: any) {
+    return { success: false, message: 'Gagal terhubung ke server: ' + err.message };
   }
 }
 
