@@ -16,9 +16,11 @@ import {
   RotateCcw,
   Clock,
   ChevronRight,
-  Filter
+  Filter,
+  Lock
 } from 'lucide-react';
 import { UserSession, Site, PMReport } from '@/lib/types';
+import { reportStatus } from '@/lib/report-status';
 import { SAMPLE_SITES } from '@/lib/sample-data';
 import { useFeedback } from '@/components/feedback/FeedbackProvider';
 import { can } from '@/lib/rbac';
@@ -392,7 +394,7 @@ export const ReportsModule: React.FC<ReportsModuleProps> = ({
                         {r.execution_date}
                       </span>
                       <span className="text-xs font-bold text-slate-800 bg-slate-100 px-2.5 py-0.5 rounded">
-                        {r.work_type === 'PREVENTIVE_MAINTENANCE' ? 'Preventive Maintenance' : r.work_type === 'QUICK_CHECK' ? 'Pengecekan Cepat' : 'Perbaikan (Repair)'}
+                        {r.work_type === 'PREVENTIVE_MAINTENANCE' ? 'Preventive Maintenance (PM)' : r.work_type === 'QUICK_CHECK' ? 'Pengecekan' : 'Corrective Maintenance (CM)'}
                       </span>
                       <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${
                         r.overall_status === 'Selesai (Normal)'
@@ -401,6 +403,15 @@ export const ReportsModule: React.FC<ReportsModuleProps> = ({
                       }`}>
                         {r.overall_status}
                       </span>
+                      {reportStatus(r) === 'FINAL' ? (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-800 text-white flex items-center gap-1">
+                          <Lock className="w-3 h-3" /> Final{r.revision && r.revision > 1 ? ` · Rev ${r.revision}` : ''}
+                        </span>
+                      ) : reportStatus(r) === 'PENDING_SYNC' ? (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300">Menunggu terkirim</span>
+                      ) : (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-300">Draft</span>
+                      )}
                       {r.ticket_number && (
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-800 border border-slate-300 font-mono">
                           {r.ticket_number}

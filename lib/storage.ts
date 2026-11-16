@@ -76,6 +76,55 @@ export function setSelectedSiteId(id: number) {
   localStorage.setItem(STORAGE_KEY_SELECTED_SITE, id.toString());
 }
 
+/**
+ * Turns a default report into a blank DRAFT for a new job: new lifecycle,
+ * no signatures/photos and no sample text. Checklist defaults ('B') stay.
+ */
+export function blankDraft(r: PMReport): PMReport {
+  return {
+    ...r,
+    status: 'DRAFT',
+    synced_to_server: false,
+    findings_summary: '',
+    action_plan: '',
+    repair_details: {
+      category: 'Hardware POS',
+      reported_problem: '',
+      root_cause: '',
+      action_taken: '',
+      sparepart_replaced: '',
+      post_repair_status: 'B',
+      notes: '',
+      affected_unit: '',
+      affected_serial: '',
+      work_start: '',
+      work_end: '',
+      test_notes: '',
+    },
+    quick_check_details: {
+      pos_system_online: 'B',
+      dispenser_communication: 'B',
+      edc_transaction_ready: 'B',
+      atg_tank_monitor: 'B',
+      printer_thermal_status: 'B',
+      general_notes: '',
+    },
+    attachments: [],
+    technician_signature: undefined,
+    technician_signed_at: undefined,
+    supervisor_signature: undefined,
+    supervisor_signed_at: undefined,
+    finalized_at: undefined,
+    finalized_by: undefined,
+    revision: undefined,
+    revision_log: undefined,
+    gdrive: undefined,
+    gdrive_pdf_id: undefined,
+    ticket_id: undefined,
+    ticket_number: undefined,
+  };
+}
+
 export function getCurrentReport(): PMReport {
   if (typeof window === 'undefined') {
     return createDefaultPMReport(SAMPLE_SITES[0], DEFAULT_USERS[0]);
@@ -93,7 +142,8 @@ export function getCurrentReport(): PMReport {
   const siteId = getSelectedSiteId();
   const site = SAMPLE_SITES.find(s => s.id === siteId) || SAMPLE_SITES[0];
   const user = getCurrentUser() || DEFAULT_USERS[0];
-  const initial = createDefaultPMReport(site, user);
+  // A brand-new device starts with an editable, blank draft
+  const initial = blankDraft(createDefaultPMReport(site, user));
   localStorage.setItem(STORAGE_KEY_CURRENT, JSON.stringify(initial));
   return initial;
 }
@@ -123,28 +173,32 @@ export function saveAllReports(reports: PMReport[]): void {
   localStorage.setItem(STORAGE_KEY_REPORTS, JSON.stringify(reports));
 }
 
+/** Insert/replace a report in the local list and as the open report (no status change). */
+export function upsertLocalReport(report: PMReport): PMReport {
+  if (typeof window === 'undefined') return report;
+  const all = getAllReports();
+  const idx = all.findIndex(r => r.id === report.id);
+  const list = idx >= 0 ? all.map(r => (r.id === report.id ? report : r)) : [report, ...all];
+  localStorage.setItem(STORAGE_KEY_REPORTS, JSON.stringify(list));
+  const curRaw = localStorage.getItem(STORAGE_KEY_CURRENT);
+  try {
+    if (!curRaw || JSON.parse(curRaw).id === report.id) localStorage.setItem(STORAGE_KEY_CURRENT, JSON.stringify(report));
+  } catch {
+    localStorage.setItem(STORAGE_KEY_CURRENT, JSON.stringify(report));
+  }
+  return report;
+}
+
+/** Finalise on the device: the BA is locked (PENDING_SYNC) until the server confirms it. */
 export function submitReport(report: PMReport): PMReport {
   if (typeof window === 'undefined') return report;
-
   const updated: PMReport = {
     ...report,
     updated_at: new Date().toISOString(),
-    synced_to_server: true,
+    status: report.status === 'FINAL' ? 'FINAL' : 'PENDING_SYNC',
   };
-
-  const all = getAllReports();
-  const existingIdx = all.findIndex(r => r.id === updated.id);
-  let newList: PMReport[];
-  if (existingIdx >= 0) {
-    newList = [...all];
-    newList[existingIdx] = updated;
-  } else {
-    newList = [updated, ...all];
-  }
-
-  localStorage.setItem(STORAGE_KEY_REPORTS, JSON.stringify(newList));
   localStorage.setItem(STORAGE_KEY_CURRENT, JSON.stringify(updated));
-  return updated;
+  return upsertLocalReport(updated);
 }
 
 export function getAllTickets(): SPBUTicket[] {

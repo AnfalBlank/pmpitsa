@@ -188,6 +188,14 @@ export const INITIAL_PINSYST_FEATURES: PinsystFeatureCheck[] = [
   },
 ];
 
+/** Unique BA id, e.g. PM-20261116-K3F9QX (date + random, no collisions across devices). */
+export function newReportId(): string {
+  const d = new Date();
+  const ymd = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+  const rand = Math.random().toString(36).slice(2, 6).toUpperCase() + Date.now().toString(36).slice(-2).toUpperCase();
+  return `PM-${ymd}-${rand}`;
+}
+
 export function createDefaultPMReport(
   site: Site = SAMPLE_SITES[0], 
   user?: UserSession,
@@ -204,7 +212,7 @@ export function createDefaultPMReport(
   const technicianPhone = user?.phone || "+670 7733 9102";
 
   return {
-    id: `PM-${Date.now().toString().slice(-6)}`,
+    id: newReportId(),
     work_type: workType,
     site_id: site.id,
     site_code: site.site_code,

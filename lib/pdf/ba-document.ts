@@ -5,23 +5,14 @@
 import type { Content, TableCell, TDocumentDefinitions } from 'pdfmake/interfaces';
 import type { ChecklistStatus, PMReport, WorkType } from '@/lib/types';
 import { LOGO_DATA_URL } from './logo';
+import { WORK_TYPE_TITLE, WORK_TYPE_SHORT } from '@/lib/work-type';
 
 const NAVY = '#0B2545';
 const RED = '#C8102E';
 const GREY = '#F1F5F9';
 const BORDER = '#94A3B8';
 
-export const WORK_TYPE_TITLE: Record<WorkType, string> = {
-  PREVENTIVE_MAINTENANCE: 'BERITA ACARA PREVENTIVE MAINTENANCE (PM)',
-  QUICK_CHECK: 'BERITA ACARA PENGECEKAN CEPAT (QUICK CHECK)',
-  CORRECTIVE_REPAIR: 'BERITA ACARA PERBAIKAN KOREKTIF (CORRECTIVE REPAIR)',
-};
-
-export const WORK_TYPE_SHORT: Record<WorkType, string> = {
-  PREVENTIVE_MAINTENANCE: 'PM Rutin',
-  QUICK_CHECK: 'Quick Check',
-  CORRECTIVE_REPAIR: 'Perbaikan',
-};
+export { WORK_TYPE_TITLE, WORK_TYPE_SHORT };
 
 const WORK_TYPE_CODE: Record<WorkType, string> = {
   PREVENTIVE_MAINTENANCE: 'BA-PM',
@@ -143,28 +134,54 @@ function generalSection(r: PMReport): Content[] {
     ['Nama SPBU', r.site_name, 'Kode Site', r.site_code],
     ['Terminal POS ID', r.terminal_id, 'Tanggal / Jam', `${v(r.execution_date)} ${r.execution_time || ''}`.trim()],
     ['Teknisi Pelaksana', `${v(r.technician_name)}${r.technician_phone ? ` (${r.technician_phone})` : ''}`, 'Pengawas SPBU', r.supervisor_name],
-    ['Status Akhir', r.overall_status, 'PM Berikutnya', r.next_pm_recommendation_date],
+    r.work_type === 'PREVENTIVE_MAINTENANCE'
+      ? ['Status Akhir', r.overall_status, 'PM Berikutnya', r.next_pm_recommendation_date]
+      : ['Status Akhir', r.overall_status, 'Jenis Pekerjaan', WORK_TYPE_SHORT[r.work_type]],
   ];
-  if (r.ticket_number) rows.push(['Nomor Tiket', r.ticket_number, 'Jenis Pekerjaan', WORK_TYPE_SHORT[r.work_type]]);
+  if (r.ticket_number) rows.push(['Nomor Tiket', r.ticket_number, '', '']);
+  if (r.status === 'FINAL' || r.finalized_at) {
+    const at = r.finalized_at ? new Date(r.finalized_at).toLocaleString('id-ID', { timeZone: 'Asia/Dili' }) : '-';
+    rows.push(['Status Dokumen', `FINAL${r.revision && r.revision > 1 ? ` · Revisi ${r.revision}` : ''}`, 'Difinalisasi', at]);
+  }
   return [sectionTitle('I. DATA UMUM & LOKASI'), kvTable(rows)];
 }
 
 function repairSection(r: PMReport): Content[] {
   const d = r.repair_details;
   if (!d) return [];
+  const row = (label: string, value: unknown): TableCell[] => [{ text: label, style: 'label' }, v(value)];
+  const duration = d.work_start && d.work_end ? `${d.work_start} – ${d.work_end}` : v(d.work_start || d.work_end);
   return [
-    sectionTitle('II. RINCIAN PERBAIKAN KOREKTIF'),
+    sectionTitle('II. LAPORAN KERUSAKAN & DIAGNOSA'),
     {
       table: {
         widths: ['30%', '70%'],
         body: [
-          [{ text: 'Kategori', style: 'label' }, v(d.category)],
-          [{ text: 'Keluhan / Masalah Dilaporkan', style: 'label' }, v(d.reported_problem)],
-          [{ text: 'Analisa Akar Masalah', style: 'label' }, v(d.root_cause)],
-          [{ text: 'Tindakan Perbaikan', style: 'label' }, v(d.action_taken)],
-          [{ text: 'Sparepart Diganti', style: 'label' }, v(d.sparepart_replaced)],
-          [{ text: 'Status Setelah Perbaikan', style: 'label' }, { ...(st(d.post_repair_status) as object), alignment: 'left' } as TableCell],
-          [{ text: 'Catatan', style: 'label' }, v(d.notes)],
+          row('Kategori Komponen', d.category),
+          row('Unit / Perangkat', d.affected_unit),
+          row('Serial Number', d.affected_serial),
+          row('Keluhan / Gejala', d.reported_problem),
+          row('Diagnosa & Akar Masalah', d.root_cause),
+        ],
+      },
+      layout: gridLayout,
+    },
+    sectionTitle('III. TINDAKAN PERBAIKAN & SPAREPART'),
+    {
+      table: {
+        widths: ['30%', '70%'],
+        body: [row('Waktu Pengerjaan', duration), row('Tindakan Perbaikan', d.action_taken), row('Sparepart Diganti', d.sparepart_replaced)],
+      },
+      layout: gridLayout,
+    },
+    sectionTitle('IV. UJI FUNGSI SETELAH PERBAIKAN'),
+    {
+      table: {
+        widths: ['30%', '70%'],
+        body: [
+          [{ text: 'Hasil Uji Fungsi', style: 'label' }, { ...(st(d.post_repair_status) as object), alignment: 'left' } as TableCell],
+          row('Uraian Uji Fungsi', d.test_notes),
+          row('Rekomendasi / Tindak Lanjut', d.notes),
         ],
       },
       layout: gridLayout,
@@ -334,13 +351,14 @@ function featuresSection(r: PMReport, no: string): Content[] {
 }
 
 function findingsSection(r: PMReport, no: string): Content[] {
+  const isPM = r.work_type === 'PREVENTIVE_MAINTENANCE';
   return [
-    sectionTitle(`${no}. CATATAN TEMUAN & RENCANA TINDAK LANJUT`),
+    sectionTitle(`${no}. ${isPM ? 'CATATAN TEMUAN & RENCANA TINDAK LANJUT' : 'CATATAN & TINDAK LANJUT'}`),
     {
       table: {
         widths: ['25%', '75%'],
         body: [
-          [{ text: 'Temuan Lapangan', style: 'label' }, v(r.findings_summary)],
+          [{ text: isPM ? 'Temuan Lapangan' : 'Catatan', style: 'label' }, v(r.findings_summary)],
           [{ text: 'Rencana Tindak Lanjut', style: 'label' }, v(r.action_plan)],
         ],
       },
@@ -424,8 +442,7 @@ export function buildBaDocDefinition(report: PMReport): TDocumentDefinitions {
   const body: Content[] = [...generalSection(report)];
   if (report.work_type === 'CORRECTIVE_REPAIR') {
     body.push(...repairSection(report));
-    idx = 1;
-    body.push(...hardwareSection(report, next()), ...forecourtSection(report, next()));
+    idx = 3;
   } else if (report.work_type === 'QUICK_CHECK') {
     body.push(...quickCheckSection(report));
     idx = 1;
@@ -440,7 +457,12 @@ export function buildBaDocDefinition(report: PMReport): TDocumentDefinitions {
       ...featuresSection(report, next())
     );
   }
-  body.push(...findingsSection(report, next()), ...signOffSection(report, next()), ...photosSection(report));
+  const findings = findingsSection(report, roman[idx] || '');
+  if (findings.length) {
+    body.push(...findings);
+    idx++;
+  }
+  body.push(...signOffSection(report, next()), ...photosSection(report));
 
   return {
     pageSize: 'A4',

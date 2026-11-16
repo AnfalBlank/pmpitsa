@@ -1,9 +1,11 @@
 'use client';
 
 import React, { useState } from 'react';
-import { PMReport } from '@/lib/types';
+import { PMReport, ChecklistStatus } from '@/lib/types';
+import { reportStatus } from '@/lib/report-status';
+import { WORK_TYPE_TITLE } from '@/lib/work-type';
 import { useFeedback } from '@/components/feedback/FeedbackProvider';
-import { Printer, Cloud, Download, ExternalLink, ArrowLeft, FileDown, FolderOpen, HardDriveUpload } from 'lucide-react';
+import { Printer, Cloud, Download, ExternalLink, ArrowLeft, FileDown, FolderOpen, HardDriveUpload, Lock, PencilLine, Clock } from 'lucide-react';
 
 interface OfficialPdfPreviewProps {
   report: PMReport;
@@ -16,7 +18,12 @@ interface OfficialPdfPreviewProps {
   onDownloadPdf?: () => void | Promise<void>;
   /** (Re)upload the synced BA + photos to Google Drive */
   onUploadToDrive?: () => void | Promise<void>;
+  /** Admin only: revise a finalised BA */
+  onAdminEdit?: () => void | Promise<void>;
 }
+
+const STATUS_LABEL: Record<string, string> = { B: 'Baik', R: 'Rusak', X: 'Tidak Ada' };
+const stText = (s?: ChecklistStatus) => (s ? `${s} · ${STATUS_LABEL[s] || s}` : '-');
 
 export const OfficialPdfPreview: React.FC<OfficialPdfPreviewProps> = ({
   report,
@@ -26,7 +33,10 @@ export const OfficialPdfPreview: React.FC<OfficialPdfPreviewProps> = ({
   canSync = false,
   onDownloadPdf,
   onUploadToDrive,
+  onAdminEdit,
 }) => {
+  const status = reportStatus(report);
+  const isPM = report.work_type === 'PREVENTIVE_MAINTENANCE';
   const feedback = useFeedback();
   const [isSyncing, setIsSyncing] = useState(false);
   const [busy, setBusy] = useState<'pdf' | 'drive' | null>(null);
@@ -87,7 +97,8 @@ export const OfficialPdfPreview: React.FC<OfficialPdfPreviewProps> = ({
     }
   };
 
-  const docNumber = `BA-PM/PITL-PINSYST-FMS/${new Date(report.execution_date).getFullYear() || 2026}/${report.id}`;
+  const docPrefix = report.work_type === 'QUICK_CHECK' ? 'BA-QC' : report.work_type === 'CORRECTIVE_REPAIR' ? 'BA-CR' : 'BA-PM';
+  const docNumber = `${docPrefix}/PITL-PINSYST-FMS/${new Date(report.execution_date).getFullYear() || 2026}/${report.id}`;
 
   return (
     <div className="space-y-6 pb-20">
@@ -157,6 +168,17 @@ export const OfficialPdfPreview: React.FC<OfficialPdfPreviewProps> = ({
             <span>Cetak</span>
           </button>
 
+          {onAdminEdit && (
+            <button
+              type="button"
+              onClick={() => onAdminEdit()}
+              className="col-span-2 sm:col-span-1 min-h-[44px] px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-900 rounded font-bold text-xs flex items-center justify-center gap-2 shadow-xs transition-colors"
+            >
+              <PencilLine className="w-4 h-4" />
+              <span>Ubah Berita Acara (Admin)</span>
+            </button>
+          )}
+
           {canSync && onSyncToServer && (
           <button
             type="button"
@@ -165,12 +187,52 @@ export const OfficialPdfPreview: React.FC<OfficialPdfPreviewProps> = ({
             className="col-span-2 sm:col-span-1 min-h-[44px] px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-slate-600 text-white rounded font-semibold text-xs flex items-center justify-center gap-2 shadow-xs transition-colors"
           >
             <Cloud className="w-4 h-4" />
-            <span>{isSyncing ? 'Menyimpan & mengarsipkan...' : 'Kirim & Arsipkan ke Drive'}</span>
+            <span>{isSyncing ? 'Mengirim...' : status === 'PENDING_SYNC' ? 'Kirim Ulang ke Server' : 'Finalisasi & Kirim'}</span>
           </button>
           )}
         </div>
       </div>
 
+
+      {/* Document lifecycle status */}
+      <div
+        className={`no-print max-w-4xl mx-auto rounded-lg px-4 py-3 flex items-start gap-2.5 text-xs border ${
+          status === 'FINAL'
+            ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+            : status === 'PENDING_SYNC'
+            ? 'bg-amber-50 border-amber-300 text-amber-900'
+            : 'bg-slate-50 border-slate-200 text-slate-700'
+        }`}
+      >
+        {status === 'DRAFT' ? <PencilLine className="w-4 h-4 flex-shrink-0 mt-0.5" /> : status === 'PENDING_SYNC' ? <Clock className="w-4 h-4 flex-shrink-0 mt-0.5" /> : <Lock className="w-4 h-4 flex-shrink-0 mt-0.5" />}
+        <div>
+          {status === 'FINAL' && (
+            <>
+              <strong>Final &amp; terkunci</strong>
+              {report.revision && report.revision > 1 ? ` · Revisi ${report.revision}` : ''}
+              {report.finalized_at ? ` · difinalisasi ${new Date(report.finalized_at).toLocaleString('id-ID')}` : ''}
+              {report.finalized_by ? ` oleh ${report.finalized_by}` : ''}. Hanya Admin yang dapat mengubah Berita Acara ini.
+              {report.revision_log && report.revision_log.length > 0 && (
+                <span className="block mt-0.5 text-[11px] opacity-80">
+                  Revisi terakhir: {report.revision_log[report.revision_log.length - 1].by},{' '}
+                  {new Date(report.revision_log[report.revision_log.length - 1].at).toLocaleString('id-ID')}
+                </span>
+              )}
+            </>
+          )}
+          {status === 'PENDING_SYNC' && (
+            <>
+              <strong>Final, menunggu terkirim ke server.</strong> Berita Acara sudah terkunci dan tersimpan aman di perangkat ini; akan dikirim otomatis
+              saat ada koneksi.
+            </>
+          )}
+          {status === 'DRAFT' && (
+            <>
+              <strong>Draft</strong> — masih dapat diubah. Setelah difinalisasi, Berita Acara terkunci.
+            </>
+          )}
+        </div>
+      </div>
 
       {/* Google Drive archive status */}
       <div className="no-print max-w-4xl mx-auto bg-white border border-slate-200 rounded-lg px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3 text-xs">
@@ -188,9 +250,9 @@ export const OfficialPdfPreview: React.FC<OfficialPdfPreviewProps> = ({
             <div className="min-w-0">
               <div className="font-bold text-slate-900">Belum diarsipkan ke Google Drive</div>
               <div className="text-slate-600">
-                {report.synced_to_server
+                {status === 'FINAL'
                   ? 'Berita Acara sudah di server, tetapi PDF & foto belum masuk Google Drive.'
-                  : 'PDF & foto otomatis tersimpan ke Google Drive setelah Berita Acara dikirim.'}
+                  : 'PDF & foto otomatis tersimpan ke Google Drive setelah Berita Acara difinalisasi.'}
               </div>
             </div>
           )}
@@ -258,7 +320,7 @@ export const OfficialPdfPreview: React.FC<OfficialPdfPreviewProps> = ({
                 </span>
               </div>
               <h1 className="text-sm font-extrabold text-slate-900 tracking-tight uppercase">
-                BERITA ACARA PREVENTIVE MAINTENANCE (PM)
+                {WORK_TYPE_TITLE[report.work_type]}
               </h1>
               <p className="text-[11px] text-slate-600 font-medium">
                 SISTEM POS PINSYST & FUEL MANAGEMENT SYSTEM (FMS) SPBU
@@ -301,8 +363,8 @@ export const OfficialPdfPreview: React.FC<OfficialPdfPreviewProps> = ({
               <tr>
                 <td className="p-2 bg-slate-50 font-semibold border border-slate-300">Kode Site</td>
                 <td className="p-2 font-mono border border-slate-300">{report.site_code}</td>
-                <td className="p-2 bg-slate-50 font-semibold border border-slate-300">Siklus PM Berikutnya</td>
-                <td className="p-2 border border-slate-300">{report.next_pm_recommendation_date}</td>
+                <td className="p-2 bg-slate-50 font-semibold border border-slate-300">{isPM ? 'Siklus PM Berikutnya' : 'Status Akhir'}</td>
+                <td className="p-2 border border-slate-300">{isPM ? report.next_pm_recommendation_date : report.overall_status}</td>
               </tr>
               <tr>
                 <td className="p-2 bg-slate-50 font-semibold border border-slate-300">Teknisi Pelaksana</td>
@@ -315,6 +377,78 @@ export const OfficialPdfPreview: React.FC<OfficialPdfPreviewProps> = ({
           </div>
         </div>
 
+        {/* Pengecekan (Quick Check) */}
+        {report.work_type === 'QUICK_CHECK' && report.quick_check_details && (
+          <div className="mb-5">
+            <h2 className="text-xs font-black uppercase text-slate-800 bg-slate-100 px-2.5 py-1 rounded-t border border-slate-300 border-b-0">
+              II. HASIL PENGECEKAN
+            </h2>
+            <table className="w-full border-collapse border border-slate-300 text-[11px]">
+              <tbody>
+                {([
+                  ['Sistem POS Online', report.quick_check_details.pos_system_online],
+                  ['Komunikasi Dispenser', report.quick_check_details.dispenser_communication],
+                  ['EDC Siap Transaksi', report.quick_check_details.edc_transaction_ready],
+                  ['Monitor ATG / Tangki', report.quick_check_details.atg_tank_monitor],
+                  ['Printer Thermal', report.quick_check_details.printer_thermal_status],
+                ] as [string, ChecklistStatus][]).map(([label, st]) => (
+                  <tr key={label}>
+                    <td className="w-1/2 p-2 bg-slate-50 font-semibold border border-slate-300">{label}</td>
+                    <td className={`p-2 border border-slate-300 font-bold ${st === 'R' ? 'text-red-700' : st === 'B' ? 'text-emerald-700' : ''}`}>{stText(st)}</td>
+                  </tr>
+                ))}
+                {report.quick_check_details.general_notes && (
+                  <tr>
+                    <td className="p-2 bg-slate-50 font-semibold border border-slate-300">Catatan</td>
+                    <td className="p-2 border border-slate-300 whitespace-pre-line">{report.quick_check_details.general_notes}</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Corrective Maintenance (CM) */}
+        {report.work_type === 'CORRECTIVE_REPAIR' && report.repair_details && (
+          <div className="mb-5 space-y-4">
+            {([
+              ['II. LAPORAN KERUSAKAN & DIAGNOSA', [
+                ['Kategori Komponen', report.repair_details.category],
+                ['Unit / Perangkat', report.repair_details.affected_unit],
+                ['Serial Number', report.repair_details.affected_serial],
+                ['Keluhan / Gejala', report.repair_details.reported_problem],
+                ['Diagnosa & Akar Masalah', report.repair_details.root_cause],
+              ]],
+              ['III. TINDAKAN PERBAIKAN & SPAREPART', [
+                ['Waktu Pengerjaan', [report.repair_details.work_start, report.repair_details.work_end].filter(Boolean).join(' – ')],
+                ['Tindakan Perbaikan', report.repair_details.action_taken],
+                ['Sparepart Diganti', report.repair_details.sparepart_replaced],
+              ]],
+              ['IV. UJI FUNGSI SETELAH PERBAIKAN', [
+                ['Hasil Uji Fungsi', stText(report.repair_details.post_repair_status)],
+                ['Uraian Uji Fungsi', report.repair_details.test_notes],
+                ['Rekomendasi / Tindak Lanjut', report.repair_details.notes],
+              ]],
+            ] as [string, [string, string | undefined][]][]).map(([title, rows]) => (
+              <div key={title}>
+                <h2 className="text-xs font-black uppercase text-slate-800 bg-slate-100 px-2.5 py-1 rounded-t border border-slate-300 border-b-0">{title}</h2>
+                <table className="w-full border-collapse border border-slate-300 text-[11px]">
+                  <tbody>
+                    {rows.map(([label, value]) => (
+                      <tr key={label}>
+                        <td className="w-1/3 p-2 bg-slate-50 font-semibold border border-slate-300 align-top">{label}</td>
+                        <td className="p-2 border border-slate-300 whitespace-pre-line">{value || '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {isPM && (
+          <>
         {/* 2. Software Versions */}
         <div className="mb-5">
           <h2 className="text-xs font-black uppercase text-slate-800 bg-slate-100 px-2.5 py-1 rounded-t border border-slate-300 border-b-0">
@@ -481,14 +615,17 @@ export const OfficialPdfPreview: React.FC<OfficialPdfPreviewProps> = ({
           </div>
         </div>
 
+          </>
+        )}
+
         {/* 6. Findings Summary & Action Plan */}
         <div className="mb-6 border border-slate-300 rounded p-3 bg-slate-50">
           <h2 className="text-xs font-black uppercase text-slate-800 mb-1.5">
-            VII. CATATAN TEMUAN & RENCANA TINDAK LANJUT (ACTION PLAN)
+            {isPM ? 'VII. CATATAN TEMUAN & RENCANA TINDAK LANJUT (ACTION PLAN)' : report.work_type === 'QUICK_CHECK' ? 'III. CATATAN & TINDAK LANJUT' : 'V. CATATAN & TINDAK LANJUT'}
           </h2>
           <div className="space-y-2 text-[11px]">
             <div>
-              <span className="font-bold text-slate-700">Temuan Lapangan: </span>
+              <span className="font-bold text-slate-700">{isPM ? 'Temuan Lapangan: ' : 'Catatan: '}</span>
               <p className="text-slate-800 whitespace-pre-line mt-0.5">{report.findings_summary}</p>
             </div>
             <div>
@@ -522,7 +659,7 @@ export const OfficialPdfPreview: React.FC<OfficialPdfPreviewProps> = ({
         {/* 7. Sign-Off Section */}
         <div className="border border-slate-300 rounded p-4 bg-white">
           <h2 className="text-xs font-black uppercase text-slate-800 text-center mb-4">
-            VIII. LEMBAR PENGESAHAN PREVENTIVE MAINTENANCE
+            {isPM ? 'VIII' : report.work_type === 'QUICK_CHECK' ? 'IV' : 'VI'}. LEMBAR PENGESAHAN
           </h2>
 
           <div className="grid grid-cols-2 gap-4 sm:gap-8 text-center text-[11px]">

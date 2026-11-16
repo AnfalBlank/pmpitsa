@@ -1,0 +1,13 @@
+import type { WorkType } from './types';
+
+export const WORK_TYPE_TITLE: Record<WorkType, string> = {
+  PREVENTIVE_MAINTENANCE: 'BERITA ACARA PREVENTIVE MAINTENANCE (PM)',
+  QUICK_CHECK: 'BERITA ACARA PENGECEKAN (QUICK CHECK)',
+  CORRECTIVE_REPAIR: 'BERITA ACARA CORRECTIVE MAINTENANCE (CM / PERBAIKAN)',
+};
+
+export const WORK_TYPE_SHORT: Record<WorkType, string> = {
+  PREVENTIVE_MAINTENANCE: 'PM Rutin',
+  QUICK_CHECK: 'Pengecekan',
+  CORRECTIVE_REPAIR: 'CM Perbaikan',
+};

@@ -79,14 +79,15 @@ npm start
 ## 📁 Export PDF & Arsip Google Drive
 
 - **Unduh PDF**: tombol *Unduh PDF* di halaman pratinjau Berita Acara membuat PDF A4 resmi di server (kop surat, tabel checklist sesuai jenis pekerjaan, tanda tangan, nomor halaman, dan lampiran foto dokumentasi).
-- **Arsip otomatis**: saat Teknisi menekan *Kirim & Arsipkan ke Drive*, Berita Acara disimpan ke database lalu PDF dan semua foto diunggah ke Google Drive:
+- **Finalisasi & penguncian**: Teknisi menekan *Finalisasi* setelah semua isian wajib dan tanda tangan Teknisi + Pengawas lengkap. Berita Acara final **terkunci**: Teknisi dan Pengawas tidak dapat mengubahnya lagi (dicek juga di server). Hanya **Admin** yang dapat merevisi lewat tombol *Ubah Berita Acara (Admin)*; setiap revisi tercatat (nomor revisi, nama Admin, waktu). Bila koneksi putus saat finalisasi, BA tetap terkunci & tersimpan di perangkat lalu dikirim otomatis saat online.
+- **Arsip otomatis**: saat Teknisi memfinalisasi Berita Acara, Berita Acara disimpan ke database lalu PDF dan semua foto diunggah ke Google Drive:
 
 ```
 <Folder induk>/
   <KODE SPBU - Nama SPBU>/
     <YYYY-MM-DD>/
-      PM Rutin - POS-01 (PM-123456)/              ← atau "Perbaikan TIK-PITL-2026-0042 - ..." / "Quick Check - ..."
-        BA_<KODE>_<tanggal>_PM-Rutin_PM-123456.pdf
+      PM Rutin - POS-01 (PM-20261116-K3F9QX)/     ← atau "CM Perbaikan TIK-PITL-2026-0042 - ..." / "Pengecekan - ..."
+        BA_<KODE>_<tanggal>_PM-Rutin_PM-20261116-K3F9QX.pdf
         Dokumentasi Foto/01_Kondisi Hardware_<keterangan>.jpg ...
 ```
 

@@ -14,7 +14,9 @@ import {
   Camera, 
   PenTool,
   Activity,
-  Wrench
+  Wrench,
+  Search,
+  ClipboardCheck
 } from 'lucide-react';
 
 export type TabKey = 
@@ -29,7 +31,52 @@ export type TabKey =
   | 'action' 
   | 'signoff'
   | 'quick_check'
-  | 'corrective_repair';
+  | 'corrective_repair' // CM step 2: laporan kerusakan & diagnosa
+  | 'cm_action' // CM step 3: tindakan & sparepart
+  | 'cm_test'; // CM step 4: uji fungsi & hasil
+
+type TabDef = { key: TabKey; label: string; icon: React.ElementType };
+
+/**
+ * Steps per work type. Each type has its own form:
+ *  - PM (Preventive Maintenance): full 10-step routine inspection
+ *  - QUICK_CHECK (Pengecekan): short operational readiness check
+ *  - CORRECTIVE_REPAIR (CM): damage report -> diagnosis -> repair -> test
+ */
+export const WORK_TYPE_TABS: Record<PMReport['work_type'], TabDef[]> = {
+  QUICK_CHECK: [
+    { key: 'info', label: '1. Info & PWS', icon: Building2 },
+    { key: 'quick_check', label: '2. Checklist Pengecekan', icon: Activity },
+    { key: 'action', label: '3. Foto & Catatan', icon: Camera },
+    { key: 'signoff', label: '4. Pengesahan', icon: PenTool },
+  ],
+  CORRECTIVE_REPAIR: [
+    { key: 'info', label: '1. Info & Tiket', icon: Building2 },
+    { key: 'corrective_repair', label: '2. Kerusakan & Diagnosa', icon: Search },
+    { key: 'cm_action', label: '3. Tindakan & Sparepart', icon: Wrench },
+    { key: 'cm_test', label: '4. Uji Fungsi', icon: ClipboardCheck },
+    { key: 'action', label: '5. Foto Sebelum/Sesudah', icon: Camera },
+    { key: 'signoff', label: '6. Pengesahan', icon: PenTool },
+  ],
+  PREVENTIVE_MAINTENANCE: [
+    { key: 'info', label: '1. Info & PWS', icon: Building2 },
+    { key: 'software', label: '2. Versi Software', icon: Terminal },
+    { key: 'hardware', label: '3. Hardware POS', icon: Cpu },
+    { key: 'forecourt', label: '4. Forecourt & ATG', icon: Fuel },
+    { key: 'edc', label: '5. Mesin EDC', icon: CreditCard },
+    { key: 'peripherals', label: '6. Periferal Kasir', icon: Printer },
+    { key: 'network', label: '7. Jaringan & Safety', icon: Network },
+    { key: 'features', label: '8. Fitur PINSYST (11)', icon: CheckSquare },
+    { key: 'action', label: '9. Foto & Action Plan', icon: Camera },
+    { key: 'signoff', label: '10. Pengesahan', icon: PenTool },
+  ],
+};
+
+export const tabOrderFor = (workType: PMReport['work_type']): TabKey[] =>
+  (WORK_TYPE_TABS[workType] || WORK_TYPE_TABS.PREVENTIVE_MAINTENANCE).map((t) => t.key);
+
+/** First technical step after "info" for a work type */
+export const firstStepFor = (workType: PMReport['work_type']): TabKey => tabOrderFor(workType)[1];
 
 interface SectionTabsProps {
   activeTab: TabKey;
@@ -43,43 +90,35 @@ export const SectionTabs: React.FC<SectionTabsProps> = ({
   report,
 }) => {
   // Count issues per tab to show helpful badge indicator
+  const r = report;
+  const hw = r.hardware || ({} as PMReport['hardware']);
+  const fc = r.forecourt || ({} as PMReport['forecourt']);
+  const pp = r.peripherals || ({} as PMReport['peripherals']);
+  const np = r.network_power || ({} as PMReport['network_power']);
+  const bad = (...xs: (string | undefined)[]) => xs.filter((x) => x === 'R').length;
   const issueCounts: Partial<Record<TabKey, number>> = {
-    info: 0,
-    software: 0,
-    hardware: [
-      report.hardware.fan_cleanliness,
-      report.hardware.heatsink_condition,
-      report.hardware.airflow_condition,
-    ].filter((s) => s === 'R').length,
-    forecourt: [
-      report.forecourt.atg_controller_status === 'R' ? 1 : 0,
-      report.forecourt.dispenser_interface_box === 'R' ? 1 : 0,
-      report.forecourt.metrology_seal_status === 'R' ? 1 : 0,
-      report.forecourt.tanks.filter((t) => t.level_sensor_status === 'R' || t.water_sensor_status === 'R' || t.temp_sensor_status === 'R').length,
-      report.forecourt.nozzles.filter((n) => n.status === 'R').length,
-    ].reduce((a, b) => a + b, 0),
-    edc: report.edc_list.filter((e) => e.physical_status === 'R' || e.connection_status === 'R').length,
-    peripherals: [
-      report.peripherals.display_touchscreen.status,
-      report.peripherals.receipt_printer.status,
-      report.peripherals.receipt_printer.thermal_head,
-      report.peripherals.receipt_printer.auto_cutter,
-      report.peripherals.barcode_scanner.status,
-      report.peripherals.cash_drawer.status,
-    ].filter((s) => s === 'R').length,
-    network: [
-      report.network_power.utp_cable_status,
-      report.network_power.switch_router_status,
-      report.network_power.ups_shutdown_test,
-      report.network_power.apar_safety_status,
-      report.network_power.emergency_stop_status,
-    ].filter((s) => s === 'R').length + (report.network_power.voltage_ng > 2.0 ? 1 : 0),
-    features: report.features_checklist.filter((f) => f.status === 'ISSUE').length,
-    action: 0,
-    signoff: (!report.technician_signature || !report.supervisor_signature) ? 1 : 0,
-    quick_check: 0,
-    corrective_repair: report.repair_details?.post_repair_status === 'R' ? 1 : 0,
+    hardware: bad(hw.fan_cleanliness, hw.heatsink_condition, hw.airflow_condition),
+    forecourt:
+      bad(fc.atg_controller_status, fc.dispenser_interface_box, fc.metrology_seal_status) +
+      (fc.tanks || []).filter((t) => t.level_sensor_status === 'R' || t.water_sensor_status === 'R' || t.temp_sensor_status === 'R').length +
+      (fc.nozzles || []).filter((n) => n.status === 'R').length,
+    edc: (r.edc_list || []).filter((e) => e.physical_status === 'R' || e.connection_status === 'R').length,
+    peripherals: bad(
+      pp.display_touchscreen?.status,
+      pp.receipt_printer?.status,
+      pp.receipt_printer?.thermal_head,
+      pp.receipt_printer?.auto_cutter,
+      pp.barcode_scanner?.status,
+      pp.cash_drawer?.status
+    ),
+    network:
+      bad(np.utp_cable_status, np.switch_router_status, np.ups_shutdown_test, np.apar_safety_status, np.emergency_stop_status) +
+      (Number(np.voltage_ng) > 2.0 ? 1 : 0),
+    features: (r.features_checklist || []).filter((f) => f.status === 'ISSUE').length,
+    signoff: !r.technician_signature || !r.supervisor_signature ? 1 : 0,
+    cm_test: r.repair_details?.post_repair_status === 'R' ? 1 : 0,
   };
+
 
   // Keep the active step visible in the horizontal scroller (mobile)
   const navRef = React.useRef<HTMLElement | null>(null);
@@ -91,40 +130,7 @@ export const SectionTabs: React.FC<SectionTabsProps> = ({
     nav.scrollTo({ left: Math.max(0, left), behavior: 'smooth' });
   }, [activeTab]);
 
-  // Dynamic tabs configuration based on work_type
-  let tabs: { key: TabKey; label: string; icon: React.ElementType }[] = [];
-
-  if (report.work_type === 'QUICK_CHECK') {
-    tabs = [
-      { key: 'info', label: '1. Info & PWS', icon: Building2 },
-      { key: 'quick_check', label: '2. Pengecekan Cepat', icon: Activity },
-      { key: 'action', label: '3. Foto & Catatan', icon: Camera },
-      { key: 'signoff', label: '4. Sign-Off Pengesahan', icon: PenTool },
-    ];
-  } else if (report.work_type === 'CORRECTIVE_REPAIR') {
-    tabs = [
-      { key: 'info', label: '1. Info & PWS', icon: Building2 },
-      { key: 'corrective_repair', label: '2. Tindakan Perbaikan', icon: Wrench },
-      { key: 'hardware', label: '3. Komponen Hardware', icon: Cpu },
-      { key: 'forecourt', label: '4. Forecourt / ATG', icon: Fuel },
-      { key: 'action', label: '5. Foto Bukti Servis', icon: Camera },
-      { key: 'signoff', label: '6. Sign-Off Pengesahan', icon: PenTool },
-    ];
-  } else {
-    // PREVENTIVE_MAINTENANCE (Full 10 tabs)
-    tabs = [
-      { key: 'info', label: '1. Info & PWS', icon: Building2 },
-      { key: 'software', label: '2. Versi Software', icon: Terminal },
-      { key: 'hardware', label: '3. Hardware POS', icon: Cpu },
-      { key: 'forecourt', label: '4. Forecourt & ATG', icon: Fuel },
-      { key: 'edc', label: '5. Mesin EDC', icon: CreditCard },
-      { key: 'peripherals', label: '6. Periferal Kasir', icon: Printer },
-      { key: 'network', label: '7. Jaringan & Safety', icon: Network },
-      { key: 'features', label: '8. Fitur PINSYST (11)', icon: CheckSquare },
-      { key: 'action', label: '9. Foto & Action Plan', icon: Camera },
-      { key: 'signoff', label: '10. Sign-Off Pengesahan', icon: PenTool },
-    ];
-  }
+  const tabs = WORK_TYPE_TABS[report.work_type] || WORK_TYPE_TABS.PREVENTIVE_MAINTENANCE;
 
   return (
     <nav 

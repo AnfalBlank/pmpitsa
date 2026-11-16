@@ -5,7 +5,7 @@ import { AppSidebar, AppModule } from '@/components/navigation/AppSidebar';
 import { MobileTopBar } from '@/components/navigation/MobileTopBar';
 import { TopContextBar } from '@/components/navigation/TopContextBar';
 import { MobileBottomNav } from '@/components/navigation/MobileBottomNav';
-import { SectionTabs, TabKey } from '@/components/SectionTabs';
+import { SectionTabs, TabKey, tabOrderFor, firstStepFor } from '@/components/SectionTabs';
 import { BottomBar } from '@/components/BottomBar';
 import { LoginPage } from '@/components/auth/LoginPage';
 
@@ -34,11 +34,14 @@ import { QuickCheckSection } from '@/components/sections/QuickCheckSection';
 import { CorrectiveRepairSection } from '@/components/sections/CorrectiveRepairSection';
 
 import { PMReport, Site, UserSession, SPBUTicket, MaintenancePlan, WorkType } from '@/lib/types';
-import { SAMPLE_SITES, createDefaultPMReport } from '@/lib/sample-data';
+import { SAMPLE_SITES, createDefaultPMReport, newReportId } from '@/lib/sample-data';
+import { isFinal, isLocked, missingForFinalize, reportStatus } from '@/lib/report-status';
 import { 
   getCurrentReport, 
   saveCurrentReport, 
   submitReport, 
+  upsertLocalReport,
+  blankDraft,
   setSelectedSiteId, 
   getCurrentUser, 
   setCurrentUser,
@@ -71,7 +74,8 @@ import { CheckCircle2, ChevronLeft, Building2, UserCheck, ShieldAlert } from 'lu
 
 // Module access per role. Only technicians can open the PM form / activity landing.
 const ROLE_ALLOWED_MODULES: Record<UserSession['role'], AppModule[]> = {
-  ADMIN: ['overview', 'tickets', 'schedule', 'reports', 'config', 'users', 'preview'],
+  // ADMIN may open the form only to revise a finalised BA (see adminEditing)
+  ADMIN: ['overview', 'tickets', 'schedule', 'reports', 'config', 'users', 'preview', 'form'],
   SUPERVISOR: ['overview', 'tickets', 'schedule', 'reports', 'preview'],
   TECHNICIAN: ['overview', 'tickets', 'schedule', 'reports', 'landing', 'preview', 'form'],
 };
@@ -89,6 +93,8 @@ export default function Home() {
   const [currentModule, setCurrentModule] = useState<AppModule>('overview');
   const [report, setReport] = useState<PMReport>(() => getCurrentReport());
   const [activeTab, setActiveTab] = useState<TabKey>('info');
+  /** Admin is revising a finalised BA in the form */
+  const [adminEditing, setAdminEditing] = useState(false);
   const feedback = useFeedback();
   const [lastSavedText, setLastSavedText] = useState('Tersimpan di perangkat');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -164,8 +170,13 @@ export default function Home() {
             saveAllPlans(cloudPlans);
           }
           if (Array.isArray(cloudReports)) {
-            setReports(cloudReports);
-            saveAllReports(cloudReports);
+            // Keep BAs that exist only on this device (drafts / finalised but not yet sent)
+            const localOnly = getAllReports().filter(
+              (r) => reportStatus(r) !== 'FINAL' && !cloudReports.some((c: PMReport) => c.id === r.id)
+            );
+            const merged = [...localOnly, ...cloudReports];
+            setReports(merged);
+            saveAllReports(merged);
           }
           if (cloudSites && cloudSites.length > 0) {
             setSites(cloudSites);
@@ -233,8 +244,41 @@ export default function Home() {
         title: 'Akses Ditolak',
         message: `Modul "${name}" tidak tersedia untuk peran Anda.`,
       });
+      return;
     }
-  }, [currentUser, currentModule, feedback]);
+    if (currentModule === 'form') {
+      if (can(currentUser.role, 'report.edit') && !can(currentUser.role, 'pm.perform') && !adminEditing) {
+        setCurrentModule('reports');
+        window.history.replaceState(null, '', '/reports');
+        feedback.notify({
+          variant: 'info',
+          title: 'Pilih Berita Acara',
+          message: 'Admin membuka formulir melalui tombol "Ubah Berita Acara" pada Berita Acara yang sudah final.',
+        });
+      } else if (can(currentUser.role, 'pm.perform') && isLocked(report)) {
+        setCurrentModule('preview');
+        window.history.replaceState(null, '', '/preview');
+        feedback.notify({
+          variant: 'info',
+          title: 'Berita Acara Terkunci',
+          message: 'Berita Acara ini sudah difinalisasi sehingga tidak dapat diubah lagi. Perubahan hanya dapat dilakukan oleh Admin.',
+        });
+      }
+    }
+  }, [currentUser, currentModule, feedback, adminEditing, report]);
+
+  // Opening the activity landing with a finalised BA (e.g. direct URL / reload) starts a new BA
+  useEffect(() => {
+    if (!currentUser || currentModule !== 'landing' || !can(currentUser.role, 'pm.perform') || !isLocked(report)) return;
+    const site = sites.find((s) => s.id === report.site_id) || sites[0] || SAMPLE_SITES[0];
+    handleReportChange(freshReportFor(site, report.work_type));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser, currentModule, report]);
+
+  // A step from another work type must never stay open (e.g. after switching PM -> CM)
+  useEffect(() => {
+    if (!tabOrderFor(report.work_type).includes(activeTab)) setActiveTab(firstStepFor(report.work_type));
+  }, [report.work_type, activeTab]);
 
   // Scroll back to top whenever the form step or module changes (important on mobile
   // where the "Lanjut" button sits at the bottom of a long page)
@@ -244,7 +288,20 @@ export default function Home() {
 
   // Auto-save on report change
   const storageErrorShownRef = React.useRef(false);
+  const lockedNoticeRef = React.useRef(0);
   const handleReportChange = (updated: PMReport) => {
+    if (isLocked(updated) && !adminEditing) {
+      // Finalised BA: technicians/supervisors can't change it any more
+      if (Date.now() - lockedNoticeRef.current > 4000) {
+        lockedNoticeRef.current = Date.now();
+        feedback.notify({
+          variant: 'forbidden',
+          title: 'Berita Acara Terkunci',
+          message: 'Berita Acara yang sudah difinalisasi hanya dapat diubah oleh Admin.',
+        });
+      }
+      return;
+    }
     setReport(updated);
     try {
       saveCurrentReport(updated);
@@ -308,7 +365,7 @@ export default function Home() {
     const patch = (r: PMReport) => (r.id === id ? { ...r, gdrive, gdrive_pdf_id: gdrive.pdf_file_id } : r);
     setReport((prev) => {
       const next = patch(prev);
-      if (next !== prev) submitReport(next);
+      if (next !== prev) upsertLocalReport(next);
       return next;
     });
     setReports((prev) => {
@@ -324,36 +381,56 @@ export default function Home() {
     </a>
   );
 
-  const handleSubmitFinal = async () => {
-    if (!requirePM()) return;
-    const updated = submitReport(report);
-    setReport(updated);
-    setReports(prev => [updated, ...prev.filter(r => r.id !== updated.id)]);
-    const result = await feedback.run(
+  /** Server confirmed the BA: store the FINAL copy everywhere */
+  const markFinal = (final: PMReport) => {
+    upsertLocalReport(final);
+    setReport((prev) => (prev.id === final.id ? final : prev));
+    setReports((prev) => {
+      const next = [final, ...prev.filter((r) => r.id !== final.id)];
+      saveAllReports(next);
+      return next;
+    });
+  };
+
+  /** Server rejected the content (incomplete / id clash): unlock so the technician can fix it */
+  const reopenDraft = (r: PMReport, newId = false) => {
+    const draft: PMReport = { ...r, status: 'DRAFT', ...(newId ? { id: newReportId() } : {}) };
+    setReports((prev) => {
+      const next = prev.filter((x) => x.id !== r.id);
+      saveAllReports(next);
+      return next;
+    });
+    setReport(draft);
+    saveCurrentReport(draft);
+  };
+
+  const sendFinalToServer = async (pending: PMReport) => {
+    const result: any = await feedback.run(
       async () => {
-        const saved = await saveReportApi(updated);
-        if (!saved.success) return saved as { success: false; message?: string; code?: string };
-        const drive = await uploadBaToDriveApi(updated.id);
-        return { success: true as const, drive };
+        const saved: any = await saveReportApi(pending);
+        if (!saved.success) return saved;
+        markFinal(saved.report);
+        const drive = saved.alreadyFinal && saved.report?.gdrive ? { success: true, gdrive: saved.report.gdrive } : await uploadBaToDriveApi(pending.id);
+        return { success: true, drive, final: saved.report };
       },
       {
-        pending: 'Menyimpan Berita Acara & mengarsipkan ke Google Drive...',
+        pending: 'Menyimpan Berita Acara final & mengarsipkan ke Google Drive...',
         success: (r: any) =>
           r.drive?.success
             ? {
-                title: 'Berita Acara Tersimpan & Diarsipkan',
+                title: 'Berita Acara Final Tersimpan',
                 message: (
                   <>
-                    Laporan <strong>#{updated.id}</strong> tersimpan di database. PDF dan {updated.attachments.length} foto dokumentasi tersimpan di Google
-                    Drive: {driveLink(r.drive.gdrive)}
+                    Berita Acara <strong>#{pending.id}</strong> sudah final dan terkunci, tersimpan di server, serta PDF &amp; foto dokumentasinya tersimpan di
+                    Google Drive: {driveLink(r.drive.gdrive)}
                   </>
                 ),
               }
             : {
-                title: 'Tersimpan, Arsip Drive Gagal',
+                title: 'Berita Acara Final Tersimpan',
                 message: (
                   <>
-                    Laporan <strong>#{updated.id}</strong> tersimpan di database, tetapi belum masuk Google Drive
+                    Berita Acara <strong>#{pending.id}</strong> sudah final dan tersimpan di server, tetapi belum masuk Google Drive
                     {r.drive?.code === 'DRIVE_NOT_CONFIGURED' ? ' (Google Drive belum diaktifkan oleh Admin).' : '.'} Tekan &quot;Arsipkan ke Google
                     Drive&quot; di halaman pratinjau untuk mencoba lagi.
                     {r.drive?.message && <span className="block mt-1 text-[11px] font-mono text-slate-500 break-words">{r.drive.message}</span>}
@@ -361,12 +438,143 @@ export default function Home() {
                 ),
               },
         error: {
-          title: 'Gagal Sinkron ke Server',
-          message: 'Laporan sudah tersimpan di perangkat ini. Buka halaman Berita Acara lalu tekan "Sinkron" lagi saat koneksi tersedia.',
+          title: 'Belum Terkirim ke Server',
+          message:
+            'Berita Acara sudah final dan tersimpan aman di perangkat ini. Aplikasi akan mengirimkannya otomatis saat koneksi tersedia, atau tekan "Kirim Ulang" di halaman pratinjau.',
         },
       }
     );
-    if (result.success && (result as any).drive?.success) applyDriveInfo(updated.id, (result as any).drive.gdrive);
+    if (!result.success && (result.code === 'INCOMPLETE' || result.code === 'ID_CONFLICT')) {
+      reopenDraft(pending, result.code === 'ID_CONFLICT');
+    } else if (result.success && result.drive?.success && result.drive.gdrive) {
+      applyDriveInfo(pending.id, result.drive.gdrive);
+    }
+  };
+
+  const handleSubmitFinal = async () => {
+    if (!requirePM()) return;
+    if (isLocked(report)) {
+      if (reportStatus(report) === 'PENDING_SYNC') await sendFinalToServer(report);
+      return;
+    }
+    const missing = missingForFinalize(report);
+    if (missing.length) {
+      feedback.notify({
+        variant: 'warning',
+        title: 'Berita Acara Belum Lengkap',
+        message: (
+          <>
+            Lengkapi dulu sebelum finalisasi:
+            <ul className="mt-1 text-left list-disc pl-5">{missing.map((m) => <li key={m}>{m}</li>)}</ul>
+          </>
+        ),
+      });
+      return;
+    }
+    const pending = submitReport(report); // locked + stored on the device first
+    setReport(pending);
+    setReports((prev) => [pending, ...prev.filter((r) => r.id !== pending.id)]);
+    await sendFinalToServer(pending);
+  };
+
+  // Auto-resend finalised BAs that didn't reach the server (offline in the field)
+  const resendingRef = React.useRef(false);
+  useEffect(() => {
+    if (!currentUser || !can(currentUser.role, 'report.sync')) return;
+    const resend = async () => {
+      if (resendingRef.current || (typeof navigator !== 'undefined' && !navigator.onLine)) return;
+      const pending = getAllReports().filter((r) => reportStatus(r) === 'PENDING_SYNC');
+      if (!pending.length) return;
+      resendingRef.current = true;
+      let sent = 0;
+      for (const r of pending) {
+        const saved: any = await saveReportApi(r);
+        if (saved.success && saved.report) {
+          markFinal(saved.report);
+          sent++;
+          const drive = await uploadBaToDriveApi(r.id);
+          if (drive.success && drive.gdrive) applyDriveInfo(r.id, drive.gdrive);
+        }
+      }
+      resendingRef.current = false;
+      if (sent) showToast(`${sent} Berita Acara final berhasil dikirim ke server.`);
+    };
+    const t = setTimeout(resend, 3000);
+    window.addEventListener('online', resend);
+    return () => {
+      clearTimeout(t);
+      window.removeEventListener('online', resend);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser]);
+
+  /** Admin: open a finalised BA in the form to revise it */
+  const handleAdminEdit = async (target: PMReport) => {
+    if (!currentUser || !can(currentUser.role, 'report.edit')) return;
+    const ok = await feedback.confirm({
+      title: 'Ubah Berita Acara Final?',
+      message: 'Perubahan akan disimpan sebagai revisi baru, tercatat atas nama Anda, dan arsip PDF di Google Drive diperbarui.',
+      confirmLabel: 'Ya, Ubah',
+    });
+    if (!ok) return;
+    setAdminEditing(true);
+    setReport({ ...target });
+    setActiveTab('info');
+    setCurrentModule('form');
+    window.history.pushState(null, '', '/form');
+  };
+
+  const leaveAdminEdit = (id: string) => {
+    setAdminEditing(false);
+    const original = reports.find((r) => r.id === id);
+    if (original) setReport(original);
+    setCurrentModule('preview');
+    window.history.pushState(null, '', '/preview');
+  };
+
+  const handleAdminCancelEdit = async () => {
+    const ok = await feedback.confirm({
+      title: 'Batalkan Perubahan?',
+      message: 'Perubahan yang belum disimpan akan dibuang. Berita Acara final tidak berubah.',
+      confirmLabel: 'Buang Perubahan',
+      danger: true,
+    });
+    if (ok) leaveAdminEdit(report.id);
+  };
+
+  const handleAdminSaveRevision = async () => {
+    const missing = missingForFinalize(report);
+    if (missing.length) {
+      feedback.notify({ variant: 'warning', title: 'Berita Acara Belum Lengkap', message: `Lengkapi: ${missing.join(', ')}.` });
+      return;
+    }
+    const result: any = await feedback.run(
+      async () => {
+        const saved: any = await saveReportApi(report);
+        if (!saved.success) return saved;
+        markFinal(saved.report);
+        const drive = await uploadBaToDriveApi(report.id);
+        return { success: true, final: saved.report, drive };
+      },
+      {
+        pending: 'Menyimpan revisi Berita Acara...',
+        success: (r: any) => ({
+          title: `Revisi ${r.final?.revision ?? ''} Tersimpan`,
+          message: r.drive?.success ? (
+            <>Perubahan tersimpan di server dan arsip Google Drive diperbarui: {driveLink(r.drive.gdrive)}</>
+          ) : (
+            'Perubahan tersimpan di server. Arsip Google Drive belum diperbarui; gunakan tombol "Perbarui Arsip Drive" di pratinjau.'
+          ),
+        }),
+        error: { title: 'Gagal Menyimpan Revisi', message: 'Perubahan belum tersimpan. Periksa koneksi lalu coba lagi.' },
+      }
+    );
+    if (result.success) {
+      if (result.drive?.success && result.drive.gdrive) applyDriveInfo(report.id, result.drive.gdrive);
+      setAdminEditing(false);
+      setCurrentModule('preview');
+      window.history.pushState(null, '', '/preview');
+    }
   };
 
   /** Re-upload (or first upload) of an already-synced BA to Google Drive */
@@ -453,21 +661,12 @@ export default function Home() {
   };
 
   /** A blank Berita Acara (new ID, no signatures/photos) for a new job. */
-  const freshReportFor = (site: Site, workType: WorkType): PMReport => ({
-    ...createDefaultPMReport(site, currentUser || undefined, workType),
-    attachments: [],
-    technician_signature: undefined,
-    technician_signed_at: undefined,
-    supervisor_signature: undefined,
-    supervisor_signed_at: undefined,
-    synced_to_server: false,
-    gdrive: undefined,
-    gdrive_pdf_id: undefined,
-  });
+  const freshReportFor = (site: Site, workType: WorkType): PMReport =>
+    blankDraft(createDefaultPMReport(site, currentUser || undefined, workType));
 
   /** Continue the open draft, or start a new BA when the current one was already submitted. */
   const draftBase = (site: Site, workType: WorkType): PMReport =>
-    report.synced_to_server ? freshReportFor(site, workType) : { ...report, ticket_id: undefined, ticket_number: undefined };
+    isLocked(report) ? freshReportFor(site, workType) : { ...report, ticket_id: undefined, ticket_number: undefined };
 
   const handleStartExecutionFromPlan = (site: Site, workType: WorkType, terminalId: string) => {
     if (!requirePM()) return;
@@ -557,7 +756,11 @@ export default function Home() {
       });
       return;
     }
-    if ((mod === 'landing' || mod === 'form') && report.synced_to_server && can(currentUser.role, 'pm.perform')) {
+    if (adminEditing && mod !== 'form') {
+      leaveAdminEdit(report.id);
+      if (mod === 'preview') return;
+    }
+    if ((mod === 'landing' || mod === 'form') && isLocked(report) && can(currentUser.role, 'pm.perform')) {
       const site = sites.find((s) => s.id === report.site_id) || sites[0] || SAMPLE_SITES[0];
       handleReportChange(freshReportFor(site, report.work_type));
       showToast('Berita Acara sebelumnya sudah terkirim — memulai Berita Acara baru.');
@@ -583,8 +786,8 @@ export default function Home() {
 
   const workTypeLabels = {
     PREVENTIVE_MAINTENANCE: 'Preventive Maintenance (PM)',
-    QUICK_CHECK: 'Pengecekan Aja',
-    CORRECTIVE_REPAIR: 'Perbaikan (Repair)',
+    QUICK_CHECK: 'Pengecekan (Quick Check)',
+    CORRECTIVE_REPAIR: 'Corrective Maintenance (CM)',
   };
 
   if (!isClientLoaded) {
@@ -770,8 +973,9 @@ export default function Home() {
           {currentModule === 'preview' && (
             <OfficialPdfPreview
               report={report}
-              canSync={can(currentUser.role, 'pm.perform')}
-              onBackToForm={can(currentUser.role, 'pm.perform') ? () => setCurrentModule('form') : undefined}
+              canSync={can(currentUser.role, 'pm.perform') && !isFinal(report)}
+              onBackToForm={can(currentUser.role, 'pm.perform') && !isLocked(report) ? () => setCurrentModule('form') : undefined}
+              onAdminEdit={can(currentUser.role, 'report.edit') && isFinal(report) ? () => handleAdminEdit(report) : undefined}
               onBackToList={() => {
                 setCurrentModule('reports');
                 window.history.pushState(null, '', '/reports');
@@ -779,7 +983,7 @@ export default function Home() {
               onSyncToServer={handleSubmitFinal}
               onDownloadPdf={() => handleDownloadPdf(report)}
               onUploadToDrive={
-                report.synced_to_server && (can(currentUser.role, 'report.sync') || can(currentUser.role, 'report.delete'))
+                isFinal(report) && (can(currentUser.role, 'report.sync') || can(currentUser.role, 'report.delete'))
                   ? () => handleUploadToDrive(report)
                   : undefined
               }
@@ -836,6 +1040,13 @@ export default function Home() {
                 </div>
               </div>
 
+              {adminEditing && (
+                <div className="bg-amber-50 border border-amber-300 rounded-xl px-4 py-3 text-xs text-amber-900">
+                  <strong>Mode revisi Admin.</strong> Anda mengubah Berita Acara final #{report.id}
+                  {report.revision ? ` (revisi saat ini: ${report.revision})` : ''}. Tekan &quot;Simpan Revisi&quot; di bawah untuk menyimpan, atau &quot;Batal&quot;.
+                </div>
+              )}
+
               {/* Stepper Tabs based on Work Type */}
               <SectionTabs
                 activeTab={activeTab}
@@ -852,7 +1063,13 @@ export default function Home() {
                   <QuickCheckSection report={report} onChange={handleReportChange} />
                 )}
                 {activeTab === 'corrective_repair' && (
-                  <CorrectiveRepairSection report={report} onChange={handleReportChange} />
+                  <CorrectiveRepairSection step="diagnosis" report={report} onChange={handleReportChange} />
+                )}
+                {activeTab === 'cm_action' && (
+                  <CorrectiveRepairSection step="action" report={report} onChange={handleReportChange} />
+                )}
+                {activeTab === 'cm_test' && (
+                  <CorrectiveRepairSection step="test" report={report} onChange={handleReportChange} />
                 )}
                 {activeTab === 'software' && (
                   <SoftwareSection report={report} onChange={handleReportChange} />
@@ -889,8 +1106,14 @@ export default function Home() {
                 onSelectTab={setActiveTab}
                 report={report}
                 onSaveDraft={handleManualSave}
-                onSubmitReport={handleSubmitFinal}
-                onViewPdf={() => setCurrentModule('preview')}
+                onSubmitReport={adminEditing ? handleAdminSaveRevision : handleSubmitFinal}
+                adminEdit={adminEditing}
+                onCancelEdit={handleAdminCancelEdit}
+                missing={missingForFinalize(report)}
+                onViewPdf={() => {
+                  setCurrentModule('preview');
+                  window.history.pushState(null, '', '/preview');
+                }}
                 onBackToLanding={() => setCurrentModule('overview')}
               />
             </div>

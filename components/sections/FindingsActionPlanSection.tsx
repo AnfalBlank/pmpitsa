@@ -8,6 +8,49 @@ import { useFeedback } from '@/components/feedback/FeedbackProvider';
 const MAX_PHOTO_MB = 25; // raw camera file; it is compressed before attaching
 import { Camera, Image as ImageIcon, Plus, Trash2, Calendar, FileText, CheckCircle2, AlertTriangle } from 'lucide-react';
 
+/** Labels & photo categories differ per work type (PM / Pengecekan / CM) */
+const COPY: Record<PMReport['work_type'], {
+  title: string;
+  subtitle: string;
+  findingsLabel: string;
+  findingsPlaceholder: string;
+  planLabel: string;
+  planPlaceholder: string;
+  planRequired: boolean;
+  categories: PMAttachment['category'][];
+}> = {
+  PREVENTIVE_MAINTENANCE: {
+    title: 'Catatan Temuan Lapangan & Rencana Tindak Lanjut (Action Plan)',
+    subtitle: 'Rangkuman hasil inspeksi berkala dan rekomendasi sparepart',
+    findingsLabel: 'Ringkasan Temuan Lapangan',
+    findingsPlaceholder: 'Kondisi umum terminal POS, forecourt FMS, dan temuan penting saat inspeksi...',
+    planLabel: 'Rencana Tindak Lanjut & Kebutuhan Sparepart (Action Plan)',
+    planPlaceholder: 'Contoh: 1. Pembersihan printer thermal berkala. 2. Ganti fan pendingin bulan depan.',
+    planRequired: true,
+    categories: ['Kondisi Hardware', 'Dispenser & ATG', 'EDC & Periferal', 'Temuan Kerusakan', 'Lainnya'],
+  },
+  QUICK_CHECK: {
+    title: 'Catatan Hasil Pengecekan',
+    subtitle: 'Kesimpulan singkat kesiapan operasional dan tindak lanjut bila ada',
+    findingsLabel: 'Catatan Hasil Pengecekan',
+    findingsPlaceholder: 'Contoh: Semua sistem online, EDC 2 lambat terhubung, sudah di-restart.',
+    planLabel: 'Tindak Lanjut (bila ada)',
+    planPlaceholder: 'Contoh: Buat tiket perbaikan EDC 2 bila masih lambat.',
+    planRequired: false,
+    categories: ['Kondisi Umum', 'Temuan Kerusakan', 'Lainnya'],
+  },
+  CORRECTIVE_REPAIR: {
+    title: 'Dokumentasi Perbaikan',
+    subtitle: 'Foto sebelum, saat, dan sesudah perbaikan serta sparepart yang diganti',
+    findingsLabel: 'Catatan Tambahan Perbaikan',
+    findingsPlaceholder: 'Informasi lain yang perlu diketahui PWS / Admin (opsional)',
+    planLabel: 'Tindak Lanjut (bila ada)',
+    planPlaceholder: 'Contoh: Pesan thermal head pengganti, kunjungan ulang minggu depan.',
+    planRequired: false,
+    categories: ['Sebelum Perbaikan', 'Proses Perbaikan', 'Sesudah Perbaikan', 'Sparepart', 'Lainnya'],
+  },
+};
+
 interface FindingsActionPlanSectionProps {
   report: PMReport;
   onChange: (updated: PMReport) => void;
@@ -17,7 +60,9 @@ export const FindingsActionPlanSection: React.FC<FindingsActionPlanSectionProps>
   report,
   onChange,
 }) => {
-  const [selectedCategory, setSelectedCategory] = useState<PMAttachment['category']>('Kondisi Hardware');
+  const copy = COPY[report.work_type] || COPY.PREVENTIVE_MAINTENANCE;
+  const categories = copy.categories;
+  const [selectedCategory, setSelectedCategory] = useState<PMAttachment['category']>(categories[0]);
   const [captionInput, setCaptionInput] = useState('');
   const feedback = useFeedback();
 
@@ -94,13 +139,6 @@ export const FindingsActionPlanSection: React.FC<FindingsActionPlanSectionProps>
     feedback.notify({ variant: 'success', title: 'Foto Dihapus', message: 'Foto telah dihapus dari laporan.' });
   };
 
-  const categories: PMAttachment['category'][] = [
-    'Kondisi Hardware',
-    'Dispenser & ATG',
-    'EDC & Periferal',
-    'Temuan Kerusakan',
-    'Lainnya',
-  ];
 
   return (
     <div className="space-y-6">
@@ -110,10 +148,10 @@ export const FindingsActionPlanSection: React.FC<FindingsActionPlanSectionProps>
           <FileText className="w-5 h-5 text-red-600 flex-shrink-0" />
           <div>
             <h2 className="text-base font-bold text-slate-900">
-              Catatan Temuan Lapangan & Rencana Tindak Lanjut (Action Plan)
+              {copy.title}
             </h2>
             <p className="text-xs text-slate-500">
-              Rangkuman pekerjaan perbaikan segera dan rekomendasi pengadaan sparepart
+              {copy.subtitle}
             </p>
           </div>
         </div>
@@ -124,7 +162,7 @@ export const FindingsActionPlanSection: React.FC<FindingsActionPlanSectionProps>
               htmlFor="findings-summary-input"
               className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1"
             >
-              Ringkasan Temuan Lapangan <span className="text-red-500">*</span>
+              {copy.findingsLabel} {report.work_type !== 'CORRECTIVE_REPAIR' && <span className="text-red-500">*</span>}
             </label>
             <textarea
               id="findings-summary-input"
@@ -132,7 +170,7 @@ export const FindingsActionPlanSection: React.FC<FindingsActionPlanSectionProps>
               required
               value={report.findings_summary}
               onChange={(e) => updateField('findings_summary', e.target.value)}
-              placeholder="Jelaskan kondisi umum terminal POS, forecourt FMS, dan temuan penting saat inspeksi..."
+                            placeholder={copy.findingsPlaceholder}
               className="w-full px-3 py-2 bg-white border border-slate-300 rounded-md text-sm text-slate-900 focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
             />
           </div>
@@ -142,7 +180,7 @@ export const FindingsActionPlanSection: React.FC<FindingsActionPlanSectionProps>
               htmlFor="action-plan-input"
               className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1"
             >
-              Rencana Tindak Lanjut & Kebutuhan Sparepart (Action Plan) <span className="text-red-500">*</span>
+              {copy.planLabel} {copy.planRequired && <span className="text-red-500">*</span>}
             </label>
             <textarea
               id="action-plan-input"
@@ -150,7 +188,7 @@ export const FindingsActionPlanSection: React.FC<FindingsActionPlanSectionProps>
               required
               value={report.action_plan}
               onChange={(e) => updateField('action_plan', e.target.value)}
-              placeholder="Contoh: 1. Pembersihan printer thermal berkala. 2. Rekomendasi pergantian fan pendingin bulan depan. 3. Kalibrasi ulang probe sensor tangki 3."
+                            placeholder={copy.planPlaceholder}
               className="w-full px-3 py-2 bg-white border border-slate-300 rounded-md text-sm text-slate-900 focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
             />
           </div>

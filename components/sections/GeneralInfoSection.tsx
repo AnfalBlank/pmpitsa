@@ -227,7 +227,7 @@ export const GeneralInfoSection: React.FC<GeneralInfoSectionProps> = ({
           <ShieldCheck className="w-5 h-5 text-emerald-600 flex-shrink-0" />
           <div>
             <h2 className="text-base font-bold text-slate-900">
-              Status Keseluruhan & Rekomendasi Siklus
+              {report.work_type === 'PREVENTIVE_MAINTENANCE' ? 'Status Keseluruhan & Rekomendasi Siklus' : 'Status Keseluruhan'}
             </h2>
             <p className="text-xs text-slate-500">
               Klasifikasi kondisi terminal POS saat selesai dilakukan inspeksi berkala
@@ -238,7 +238,11 @@ export const GeneralInfoSection: React.FC<GeneralInfoSectionProps> = ({
         <div className="space-y-4">
           <div>
             <span className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">
-              Klasifikasi Kondisi Hasil PM
+              {report.work_type === 'CORRECTIVE_REPAIR'
+                ? 'Status Setelah Perbaikan'
+                : report.work_type === 'QUICK_CHECK'
+                ? 'Kesimpulan Hasil Pengecekan'
+                : 'Klasifikasi Kondisi Hasil PM'}
             </span>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
               {statusOptions.map((status) => {
@@ -272,6 +276,7 @@ export const GeneralInfoSection: React.FC<GeneralInfoSectionProps> = ({
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+            {report.work_type === 'PREVENTIVE_MAINTENANCE' && (
             <div>
               <label 
                 htmlFor="next-pm-date-input"
@@ -290,6 +295,7 @@ export const GeneralInfoSection: React.FC<GeneralInfoSectionProps> = ({
                 Standar siklus PM rutin Pertamina: 30 hari sekali
               </span>
             </div>
+            )}
 
             <div className="bg-slate-50 p-3 rounded-md border border-slate-200 flex items-start gap-2 text-xs text-slate-600">
               <AlertCircle className="w-4 h-4 text-blue-700 flex-shrink-0 mt-0.5" />

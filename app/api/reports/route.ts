@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireSession, forbidden } from '@/lib/session';
-import { siteScope } from '@/lib/rbac';
+import { can, siteScope } from '@/lib/rbac';
+import { missingForFinalize } from '@/lib/report-status';
 import { getTursoClient, ensureSchema } from '@/lib/turso';
 import { PMReport } from '@/lib/types';
 
@@ -86,7 +87,7 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const auth = requireSession(req, 'report.sync');
+    const auth = requireSession(req);
     if (auth.error) return auth.error;
     const session = auth.session;
     await ensureSchema();
@@ -101,24 +102,78 @@ export async function POST(req: Request) {
       );
     }
 
-    const now = new Date().toISOString();
-    // Keep the Drive archive info written by /api/reports/drive if the client copy is older.
-    let gdrive = report.gdrive;
-    if (!gdrive) {
-      const prev = await db.execute({ sql: 'SELECT report_data FROM pm_reports WHERE id = ? LIMIT 1;', args: [report.id] });
-      if (prev.rows.length) {
-        try {
-          gdrive = JSON.parse(String(prev.rows[0].report_data)).gdrive;
-        } catch {}
+    const prev = await db.execute({ sql: 'SELECT report_data FROM pm_reports WHERE id = ? LIMIT 1;', args: [report.id] });
+    let existing: PMReport | null = null;
+    if (prev.rows.length) {
+      try {
+        existing = JSON.parse(String(prev.rows[0].report_data));
+      } catch {
+        existing = { id: report.id } as PMReport;
       }
     }
-    const updatedReport: PMReport = {
-      ...report,
-      synced_to_server: true,
-      updated_at: now,
-      gdrive,
-      gdrive_pdf_id: gdrive?.pdf_file_id,
-    };
+
+    const now = new Date().toISOString();
+    let updatedReport: PMReport;
+
+    if (!existing) {
+      // First finalisation: technician only, and the BA must be complete
+      if (!can(session.role, 'report.sync')) {
+        return forbidden('Akses ditolak: hanya Teknisi yang dapat memfinalisasi Berita Acara.');
+      }
+      const missing = missingForFinalize(report);
+      if (missing.length) {
+        return NextResponse.json(
+          { success: false, code: 'INCOMPLETE', message: `Berita Acara belum lengkap: ${missing.join(', ')}.` },
+          { status: 400 }
+        );
+      }
+      updatedReport = {
+        ...report,
+        status: 'FINAL',
+        synced_to_server: true,
+        finalized_at: now,
+        finalized_by: session.name,
+        revision: 1,
+        revision_log: [],
+        updated_at: now,
+        gdrive: undefined,
+        gdrive_pdf_id: undefined,
+      };
+    } else if (can(session.role, 'report.edit')) {
+      // Admin revision of a finalised BA
+      const revision = (existing.revision || 1) + 1;
+      updatedReport = {
+        ...report,
+        status: 'FINAL',
+        synced_to_server: true,
+        finalized_at: existing.finalized_at || existing.created_at || now,
+        finalized_by: existing.finalized_by || existing.technician_name,
+        revision,
+        revision_log: [...(existing.revision_log || []), { at: now, by: session.name, note: `Revisi ${revision} oleh Admin` }],
+        updated_at: now,
+        gdrive: existing.gdrive,
+        gdrive_pdf_id: existing.gdrive?.pdf_file_id || existing.gdrive_pdf_id,
+      };
+    } else if (
+      can(session.role, 'report.sync') &&
+      (Number(existing.site_id) !== Number(report.site_id) || existing.created_at !== report.created_at)
+    ) {
+      return NextResponse.json(
+        { success: false, code: 'ID_CONFLICT', message: 'Nomor Berita Acara bentrok dengan dokumen lain. Buat Berita Acara baru lalu kirim ulang.' },
+        { status: 409 }
+      );
+    } else if (can(session.role, 'report.sync')) {
+      // Technician re-sending an already stored BA (e.g. retry after a timeout):
+      // never overwrite, just confirm what is on the server.
+      return NextResponse.json({
+        success: true,
+        alreadyFinal: true,
+        message: 'Berita Acara ini sudah difinalisasi dan tersimpan di server. Perubahan hanya dapat dilakukan oleh Admin.',
+        report: { ...existing, status: 'FINAL', synced_to_server: true },
+      });
+    } else {
+      return forbidden('Akses ditolak: Berita Acara yang sudah difinalisasi hanya dapat diubah oleh Admin.');
+    }
 
     const reportJson = JSON.stringify(updatedReport);
 
@@ -180,7 +235,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       success: true,
-      message: 'Berita Acara berhasil disinkronkan ke Database Turso.',
+      message: existing ? 'Revisi Berita Acara tersimpan.' : 'Berita Acara difinalisasi dan tersimpan di server.',
       report: updatedReport,
     });
   } catch (err: any) {

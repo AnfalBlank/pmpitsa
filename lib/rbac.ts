@@ -16,6 +16,7 @@ import type { UserRole } from './types';
 export type Permission =
   | 'pm.perform' // open PM form, start PM/quick check/repair, save draft, submit BA
   | 'report.sync' // save / sync Berita Acara to the server
+  | 'report.edit' // revise a finalised Berita Acara
   | 'report.delete'
   | 'ticket.create'
   | 'ticket.update' // change status / notes / assignee
@@ -29,6 +30,7 @@ export type Permission =
 
 const MATRIX: Record<UserRole, Permission[]> = {
   ADMIN: [
+    'report.edit',
     'report.delete',
     'ticket.create',
     'ticket.update',

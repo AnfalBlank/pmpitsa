@@ -75,6 +75,14 @@ export interface CorrectiveRepairDetails {
   sparepart_replaced: string;
   post_repair_status: ChecklistStatus;
   notes: string;
+  /** Unit / komponen yang rusak, mis. "Printer Epson TM-T82 kasir 1" */
+  affected_unit?: string;
+  affected_serial?: string;
+  /** Waktu mulai & selesai pengerjaan (HH:MM) */
+  work_start?: string;
+  work_end?: string;
+  /** Uraian uji fungsi setelah perbaikan */
+  test_notes?: string;
 }
 
 export interface QuickCheckDetails {
@@ -203,7 +211,17 @@ export interface PMAttachment {
   id: string;
   file_name: string;
   file_url: string;
-  category: 'Kondisi Hardware' | 'Dispenser & ATG' | 'EDC & Periferal' | 'Temuan Kerusakan' | 'Lainnya';
+  category:
+    | 'Kondisi Hardware'
+    | 'Dispenser & ATG'
+    | 'EDC & Periferal'
+    | 'Temuan Kerusakan'
+    | 'Kondisi Umum'
+    | 'Sebelum Perbaikan'
+    | 'Proses Perbaikan'
+    | 'Sesudah Perbaikan'
+    | 'Sparepart'
+    | 'Lainnya';
   caption: string;
   uploaded_at: string;
 }
@@ -248,6 +266,18 @@ export interface PMReport {
   synced_to_server: boolean;
   gdrive_pdf_id?: string;
 
+  /**
+   * DRAFT        : being filled in by the technician
+   * PENDING_SYNC : finalised on the device, waiting to reach the server (locked)
+   * FINAL        : stored on the server (locked; only Admin may revise)
+   * Older reports without a status are FINAL when synced_to_server is true.
+   */
+  status?: ReportStatus;
+  finalized_at?: string;
+  finalized_by?: string;
+  revision?: number;
+  revision_log?: { at: string; by: string; note: string }[];
+
   /** Set when this report is a corrective repair started from a ticket */
   ticket_id?: string;
   ticket_number?: string;
@@ -255,6 +285,8 @@ export interface PMReport {
   /** Google Drive archive info, filled by the server after upload */
   gdrive?: GDriveArchiveInfo;
 }
+
+export type ReportStatus = 'DRAFT' | 'PENDING_SYNC' | 'FINAL';
 
 export interface GDriveArchiveInfo {
   folder_id: string;

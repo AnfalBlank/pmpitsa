@@ -80,7 +80,7 @@ export const InitiationLanding: React.FC<InitiationLandingProps> = ({
     },
     {
       key: 'QUICK_CHECK',
-      title: 'Pengecekan Aja',
+      title: 'Pengecekan (Quick Check)',
       subtitle: 'Pemeriksaan cepat kesiapan operasional kasir, tes online POS, komunikasi dispenser, EDC, dan level tangki tanpa audit fisik mendalam.',
       tag: 'Pemeriksaan Cepat',
       icon: Activity,
@@ -90,7 +90,7 @@ export const InitiationLanding: React.FC<InitiationLandingProps> = ({
     },
     {
       key: 'CORRECTIVE_REPAIR',
-      title: 'Perbaikan (Corrective Repair)',
+      title: 'Corrective Maintenance (CM)',
       subtitle: 'Penanganan kerusakan komponen tertentu, pencatatan akar masalah teknis, penggantian suku cadang/sparepart, dan uji kelayakan pasca servis.',
       tag: 'Troubleshooting / Kerusakan',
       icon: Wrench,
@@ -486,8 +486,8 @@ export const InitiationLanding: React.FC<InitiationLandingProps> = ({
             {report.work_type === 'PREVENTIVE_MAINTENANCE'
               ? 'Lanjut ke Formulir Preventive Maintenance Lengkap'
               : report.work_type === 'QUICK_CHECK'
-              ? 'Lanjut ke Formulir Pengecekan Cepat (Health Check)'
-              : 'Lanjut ke Formulir Tindakan Perbaikan (Repair)'}
+              ? 'Lanjut ke Formulir Pengecekan (Quick Check)'
+              : 'Lanjut ke Formulir Corrective Maintenance (CM)'}
           </span>
           <ArrowRight className="w-5 h-5 text-red-400" />
         </button>

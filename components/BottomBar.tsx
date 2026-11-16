@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { TabKey } from './SectionTabs';
+import { TabKey, tabOrderFor } from './SectionTabs';
 import { PMReport } from '@/lib/types';
 import { Save, ChevronLeft, ChevronRight, CheckCircle, FileText, AlertCircle, Home } from 'lucide-react';
 
@@ -13,6 +13,11 @@ interface BottomBarProps {
   onSubmitReport: () => void;
   onViewPdf: () => void;
   onBackToLanding: () => void;
+  /** Admin is revising a finalised BA */
+  adminEdit?: boolean;
+  onCancelEdit?: () => void;
+  /** Items still missing before the BA may be finalised */
+  missing?: string[];
 }
 
 export const BottomBar: React.FC<BottomBarProps> = ({
@@ -23,28 +28,13 @@ export const BottomBar: React.FC<BottomBarProps> = ({
   onSubmitReport,
   onViewPdf,
   onBackToLanding,
+  adminEdit = false,
+  onCancelEdit,
+  missing = [],
 }) => {
   const [showSubmitModal, setShowSubmitModal] = useState(false);
 
-  let tabOrder: TabKey[] = [];
-  if (report.work_type === 'QUICK_CHECK') {
-    tabOrder = ['info', 'quick_check', 'action', 'signoff'];
-  } else if (report.work_type === 'CORRECTIVE_REPAIR') {
-    tabOrder = ['info', 'corrective_repair', 'hardware', 'forecourt', 'action', 'signoff'];
-  } else {
-    tabOrder = [
-      'info',
-      'software',
-      'hardware',
-      'forecourt',
-      'edc',
-      'peripherals',
-      'network',
-      'features',
-      'action',
-      'signoff',
-    ];
-  }
+  const tabOrder = tabOrderFor(report.work_type);
 
   const currentIndex = tabOrder.indexOf(activeTab);
   const hasPrev = currentIndex > 0;
@@ -59,7 +49,6 @@ export const BottomBar: React.FC<BottomBarProps> = ({
     if (hasNext) onSelectTab(tabOrder[currentIndex + 1]);
   };
 
-  const hasSignatures = !!report.technician_signature && !!report.supervisor_signature;
 
   return (
     <>
@@ -80,6 +69,15 @@ export const BottomBar: React.FC<BottomBarProps> = ({
 
           {/* Center Actions: Save Draft & Step Indicator */}
           <div className="flex items-center gap-2">
+            {adminEdit ? (
+              <button
+                type="button"
+                onClick={onCancelEdit}
+                className="min-h-[44px] px-3 sm:px-4 py-2 rounded-md border border-slate-300 bg-slate-50 hover:bg-slate-100 text-slate-800 text-xs font-bold flex items-center gap-1.5 transition-colors shadow-2xs"
+              >
+                Batal
+              </button>
+            ) : (
             <button
               type="button"
               onClick={onSaveDraft}
@@ -89,6 +87,7 @@ export const BottomBar: React.FC<BottomBarProps> = ({
               <span className="hidden min-[380px]:inline">Simpan Draft</span>
               <span className="min-[380px]:hidden">Simpan</span>
             </button>
+            )}
 
             <span className="text-xs font-mono font-bold text-slate-500 hidden md:inline">
               Langkah {currentIndex >= 0 ? currentIndex + 1 : 1} dari {tabOrder.length}
@@ -112,12 +111,12 @@ export const BottomBar: React.FC<BottomBarProps> = ({
             ) : (
               <button
                 type="button"
-                onClick={() => setShowSubmitModal(true)}
+                onClick={() => (adminEdit ? onSubmitReport() : setShowSubmitModal(true))}
                 className="min-h-[44px] px-4 py-2 rounded-md bg-red-600 hover:bg-red-700 text-white text-xs font-bold flex items-center gap-1.5 transition-colors shadow-sm"
               >
                 <CheckCircle className="w-4 h-4" />
-                <span className="hidden min-[380px]:inline">Finalisasi Laporan</span>
-                <span className="min-[380px]:hidden">Finalisasi</span>
+                <span className="hidden min-[380px]:inline">{adminEdit ? 'Simpan Revisi' : 'Finalisasi Laporan'}</span>
+                <span className="min-[380px]:hidden">{adminEdit ? 'Simpan' : 'Finalisasi'}</span>
               </button>
             )}
           </div>
@@ -148,8 +147,8 @@ export const BottomBar: React.FC<BottomBarProps> = ({
                     {report.work_type === 'PREVENTIVE_MAINTENANCE' 
                       ? 'Preventive Maintenance (PM)' 
                       : report.work_type === 'QUICK_CHECK'
-                      ? 'Pengecekan Aja (Quick Check)'
-                      : 'Perbaikan (Corrective Repair)'}
+                      ? 'Pengecekan (Quick Check)'
+                      : 'Corrective Maintenance (CM)'}
                   </span>
                 </div>
                 <div className="flex justify-between gap-3">
@@ -170,18 +169,24 @@ export const BottomBar: React.FC<BottomBarProps> = ({
                 </div>
               </div>
 
-              {!hasSignatures ? (
+              {missing.length > 0 ? (
                 <div className="p-3 bg-amber-50 border border-amber-300 rounded text-amber-900 flex items-start gap-2">
                   <AlertCircle className="w-4 h-4 text-amber-700 flex-shrink-0 mt-0.5" />
-                  <span>
-                    Perhatian: Tanda tangan digital Teknisi atau PWS belum lengkap di lembar pengesahan. Anda tetap dapat menyimpan draft atau melengkapi tanda tangan sebelum cetak.
-                  </span>
+                  <div>
+                    <div className="font-bold">Belum dapat difinalisasi. Lengkapi dulu:</div>
+                    <ul className="list-disc pl-4 mt-1 space-y-0.5">
+                      {missing.map((m) => (
+                        <li key={m}>{m}</li>
+                      ))}
+                    </ul>
+                  </div>
                 </div>
               ) : (
-                <div className="p-3 bg-emerald-50 border border-emerald-300 rounded text-emerald-900 flex items-start gap-2">
-                  <CheckCircle className="w-4 h-4 text-emerald-700 flex-shrink-0 mt-0.5" />
+                <div className="p-3 bg-red-50 border border-red-300 rounded text-red-900 flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 text-red-700 flex-shrink-0 mt-0.5" />
                   <span>
-                    Lembar tanda tangan Teknisi dan PWS telah lengkap dan siap diverifikasi.
+                    Setelah difinalisasi, Berita Acara <strong>terkunci</strong> dan tidak dapat diubah lagi oleh Teknisi maupun Pengawas.
+                    Perubahan hanya dapat dilakukan oleh Admin. Pastikan semua data dan tanda tangan sudah benar.
                   </span>
                 </div>
               )}
@@ -198,15 +203,16 @@ export const BottomBar: React.FC<BottomBarProps> = ({
 
               <button
                 type="button"
+                disabled={missing.length > 0}
                 onClick={() => {
                   setShowSubmitModal(false);
                   onSubmitReport();
                   onViewPdf();
                 }}
-                className="min-h-[44px] px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded font-bold text-xs flex items-center gap-1.5 shadow-xs"
+                className="min-h-[44px] px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-slate-400 disabled:cursor-not-allowed text-white rounded font-bold text-xs flex items-center gap-1.5 shadow-xs"
               >
                 <CheckCircle className="w-4 h-4" />
-                <span>Simpan & Buka Berita Acara</span>
+                <span>Finalisasi & Kunci</span>
               </button>
             </div>
           </div>
