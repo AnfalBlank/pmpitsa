@@ -60,7 +60,7 @@ Salin file konfigurasi contoh:
 ```bash
 cp .env.example .env.local
 ```
-Sesuaikan `TURSO_DATABASE_URL` dan `TURSO_AUTH_TOKEN` dengan kredensial database Turso Anda.
+Sesuaikan `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, dan `SESSION_SECRET`. Ketiganya **wajib** diisi — aplikasi tidak lagi memiliki kredensial bawaan dan akan menolak berjalan tanpa variabel ini. Jangan pernah commit `.env.local`.
 
 ### 4. Menjalankan di Mode Development
 ```bash
@@ -77,6 +77,8 @@ npm start
 ---
 
 ## 👥 Akun Login Demo (RBAC)
+
+> Akun di bawah hanya dibuat oleh seeding database lokal (`/api/init-db`, tanpa login hanya di mode development; di production wajib sesi ADMIN). **Jangan gunakan password ini di production** — ganti segera. Password disimpan sebagai hash scrypt; password lama berbentuk teks biasa otomatis di-hash saat login berhasil pertama kali. Login dibatasi 5 percobaan gagal per username dan 20 per IP setiap 15 menit.
 
 | Peran (Role) | Username | Password | Penugasan Default |
 | :--- | :--- | :--- | :--- |

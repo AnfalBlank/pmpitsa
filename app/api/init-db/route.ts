@@ -1,9 +1,29 @@
 import { NextResponse } from 'next/server';
 import { initTursoDatabase, getTursoClient } from '@/lib/turso';
+import { requireSession } from '@/lib/session';
 
-export async function GET() {
+/**
+ * Creates the schema and seeds sample data into empty tables.
+ * Requires an ADMIN session (`config.manage`). Outside production it may also
+ * be called without a session, so a fresh local database can be bootstrapped
+ * before any user exists.
+ */
+function authorize(req: Request): NextResponse | null {
+  const auth = requireSession(req, 'config.manage');
+  if (!auth.error) return null;
+  if (process.env.NODE_ENV !== 'production' && auth.error.status === 401) return null;
+  return auth.error;
+}
+
+async function handle(req: Request) {
+  const denied = authorize(req);
+  if (denied) return denied;
+
   try {
     const initResult = await initTursoDatabase();
+    if (!initResult.success) {
+      return NextResponse.json({ success: false, initResult }, { status: 500 });
+    }
     const db = getTursoClient();
 
     const [users, sites, tickets, plans, reports] = await Promise.all([
@@ -30,7 +50,10 @@ export async function GET() {
   }
 }
 
-export async function POST() {
-  return GET();
+export async function GET(req: Request) {
+  return handle(req);
 }
 
+export async function POST(req: Request) {
+  return handle(req);
+}

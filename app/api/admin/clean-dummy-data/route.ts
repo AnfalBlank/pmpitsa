@@ -1,13 +1,13 @@
 import { NextResponse } from 'next/server';
 import { requireSession } from '@/lib/session';
-import { getTursoClient, initTursoDatabase } from '@/lib/turso';
+import { getTursoClient, ensureSchema } from '@/lib/turso';
 
 export async function POST(req: Request) {
   try {
     const auth = requireSession(req, 'config.manage');
     if (auth.error) return auth.error;
     const session = auth.session;
-    await initTursoDatabase();
+    await ensureSchema();
     const db = getTursoClient();
 
     // 1. Clear transactional tables only (KEEP users, sites, fuel_products, atg_brands, etc.)
@@ -15,7 +15,7 @@ export async function POST(req: Request) {
     await db.execute('DELETE FROM maintenance_plans;');
     await db.execute('DELETE FROM pm_reports;');
 
-    // 2. Set persistent flag so initTursoDatabase never re-seeds sample dummy records
+    // 2. Set persistent flag so ensureSchema never re-seeds sample dummy records
     await db.execute({
       sql: `INSERT OR REPLACE INTO system_settings (key, value, description) 
             VALUES ('dummy_data_cleared', 'true', 'Flags that dummy sample data has been permanently cleared')`,

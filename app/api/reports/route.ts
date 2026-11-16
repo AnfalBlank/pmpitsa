@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireSession, forbidden } from '@/lib/session';
 import { siteScope } from '@/lib/rbac';
-import { getTursoClient, initTursoDatabase } from '@/lib/turso';
+import { getTursoClient, ensureSchema } from '@/lib/turso';
 import { PMReport } from '@/lib/types';
 
 export async function GET(req: Request) {
@@ -10,7 +10,7 @@ export async function GET(req: Request) {
     if (auth.error) return auth.error;
     const session = auth.session;
     const scope = siteScope(session);
-    await initTursoDatabase();
+    await ensureSchema();
     const db = getTursoClient();
 
     const { searchParams } = new URL(req.url);
@@ -89,7 +89,7 @@ export async function POST(req: Request) {
     const auth = requireSession(req, 'report.sync');
     if (auth.error) return auth.error;
     const session = auth.session;
-    await initTursoDatabase();
+    await ensureSchema();
     const db = getTursoClient();
 
     const report: PMReport = await req.json();
@@ -182,7 +182,7 @@ export async function DELETE(req: Request) {
     const auth = requireSession(req, 'report.delete');
     if (auth.error) return auth.error;
     const session = auth.session;
-    await initTursoDatabase();
+    await ensureSchema();
     const db = getTursoClient();
 
     const { searchParams } = new URL(req.url);

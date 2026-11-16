@@ -1,13 +1,14 @@
 import { NextResponse } from 'next/server';
 import { requireSession } from '@/lib/session';
-import { getTursoClient, initTursoDatabase } from '@/lib/turso';
+import { getTursoClient, ensureSchema } from '@/lib/turso';
+import { hashPassword } from '@/lib/password';
 
 export async function GET(req: Request) {
   try {
     const auth = requireSession(req);
     if (auth.error) return auth.error;
     const session = auth.session;
-    await initTursoDatabase();
+    await ensureSchema();
     const db = getTursoClient();
     const res = await db.execute('SELECT id, username, name, role, role_title, employee_id, phone, assigned_site_id, created_at FROM users ORDER BY id ASC;');
 
@@ -37,14 +38,14 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { username, password, name, role, role_title, employee_id, phone, assigned_site_id } = body;
 
-    if (!username || !password || !name || !role) {
+    if (!username || !password || !name || !role || typeof password !== 'string') {
       return NextResponse.json(
         { success: false, message: 'Field username, password, nama, dan role wajib diisi.' },
         { status: 400 }
       );
     }
 
-    await initTursoDatabase();
+    await ensureSchema();
     const db = getTursoClient();
 
     const id = `USR-${Date.now().toString().slice(-4)}`;
@@ -56,7 +57,7 @@ export async function POST(req: Request) {
       args: [
         id,
         username.trim(),
-        password,
+        await hashPassword(password),
         name.trim(),
         role,
         role_title || `${role} Staff`,

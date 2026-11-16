@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireSession } from '@/lib/session';
-import { getTursoClient, initTursoDatabase } from '@/lib/turso';
+import { getTursoClient, ensureSchema } from '@/lib/turso';
 import { 
   FuelProduct, 
   AtgBrandConfig, 
@@ -18,7 +18,7 @@ import {
 
 export async function GET() {
   try {
-    await initTursoDatabase();
+    await ensureSchema();
     const db = getTursoClient();
 
     // 1. Products
@@ -121,7 +121,7 @@ export async function POST(req: Request) {
     const auth = requireSession(req, 'config.manage');
     if (auth.error) return auth.error;
     const session = auth.session;
-    await initTursoDatabase();
+    await ensureSchema();
     const db = getTursoClient();
     const body = await req.json();
     const { section, item, settings } = body;
@@ -226,7 +226,7 @@ export async function DELETE(req: Request) {
     const auth = requireSession(req, 'config.manage');
     if (auth.error) return auth.error;
     const session = auth.session;
-    await initTursoDatabase();
+    await ensureSchema();
     const db = getTursoClient();
     const { searchParams } = new URL(req.url);
     const section = searchParams.get('section');

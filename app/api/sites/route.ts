@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
 import { requireSession } from '@/lib/session';
-import { getTursoClient, initTursoDatabase } from '@/lib/turso';
+import { getTursoClient, ensureSchema } from '@/lib/turso';
 import { Site } from '@/lib/types';
 
 export async function GET() {
   try {
-    await initTursoDatabase();
+    await ensureSchema();
     const db = getTursoClient();
 
     const res = await db.execute('SELECT * FROM sites ORDER BY id ASC;');
@@ -30,7 +30,7 @@ export async function POST(req: Request) {
     const auth = requireSession(req, 'site.manage');
     if (auth.error) return auth.error;
     const session = auth.session;
-    await initTursoDatabase();
+    await ensureSchema();
     const db = getTursoClient();
     const body = await req.json();
 
@@ -74,7 +74,7 @@ export async function PUT(req: Request) {
     const auth = requireSession(req, 'site.manage');
     if (auth.error) return auth.error;
     const session = auth.session;
-    await initTursoDatabase();
+    await ensureSchema();
     const db = getTursoClient();
     const body = await req.json();
 
@@ -107,7 +107,7 @@ export async function DELETE(req: Request) {
     const auth = requireSession(req, 'site.manage');
     if (auth.error) return auth.error;
     const session = auth.session;
-    await initTursoDatabase();
+    await ensureSchema();
     const db = getTursoClient();
     const { searchParams } = new URL(req.url);
     const id = Number(searchParams.get('id'));
