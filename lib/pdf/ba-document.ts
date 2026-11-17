@@ -279,7 +279,7 @@ function forecourtSection(r: PMReport, no: string): Content[] {
   const out: Content[] = [
     sectionTitle(`${no}. FORECOURT, DISPENSER & ATG`),
     kvTable([
-      ['Jumlah Dispenser', f.dispenser_count, 'Total Nozzle', f.total_nozzles],
+      ['Jumlah Pump', f.nozzles?.length ? new Set(f.nozzles.map((n) => n.pump_number)).size : f.dispenser_count, 'Total Nozzle', f.nozzles?.length ?? f.total_nozzles],
       ['Merk ATG', f.atg_brand, 'Controller ATG', STATUS_TEXT[f.atg_controller_status] || f.atg_controller_status],
       ['Interface Dispenser', STATUS_TEXT[f.dispenser_interface_box] || f.dispenser_interface_box, 'Segel Tera Metrologi', STATUS_TEXT[f.metrology_seal_status] || f.metrology_seal_status],
     ]),
@@ -307,7 +307,7 @@ function forecourtSection(r: PMReport, no: string): Content[] {
       headerTable(
         ['Pompa', 'Nozzle', 'Produk', 'Status', 'Totalisator'],
         ['12%', '12%', '*', '18%', '24%'],
-        f.nozzles.map((nz) => [
+        [...f.nozzles].sort((a, b) => a.pump_number - b.pump_number || a.nozzle_number - b.nozzle_number).map((nz) => [
           { text: String(nz.pump_number), alignment: 'center' },
           { text: String(nz.nozzle_number), alignment: 'center' },
           nz.product_name,

@@ -3,6 +3,7 @@
 import React from 'react';
 import { PMReport, ForecourtFMS, TankItem, NozzleItem, ChecklistStatus } from '@/lib/types';
 import { StatusSelector } from '../StatusSelector';
+import { useFeedback } from '@/components/feedback/FeedbackProvider';
 import { Fuel, Gauge, Droplet, Plus, Trash2, AlertCircle, ShieldAlert, Radio, Award } from 'lucide-react';
 
 interface ForecourtSectionProps {
@@ -14,6 +15,7 @@ export const ForecourtSection: React.FC<ForecourtSectionProps> = ({
   report,
   onChange,
 }) => {
+  const feedback = useFeedback();
   const updateForecourt = <K extends keyof ForecourtFMS>(
     key: K,
     val: ForecourtFMS[K]
@@ -52,30 +54,65 @@ export const ForecourtSection: React.FC<ForecourtSectionProps> = ({
     updateForecourt('tanks', newTanks);
   };
 
-  const updateNozzle = (index: number, updated: Partial<NozzleItem>) => {
-    const newNozzles = [...report.forecourt.nozzles];
-    newNozzles[index] = { ...newNozzles[index], ...updated };
-    updateForecourt('nozzles', newNozzles);
+  // ---- Pumps & nozzles -------------------------------------------------
+  // A pump (dispenser) can have 1, 2 or more nozzles. Pumps are derived from
+  // nozzle.pump_number; dispenser_count / total_nozzles are kept in sync in
+  // ONE update (two separate updates would overwrite each other).
+  const uid = (prefix: string) => `${prefix}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+  const nozzles = report.forecourt.nozzles || [];
+
+  const setNozzles = (next: NozzleItem[]) => {
+    const sorted = [...next].sort((a, b) => a.pump_number - b.pump_number || a.nozzle_number - b.nozzle_number);
+    onChange({
+      ...report,
+      forecourt: {
+        ...report.forecourt,
+        nozzles: sorted,
+        dispenser_count: new Set(sorted.map((n) => n.pump_number)).size,
+        total_nozzles: sorted.length,
+      },
+    });
   };
 
-  const addNozzle = () => {
-    const nextNo = report.forecourt.nozzles.length + 1;
-    const newNozzle: NozzleItem = {
-      id: `NZ-${Date.now().toString().slice(-4)}`,
-      pump_number: Math.ceil(nextNo / 2),
-      nozzle_number: nextNo,
-      product_name: "Pertamax",
-      status: "B",
-      meter_reading: "0 L",
-    };
-    updateForecourt('nozzles', [...report.forecourt.nozzles, newNozzle]);
-    updateForecourt('total_nozzles', report.forecourt.nozzles.length + 1);
+  const pumpNumbers = Array.from(new Set(nozzles.map((n) => n.pump_number))).sort((a, b) => a - b);
+
+  const updateNozzle = (id: string, updated: Partial<NozzleItem>) => {
+    setNozzles(nozzles.map((n) => (n.id === id ? { ...n, ...updated } : n)));
   };
 
-  const removeNozzle = (index: number) => {
-    const newNozzles = report.forecourt.nozzles.filter((_, i) => i !== index);
-    updateForecourt('nozzles', newNozzles);
-    updateForecourt('total_nozzles', newNozzles.length);
+  const addPump = () => {
+    const pumpNo = (pumpNumbers[pumpNumbers.length - 1] || 0) + 1;
+    setNozzles([
+      ...nozzles,
+      { id: uid('NZ'), pump_number: pumpNo, nozzle_number: 1, product_name: bbmOptions[0], status: 'B', meter_reading: '' },
+    ]);
+  };
+
+  const removePump = async (pumpNo: number) => {
+    const count = nozzles.filter((n) => n.pump_number === pumpNo).length;
+    const ok = await feedback.confirm({
+      title: `Hapus Pump #${pumpNo}?`,
+      message: `Pump #${pumpNo} beserta ${count} nozzle di dalamnya akan dihapus dari checklist.`,
+      confirmLabel: 'Ya, Hapus',
+      danger: true,
+    });
+    if (ok) setNozzles(nozzles.filter((n) => n.pump_number !== pumpNo));
+  };
+
+  const addNozzle = (pumpNo: number) => {
+    const inPump = nozzles.filter((n) => n.pump_number === pumpNo);
+    const nextNo = Math.max(0, ...inPump.map((n) => n.nozzle_number)) + 1;
+    const product = inPump[inPump.length - 1]?.product_name || bbmOptions[0];
+    setNozzles([...nozzles, { id: uid('NZ'), pump_number: pumpNo, nozzle_number: nextNo, product_name: product, status: 'B', meter_reading: '' }]);
+  };
+
+  const removeNozzle = async (nz: NozzleItem) => {
+    const inPump = nozzles.filter((n) => n.pump_number === nz.pump_number);
+    if (inPump.length === 1) {
+      await removePump(nz.pump_number);
+      return;
+    }
+    setNozzles(nozzles.filter((n) => n.id !== nz.id));
   };
 
   const bbmOptions = [
@@ -115,38 +152,16 @@ export const ForecourtSection: React.FC<ForecourtSectionProps> = ({
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-          <div>
-            <label 
-              htmlFor="dispenser-count-input"
-              className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1"
-            >
-              Jumlah Unit Dispenser
-            </label>
-            <input
-              id="dispenser-count-input"
-              type="number"
-              min={1}
-              value={report.forecourt.dispenser_count}
-              onChange={(e) => updateForecourt('dispenser_count', parseInt(e.target.value, 10) || 1)}
-              className="w-full min-h-[44px] px-3 py-2 bg-white border border-slate-300 rounded-md text-sm font-mono text-slate-900 focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
-            />
+          <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+            <span className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">Jumlah Pump / Dispenser</span>
+            <span className="text-lg font-black font-mono text-slate-900">{pumpNumbers.length}</span>
+            <span className="block text-[11px] text-slate-500">Otomatis dari daftar pump di bawah</span>
           </div>
 
-          <div>
-            <label 
-              htmlFor="total-nozzles-input"
-              className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1"
-            >
-              Total Nozzle Terpasang
-            </label>
-            <input
-              id="total-nozzles-input"
-              type="number"
-              min={1}
-              value={report.forecourt.total_nozzles}
-              onChange={(e) => updateForecourt('total_nozzles', parseInt(e.target.value, 10) || 1)}
-              className="w-full min-h-[44px] px-3 py-2 bg-white border border-slate-300 rounded-md text-sm font-mono text-slate-900 focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
-            />
+          <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+            <span className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">Total Nozzle</span>
+            <span className="text-lg font-black font-mono text-slate-900">{nozzles.length}</span>
+            <span className="block text-[11px] text-slate-500">Otomatis dari daftar nozzle</span>
           </div>
 
           <div>
@@ -340,88 +355,118 @@ export const ForecourtSection: React.FC<ForecourtSectionProps> = ({
         </div>
       </div>
 
-      {/* Nozzle & Dispenser Checks */}
+      {/* Pumps & Nozzles */}
       <div className="bg-white rounded-lg border border-slate-200 p-4 sm:p-5 shadow-xs">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3 mb-4">
           <div className="flex items-center gap-2">
             <Fuel className="w-5 h-5 text-emerald-700 flex-shrink-0" />
             <div>
-              <h2 className="text-base font-bold text-slate-900">
-                Pemeriksaan Nozzle & Totalizer Pompa
-              </h2>
-              <p className="text-xs text-slate-500">
-                Pencatatan meteran akhir totalisator dan kondisi fisik kran nozzle
-              </p>
+              <h2 className="text-base font-bold text-slate-900">Pump & Nozzle</h2>
+              <p className="text-xs text-slate-500">Tambahkan setiap pump yang ada di SPBU, lalu nozzle-nya (1 pump bisa 1, 2 nozzle atau lebih)</p>
             </div>
           </div>
 
           <button
             type="button"
-            onClick={addNozzle}
+            onClick={addPump}
             className="min-h-[44px] px-3 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-md text-xs font-semibold flex items-center gap-1.5 self-start sm:self-auto transition-colors"
           >
             <Plus className="w-4 h-4" />
-            <span>Tambah Nozzle</span>
+            <span>Tambah Pump</span>
           </button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {report.forecourt.nozzles.map((nz, idx) => (
-            <div
-              key={nz.id}
-              className="border border-slate-200 rounded-md p-3 bg-slate-50/50 flex flex-col justify-between gap-2"
-            >
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold bg-slate-200 text-slate-800 px-2 py-0.5 rounded font-mono">
-                    Pump #{nz.pump_number}
-                  </span>
-                  <span className="text-xs font-bold text-slate-900">
-                    Nozzle #{nz.nozzle_number} : {nz.product_name}
-                  </span>
-                </div>
+        {pumpNumbers.length === 0 ? (
+          <div className="text-center py-8 px-4 border border-dashed border-slate-300 rounded-lg">
+            <p className="text-sm font-semibold text-slate-800">Belum ada pump</p>
+            <p className="text-xs text-slate-500 mt-1">Tekan &quot;Tambah Pump&quot; untuk menambahkan pump pertama.</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {pumpNumbers.map((pumpNo) => {
+              const pumpNozzles = nozzles.filter((n) => n.pump_number === pumpNo);
+              return (
+                <div key={pumpNo} className="border border-slate-200 rounded-lg overflow-hidden">
+                  <div className="flex items-center justify-between gap-2 px-3 py-2 bg-slate-100 border-b border-slate-200">
+                    <div className="flex items-center gap-2">
+                      <span className="bg-[#0B2545] text-white text-xs font-bold px-2 py-0.5 rounded font-mono">Pump #{pumpNo}</span>
+                      <span className="text-xs font-semibold text-slate-600">{pumpNozzles.length} nozzle</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => removePump(pumpNo)}
+                      className="min-h-[40px] px-2.5 text-red-600 hover:text-red-800 hover:bg-red-50 rounded text-xs font-semibold flex items-center gap-1"
+                      aria-label={`Hapus Pump #${pumpNo}`}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Hapus Pump</span>
+                    </button>
+                  </div>
 
-                {report.forecourt.nozzles.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={() => removeNozzle(idx)}
-                    className="min-h-[40px] min-w-[40px] flex items-center justify-center rounded text-red-500 hover:text-red-700 hover:bg-red-50"
-                    title="Hapus Nozzle"
-                    aria-label="Hapus Nozzle"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </div>
+                  <div className="p-3 space-y-3">
+                    {pumpNozzles.map((nz) => {
+                      const productOptions = bbmOptions.includes(nz.product_name) ? bbmOptions : [nz.product_name, ...bbmOptions];
+                      return (
+                        <div key={nz.id} className="border border-slate-200 rounded-md p-3 bg-slate-50/60">
+                          <div className="flex items-center justify-between gap-2 mb-2">
+                            <span className="text-xs font-bold text-slate-900">Nozzle {nz.nozzle_number}</span>
+                            <button
+                              type="button"
+                              onClick={() => removeNozzle(nz)}
+                              className="min-h-[40px] min-w-[40px] flex items-center justify-center rounded text-red-500 hover:text-red-700 hover:bg-red-50"
+                              title="Hapus Nozzle"
+                              aria-label={`Hapus Nozzle ${nz.nozzle_number} Pump #${pumpNo}`}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-end">
+                            <div>
+                              <label className="block text-[11px] font-semibold text-slate-600 mb-1">Produk BBM</label>
+                              <select
+                                value={nz.product_name}
+                                onChange={(e) => updateNozzle(nz.id, { product_name: e.target.value })}
+                                className="w-full min-h-[44px] px-2.5 py-1.5 bg-white border border-slate-300 rounded text-xs text-slate-900"
+                              >
+                                {productOptions.map((opt) => (
+                                  <option key={opt} value={opt}>{opt}</option>
+                                ))}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-[11px] font-semibold text-slate-600 mb-1">Angka Totalizer (L)</label>
+                              <input
+                                type="text"
+                                inputMode="decimal"
+                                value={nz.meter_reading}
+                                onChange={(e) => updateNozzle(nz.id, { meter_reading: e.target.value })}
+                                placeholder="Contoh: 142520"
+                                className="w-full min-h-[44px] px-2.5 py-1.5 bg-white border border-slate-300 rounded text-xs font-mono text-slate-900"
+                              />
+                            </div>
+                            <div>
+                              <span className="block text-[11px] font-semibold text-slate-600 mb-1">Kondisi Nozzle</span>
+                              <StatusSelector value={nz.status} onChange={(val) => updateNozzle(nz.id, { status: val })} size="sm" />
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 items-end">
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                    Angka Totalizer (L)
-                  </label>
-                  <input
-                    type="text"
-                    value={nz.meter_reading}
-                    onChange={(e) => updateNozzle(idx, { meter_reading: e.target.value })}
-                    placeholder="Contoh: 142,520 L"
-                    className="w-full min-h-[44px] px-2.5 py-1.5 bg-white border border-slate-300 rounded text-xs font-mono text-slate-900"
-                  />
+                    <button
+                      type="button"
+                      onClick={() => addNozzle(pumpNo)}
+                      className="w-full min-h-[44px] border border-dashed border-slate-400 hover:border-slate-600 hover:bg-slate-50 rounded-md text-xs font-semibold text-slate-700 flex items-center justify-center gap-1.5"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Tambah Nozzle di Pump #{pumpNo}
+                    </button>
+                  </div>
                 </div>
-
-                <div>
-                  <span className="block text-[11px] font-semibold text-slate-600 mb-1">
-                    Kondisi Fisik Nozzle
-                  </span>
-                  <StatusSelector
-                    value={nz.status}
-                    onChange={(val) => updateNozzle(idx, { status: val })}
-                    size="sm"
-                  />
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );
