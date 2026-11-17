@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { 
   Users, 
   Search, 
@@ -11,7 +11,9 @@ import {
   Wrench, 
   Phone,
   CheckCircle2,
-  Lock
+  Lock,
+  RefreshCw,
+  Loader2
 } from 'lucide-react';
 import { UserSession, Site } from '@/lib/types';
 import { SAMPLE_SITES } from '@/lib/sample-data';
@@ -62,6 +64,23 @@ export const UsersModule: React.FC<UsersModuleProps> = ({
   const techCount = usersList.filter(u => u.role === 'TECHNICIAN').length;
 
   const feedback = useFeedback();
+
+  // Load the list as soon as the page opens (don't wait for the global sync)
+  const [loadState, setLoadState] = useState<'idle' | 'loading' | 'error'>('idle');
+  const loadUsers = useCallback(async () => {
+    setLoadState('loading');
+    const users = await fetchUsersApi();
+    if (users) {
+      onUsersUpdated(users);
+      setLoadState('idle');
+    } else {
+      setLoadState('error');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    loadUsers();
+  }, [loadUsers]);
 
   const handleCreateUserSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -186,6 +205,26 @@ export const UsersModule: React.FC<UsersModuleProps> = ({
       </div>
 
       {/* Users Table */}
+      <div className="flex items-center justify-between gap-2 text-xs">
+        <span className="text-slate-500 flex items-center gap-1.5">
+          {loadState === 'loading' && (
+            <>
+              <Loader2 className="w-3.5 h-3.5 animate-spin" /> Memuat daftar pengguna...
+            </>
+          )}
+          {loadState === 'error' && <span className="text-red-600 font-semibold">Gagal memuat daftar pengguna dari server.</span>}
+          {loadState === 'idle' && `${filteredUsers.length} dari ${usersList.length} pengguna`}
+        </span>
+        <button
+          type="button"
+          onClick={loadUsers}
+          disabled={loadState === 'loading'}
+          className="min-h-[40px] px-3 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 font-semibold text-slate-700 flex items-center gap-1.5 disabled:opacity-60"
+        >
+          <RefreshCw className={`w-3.5 h-3.5 ${loadState === 'loading' ? 'animate-spin' : ''}`} /> Muat Ulang
+        </button>
+      </div>
+
       <div className="bg-white rounded-xl shadow-xs border border-slate-200 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
@@ -199,6 +238,23 @@ export const UsersModule: React.FC<UsersModuleProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
+              {filteredUsers.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="p-8 text-center text-slate-500">
+                    {loadState === 'loading' ? (
+                      <span className="inline-flex items-center gap-2">
+                        <Loader2 className="w-4 h-4 animate-spin" /> Memuat daftar pengguna...
+                      </span>
+                    ) : loadState === 'error' && usersList.length === 0 ? (
+                      'Daftar pengguna belum dapat dimuat. Periksa koneksi lalu tekan "Muat Ulang".'
+                    ) : usersList.length === 0 ? (
+                      'Belum ada pengguna terdaftar.'
+                    ) : (
+                      'Tidak ada pengguna yang cocok dengan pencarian / filter.'
+                    )}
+                  </td>
+                </tr>
+              )}
               {filteredUsers.map((u) => {
                 const assignedSite = activeSites.find(s => s.id === u.assignedSiteId);
 

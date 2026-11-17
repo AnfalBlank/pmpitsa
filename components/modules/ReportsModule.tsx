@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { UserSession, Site, PMReport } from '@/lib/types';
 import { reportStatus, awaitingApproval } from '@/lib/report-status';
+import { baNumber } from '@/lib/work-type';
 import { SAMPLE_SITES } from '@/lib/sample-data';
 import { useFeedback } from '@/components/feedback/FeedbackProvider';
 import { can } from '@/lib/rbac';
@@ -68,7 +69,7 @@ export const ReportsModule: React.FC<ReportsModuleProps> = ({
 
     if (reportSearch.trim()) {
       const q = reportSearch.toLowerCase();
-      const matchId = r.id.toLowerCase().includes(q);
+      const matchId = r.id.toLowerCase().includes(q) || baNumber(r).toLowerCase().includes(q);
       const matchSite = r.site_name.toLowerCase().includes(q);
       const matchTech = r.technician_name.toLowerCase().includes(q);
       const matchSpv = r.supervisor_name.toLowerCase().includes(q);
@@ -165,7 +166,7 @@ export const ReportsModule: React.FC<ReportsModuleProps> = ({
               >
                 <div className="space-y-1">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-mono font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded border border-slate-300">#{r.id}</span>
+                    <span className="font-mono font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded border border-slate-300">#{baNumber(r)}</span>
                     <span className="font-semibold text-slate-600">{r.execution_date}</span>
                     <span className="font-bold text-slate-900">Teknisi: {r.technician_name}</span>
                     <span className="font-semibold text-blue-900 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">{r.site_name}</span>
@@ -390,7 +391,7 @@ export const ReportsModule: React.FC<ReportsModuleProps> = ({
                   <div className="space-y-2 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-mono text-xs font-bold text-slate-900 bg-slate-100 px-2.5 py-0.5 rounded border border-slate-300">
-                        #{r.id}
+                        #{baNumber(r)}
                       </span>
                       <span className="text-xs font-semibold text-slate-600 flex items-center gap-1">
                         <Calendar className="w-3.5 h-3.5 text-slate-400" />

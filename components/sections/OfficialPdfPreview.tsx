@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { PMReport, ChecklistStatus } from '@/lib/types';
 import { reportStatus } from '@/lib/report-status';
-import { WORK_TYPE_TITLE } from '@/lib/work-type';
+import { WORK_TYPE_TITLE, baNumber } from '@/lib/work-type';
 import { useFeedback } from '@/components/feedback/FeedbackProvider';
 import { Printer, Cloud, Download, ExternalLink, ArrowLeft, FileDown, FolderOpen, HardDriveUpload, Lock, PencilLine, Clock, BadgeCheck, Loader2 } from 'lucide-react';
 
@@ -84,7 +84,7 @@ export const OfficialPdfPreview: React.FC<OfficialPdfPreviewProps> = ({
   };
 
   const handleDownloadJson = () => {
-    const fileName = `PM_Report_${report.site_code}_${report.execution_date}_${report.id}.json`;
+    const fileName = `BA_${baNumber(report)}_${report.site_code}_${report.execution_date}.json`;
     try {
       const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
@@ -116,7 +116,7 @@ export const OfficialPdfPreview: React.FC<OfficialPdfPreviewProps> = ({
   };
 
   const docPrefix = report.work_type === 'QUICK_CHECK' ? 'BA-QC' : report.work_type === 'CORRECTIVE_REPAIR' ? 'BA-CR' : 'BA-PM';
-  const docNumber = `${docPrefix}/PITL-PINSYST-FMS/${new Date(report.execution_date).getFullYear() || 2026}/${report.id}`;
+  const docNumber = `${docPrefix}/PITL-PINSYST-FMS/${new Date(report.execution_date).getFullYear() || 2026}/${baNumber(report)}`;
 
   return (
     <div className="space-y-6 pb-20">

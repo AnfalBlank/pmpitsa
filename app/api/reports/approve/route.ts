@@ -75,7 +75,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       success: true,
-      message: `Berita Acara #${id} disetujui oleh ${session.name}.`,
+      message: `Berita Acara disetujui oleh ${session.name}.`,
       approval,
       driveUpdated,
     });

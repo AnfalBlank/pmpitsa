@@ -1,24 +1,24 @@
 /**
  * Server-only: archives a Berita Acara (PDF + documentation photos) to Google Drive.
  *
- * Folder layout:
- *   <root>/<KODE SPBU - Nama SPBU>/<YYYY-MM-DD>/<Jenis Pekerjaan [No. Tiket]> - <Terminal> (<ID BA>)/
- *       BA_<...>.pdf
- *       Dokumentasi Foto/01_<Kategori>_<Keterangan>.jpg ...
+ * Folder layout (created automatically):
+ *   <root>/<KODE SPBU - Nama SPBU>/<YYYY-MM-DD>/<Nomor BA: PM-/CM-/QC-...>/
+ *       BA_<Nomor BA>_<KODE SPBU>_<tanggal>.pdf
+ *       BA_<Nomor BA>_<KODE SPBU>_<tanggal>_Foto-01.jpg ...   (same name as the BA file)
  */
 import type { GDriveArchiveInfo, PMReport } from '@/lib/types';
-import { baFileName, WORK_TYPE_SHORT } from '@/lib/pdf/ba-document';
+import { baFileBase, baFileName } from '@/lib/pdf/ba-document';
+import { baNumber } from '@/lib/work-type';
 import { renderBaPdf } from '@/lib/pdf/render';
 import { decodeDataUrl, ensureFolderPath, folderUrl, safeName, uploadFile } from '@/lib/gdrive';
 
 const EXT: Record<string, string> = { 'image/jpeg': 'jpg', 'image/jpg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/heic': 'heic' };
 
 export function baFolderSegments(r: PMReport): string[] {
-  const work = [WORK_TYPE_SHORT[r.work_type] || r.work_type, r.ticket_number].filter(Boolean).join(' ');
   return [
     `${r.site_code} - ${r.site_name}`,
     r.execution_date || new Date().toISOString().slice(0, 10),
-    `${work} - ${r.terminal_id || 'POS'} (${r.id})`,
+    baNumber(r),
   ].map(safeName);
 }
 
@@ -26,20 +26,17 @@ export async function archiveReportToDrive(report: PMReport): Promise<GDriveArch
   const segments = baFolderSegments(report);
   const folderId = await ensureFolderPath(segments);
   const photos: Record<string, string> = { ...(report.gdrive?.photos || {}) };
+  const base = baFileBase(report);
 
   const attachments = report.attachments || [];
-  if (attachments.length) {
-    const photoFolder = await ensureFolderPath([...segments, 'Dokumentasi Foto']);
-    for (let i = 0; i < attachments.length; i++) {
-      const a = attachments[i];
-      if (photos[a.id]) continue; // already uploaded
-      const decoded = decodeDataUrl(a.file_url);
-      if (!decoded) continue;
-      const ext = EXT[decoded.mime] || 'jpg';
-      const name = safeName(`${String(i + 1).padStart(2, '0')}_${a.category}_${a.caption || a.file_name}`).replace(/\.[a-z0-9]{2,4}$/i, '');
-      const file = await uploadFile(photoFolder, `${name}.${ext}`, decoded.mime, decoded.data);
-      photos[a.id] = file.id;
-    }
+  for (let i = 0; i < attachments.length; i++) {
+    const a = attachments[i];
+    if (photos[a.id]) continue; // already uploaded
+    const decoded = decodeDataUrl(a.file_url);
+    if (!decoded) continue;
+    const ext = EXT[decoded.mime] || 'jpg';
+    const file = await uploadFile(folderId, `${base}_Foto-${String(i + 1).padStart(2, '0')}.${ext}`, decoded.mime, decoded.data);
+    photos[a.id] = file.id;
   }
 
   const pdf = await renderBaPdf(report);

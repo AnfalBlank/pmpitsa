@@ -21,6 +21,7 @@ import {
 import { UserSession, Site, WorkType, SPBUTicket, MaintenancePlan, PMReport } from '@/lib/types';
 import { SAMPLE_SITES } from '@/lib/sample-data';
 import { awaitingApproval } from '@/lib/report-status';
+import { baNumber } from '@/lib/work-type';
 
 interface OverviewModuleProps {
   currentUser: UserSession;
@@ -231,7 +232,7 @@ export const OverviewModule: React.FC<OverviewModuleProps> = ({
               >
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="font-mono font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded border border-slate-300">#{r.id}</span>
+                    <span className="font-mono font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded border border-slate-300">#{baNumber(r)}</span>
                     <span className="font-semibold text-slate-600">{r.execution_date}</span>
                     <span className="font-bold text-slate-900">Teknisi: {r.technician_name}</span>
                   </div>

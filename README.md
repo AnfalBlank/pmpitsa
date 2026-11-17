@@ -87,10 +87,13 @@ npm start
 <Folder induk>/
   <KODE SPBU - Nama SPBU>/
     <YYYY-MM-DD>/
-      PM Rutin - POS-01 (PM-20261116-K3F9QX)/     ← atau "CM Perbaikan TIK-PITL-2026-0042 - ..." / "Pengecekan - ..."
-        BA_<KODE>_<tanggal>_PM-Rutin_PM-20261116-K3F9QX.pdf
-        Dokumentasi Foto/01_Kondisi Hardware_<keterangan>.jpg ...
+      <Nomor BA>/                                   ← PM-20261117-K3F9QX / CM-... / QC-...
+        BA_<Nomor BA>_<KODE SPBU>_<tanggal>.pdf
+        BA_<Nomor BA>_<KODE SPBU>_<tanggal>_Foto-01.jpg
+        BA_<Nomor BA>_<KODE SPBU>_<tanggal>_Foto-02.jpg ...
 ```
+
+Nomor BA: **PM** = Preventive Maintenance, **CM** = Corrective Maintenance (perbaikan), **QC** = Pengecekan (Quick Check).
 
   Bila unggahan gagal (mis. koneksi), tombol *Arsipkan ke Google Drive* di pratinjau dapat dipakai ulang oleh Teknisi atau Admin; file dengan nama sama diperbarui, tidak diduplikasi.
 

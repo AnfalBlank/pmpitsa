@@ -5,7 +5,7 @@
 import type { Content, TableCell, TDocumentDefinitions } from 'pdfmake/interfaces';
 import type { ChecklistStatus, PMReport, WorkType } from '@/lib/types';
 import { LOGO_DATA_URL } from './logo';
-import { WORK_TYPE_TITLE, WORK_TYPE_SHORT } from '@/lib/work-type';
+import { WORK_TYPE_TITLE, WORK_TYPE_SHORT, baNumber } from '@/lib/work-type';
 
 const NAVY = '#0B2545';
 const RED = '#C8102E';
@@ -22,20 +22,19 @@ const WORK_TYPE_CODE: Record<WorkType, string> = {
 
 export function baDocNumber(report: PMReport): string {
   const year = new Date(report.execution_date).getFullYear() || new Date().getFullYear();
-  return `${WORK_TYPE_CODE[report.work_type] || 'BA-PM'}/PITL-PINSYST-FMS/${year}/${report.id}`;
+  return `${WORK_TYPE_CODE[report.work_type] || 'BA-PM'}/PITL-PINSYST-FMS/${year}/${baNumber(report)}`;
 }
 
-/** File-system safe name, e.g. BA_SPBU-01_2026-11-16_PM-Rutin_PM-123.pdf */
+/** BA file base name (no extension), e.g. BA_CM-20261116-K3F9QX_PITL-001_2026-11-16 */
+export function baFileBase(report: PMReport): string {
+  return ['BA', baNumber(report), report.site_code, report.execution_date]
+    .filter(Boolean)
+    .join('_')
+    .replace(/[^A-Za-z0-9._-]+/g, '-');
+}
+
 export function baFileName(report: PMReport): string {
-  const parts = [
-    'BA',
-    report.site_code,
-    report.execution_date,
-    WORK_TYPE_SHORT[report.work_type],
-    report.ticket_number,
-    report.id,
-  ].filter(Boolean);
-  return `${parts.join('_').replace(/[^A-Za-z0-9._-]+/g, '-')}.pdf`;
+  return `${baFileBase(report)}.pdf`;
 }
 
 const STATUS_TEXT: Record<string, string> = { B: 'Baik', R: 'Rusak', X: 'Tidak Ada' };

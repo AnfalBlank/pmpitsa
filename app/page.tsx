@@ -36,6 +36,7 @@ import { CorrectiveRepairSection } from '@/components/sections/CorrectiveRepairS
 import { PMReport, Site, UserSession, SPBUTicket, MaintenancePlan, WorkType } from '@/lib/types';
 import { SAMPLE_SITES, createDefaultPMReport, newReportId } from '@/lib/sample-data';
 import { awaitingApproval, isFinal, isLocked, missingForFinalize, reportStatus } from '@/lib/report-status';
+import { baNumber } from '@/lib/work-type';
 import { 
   getCurrentReport, 
   saveCurrentReport, 
@@ -82,6 +83,8 @@ const ROLE_ALLOWED_MODULES: Record<UserSession['role'], AppModule[]> = {
   TECHNICIAN: ['overview', 'tickets', 'schedule', 'reports', 'landing', 'preview', 'form'],
 };
 
+const USERS_CACHE_KEY = 'pertamina_pm_users_v1';
+
 const MODULE_NAMES: Partial<Record<AppModule, string>> = {
   form: 'Formulir Pemeriksaan PM',
   landing: 'Pemilihan Kegiatan Lapangan',
@@ -106,7 +109,20 @@ export default function Home() {
   const [tickets, setTickets] = useState<SPBUTicket[]>(() => getAllTickets());
   const [plans, setPlans] = useState<MaintenancePlan[]>(() => getAllPlans());
   const [reports, setReports] = useState<PMReport[]>(() => getAllReports());
-  const [usersList, setUsersList] = useState<any[]>([]);
+  const [usersList, setUsersListState] = useState<any[]>(() => {
+    if (typeof window === 'undefined') return [];
+    try {
+      return JSON.parse(localStorage.getItem(USERS_CACHE_KEY) || '[]');
+    } catch {
+      return [];
+    }
+  });
+  const setUsersList = (list: any[]) => {
+    setUsersListState(list);
+    try {
+      localStorage.setItem(USERS_CACHE_KEY, JSON.stringify(list));
+    } catch {}
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -168,6 +184,10 @@ export default function Home() {
     if (syncingRef.current || (typeof navigator !== 'undefined' && !navigator.onLine)) return;
     syncingRef.current = true;
     try {
+      // Users load in parallel (they used to wait for every other request)
+      fetchUsersApi()
+        .then((users) => users && setUsersList(users))
+        .catch(() => {});
       const [cloudTickets, cloudPlans, cloudReports, cloudSites] = await Promise.all([
         fetchTicketsApi(),
         fetchPlansApi(),
@@ -210,10 +230,6 @@ export default function Home() {
         setSites(cloudSites);
         saveAllSites(cloudSites);
       }
-      try {
-        const users = await fetchUsersApi();
-        if (users) setUsersList(users);
-      } catch {}
     } finally {
       syncingRef.current = false;
     }
@@ -451,7 +467,7 @@ export default function Home() {
                 title: 'Berita Acara Final Tersimpan',
                 message: (
                   <>
-                    Berita Acara <strong>#{pending.id}</strong> sudah final dan terkunci, tersimpan di server, serta PDF &amp; foto dokumentasinya tersimpan di
+                    Berita Acara <strong>#{baNumber(pending)}</strong> sudah final dan terkunci, tersimpan di server, serta PDF &amp; foto dokumentasinya tersimpan di
                     Google Drive: {driveLink(r.drive.gdrive)}
                   </>
                 ),
@@ -460,7 +476,7 @@ export default function Home() {
                 title: 'Berita Acara Final Tersimpan',
                 message: (
                   <>
-                    Berita Acara <strong>#{pending.id}</strong> sudah final dan tersimpan di server, tetapi belum masuk Google Drive
+                    Berita Acara <strong>#{baNumber(pending)}</strong> sudah final dan tersimpan di server, tetapi belum masuk Google Drive
                     {r.drive?.code === 'DRIVE_NOT_CONFIGURED' ? ' (Google Drive belum diaktifkan oleh Admin).' : '.'} Tekan &quot;Arsipkan ke Google
                     Drive&quot; di halaman pratinjau untuk mencoba lagi.
                     {r.drive?.message && <span className="block mt-1 text-[11px] font-mono text-slate-500 break-words">{r.drive.message}</span>}
@@ -733,7 +749,7 @@ export default function Home() {
       title: 'Setujui Berita Acara?',
       message: (
         <>
-          Anda menyatakan isi Berita Acara <strong>#{target.id}</strong> ({target.site_name}) sudah sesuai. Stempel
+          Anda menyatakan isi Berita Acara <strong>#{baNumber(target)}</strong> ({target.site_name}) sudah sesuai. Stempel
           &quot;DISETUJUI&quot; dengan nama Anda akan tampil pada lembar pengesahan.
         </>
       ),
@@ -744,7 +760,7 @@ export default function Home() {
       pending: 'Menyimpan validasi Pengawas...',
       success: (r) => ({
         title: 'Berita Acara Disetujui',
-        message: `Berita Acara #${target.id} sudah divalidasi${r.approval?.by ? ` oleh ${r.approval.by}` : ''}.`,
+        message: `Berita Acara #${baNumber(target)} sudah divalidasi${r.approval?.by ? ` oleh ${r.approval.by}` : ''}.`,
       }),
       error: { title: 'Gagal Menyimpan Validasi', message: 'Validasi belum tersimpan. Periksa koneksi lalu coba lagi.' },
     });
@@ -1148,7 +1164,7 @@ export default function Home() {
 
               {adminEditing && (
                 <div className="bg-amber-50 border border-amber-300 rounded-xl px-4 py-3 text-xs text-amber-900">
-                  <strong>Mode revisi Admin.</strong> Anda mengubah Berita Acara final #{report.id}
+                  <strong>Mode revisi Admin.</strong> Anda mengubah Berita Acara final #{baNumber(report)}
                   {report.revision ? ` (revisi saat ini: ${report.revision})` : ''}. Tekan &quot;Simpan Revisi&quot; di bawah untuk menyimpan, atau &quot;Batal&quot;.
                 </div>
               )}
