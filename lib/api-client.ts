@@ -61,7 +61,8 @@ export async function loginApi(username: string, password: string): Promise<{ su
   }
 }
 
-export async function fetchReportsApi(siteId?: number | 'ALL'): Promise<PMReport[]> {
+/** Returns null when the server can't be reached (never mistake an error for "no data"). */
+export async function fetchReportsApi(siteId?: number | 'ALL'): Promise<PMReport[] | null> {
   try {
     const url = siteId && siteId !== 'ALL' ? `/api/reports?site_id=${siteId}` : '/api/reports';
     const res = await apiFetch(url);
@@ -72,7 +73,33 @@ export async function fetchReportsApi(siteId?: number | 'ALL'): Promise<PMReport
   } catch (err) {
     console.warn('Gagal memuat laporan dari server Turso, menggunakan cache offline:', err);
   }
-  return [];
+  return null;
+}
+
+/** Full Berita Acara (with photos & signatures) by id. */
+export async function fetchReportByIdApi(id: string): Promise<{ success: boolean; report?: PMReport; message?: string; code?: string }> {
+  try {
+    const res = await apiFetch(`/api/reports?id=${encodeURIComponent(id)}`, { cache: 'no-store' });
+    return await res.json();
+  } catch (err: any) {
+    return { success: false, message: 'Gagal terhubung ke server: ' + err.message };
+  }
+}
+
+/** Pengawas validates (approves) a final Berita Acara of their SPBU. */
+export async function approveReportApi(
+  id: string
+): Promise<{ success: boolean; approval?: PMReport['approval']; driveUpdated?: boolean; message?: string; code?: string }> {
+  try {
+    const res = await apiFetch('/api/reports/approve', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
+    });
+    return await res.json();
+  } catch (err: any) {
+    return { success: false, message: 'Gagal terhubung ke server: ' + err.message };
+  }
 }
 
 export async function saveReportApi(report: PMReport): Promise<{ success: boolean; report?: PMReport; message?: string }> {
@@ -171,7 +198,7 @@ export async function deleteReportApi(reportId: string): Promise<{ success: bool
   }
 }
 
-export async function fetchTicketsApi(filters?: { site_id?: number | 'ALL'; status?: string; search?: string }): Promise<SPBUTicket[]> {
+export async function fetchTicketsApi(filters?: { site_id?: number | 'ALL'; status?: string; search?: string }): Promise<SPBUTicket[] | null> {
   try {
     const params = new URLSearchParams();
     if (filters?.site_id && filters.site_id !== 'ALL') params.set('site_id', String(filters.site_id));
@@ -186,7 +213,7 @@ export async function fetchTicketsApi(filters?: { site_id?: number | 'ALL'; stat
   } catch (err) {
     console.warn('Gagal memuat tiket dari Turso, menggunakan cache offline:', err);
   }
-  return [];
+  return null;
 }
 
 export async function createTicketApi(ticket: Partial<SPBUTicket>): Promise<{ success: boolean; ticket?: SPBUTicket; message?: string }> {
@@ -226,7 +253,7 @@ export async function deleteTicketApi(id: string): Promise<{ success: boolean; m
   }
 }
 
-export async function fetchPlansApi(filters?: { site_id?: number | 'ALL'; status?: string }): Promise<MaintenancePlan[]> {
+export async function fetchPlansApi(filters?: { site_id?: number | 'ALL'; status?: string }): Promise<MaintenancePlan[] | null> {
   try {
     const params = new URLSearchParams();
     if (filters?.site_id && filters.site_id !== 'ALL') params.set('site_id', String(filters.site_id));
@@ -240,7 +267,7 @@ export async function fetchPlansApi(filters?: { site_id?: number | 'ALL'; status
   } catch (err) {
     console.warn('Gagal memuat jadwal dari Turso, menggunakan cache offline:', err);
   }
-  return [];
+  return null;
 }
 
 export async function createPlanApi(plan: Partial<MaintenancePlan>): Promise<{ success: boolean; plan?: MaintenancePlan; message?: string }> {

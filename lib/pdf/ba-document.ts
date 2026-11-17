@@ -142,6 +142,12 @@ function generalSection(r: PMReport): Content[] {
   if (r.status === 'FINAL' || r.finalized_at) {
     const at = r.finalized_at ? new Date(r.finalized_at).toLocaleString('id-ID', { timeZone: 'Asia/Dili' }) : '-';
     rows.push(['Status Dokumen', `FINAL${r.revision && r.revision > 1 ? ` · Revisi ${r.revision}` : ''}`, 'Difinalisasi', at]);
+    rows.push([
+      'Validasi Pengawas',
+      r.approval ? `DISETUJUI oleh ${r.approval.by}` : 'Menunggu validasi',
+      'Tanggal Validasi',
+      r.approval ? fmtDili(r.approval.at) : '-',
+    ]);
   }
   return [sectionTitle('I. DATA UMUM & LOKASI'), kvTable(rows)];
 }
@@ -384,7 +390,42 @@ function signatureImage(signature?: string): Content {
   return { text: '(belum ditandatangani)', italics: true, color: '#94A3B8', alignment: 'center', margin: [0, 22, 0, 22] };
 }
 
-function signatureBlock(title: string, name: string, signature?: string, signedAt?: string): Content {
+const GREEN = '#047857';
+
+const fmtDili = (iso: string) =>
+  new Date(iso).toLocaleString('id-ID', { timeZone: 'Asia/Dili', dateStyle: 'medium', timeStyle: 'short' });
+
+/** Green "DISETUJUI" stamp for the Pengawas validation */
+function approvalStamp(approval: NonNullable<PMReport['approval']>): Content {
+  return {
+    table: {
+      widths: [150],
+      body: [
+        [
+          {
+            stack: [
+              { text: 'DISETUJUI', bold: true, fontSize: 12, color: GREEN, alignment: 'center', characterSpacing: 2 },
+              { text: 'Pengawas SPBU', fontSize: 7, color: GREEN, alignment: 'center' },
+              { text: approval.by, bold: true, fontSize: 8.5, color: GREEN, alignment: 'center', margin: [0, 1, 0, 0] },
+              { text: fmtDili(approval.at), fontSize: 7, color: GREEN, alignment: 'center' },
+            ],
+            margin: [4, 3, 4, 3],
+          },
+        ],
+      ],
+    },
+    layout: {
+      hLineWidth: () => 2,
+      vLineWidth: () => 2,
+      hLineColor: () => GREEN,
+      vLineColor: () => GREEN,
+    },
+    alignment: 'center',
+    margin: [62, 6, 0, 0],
+  };
+}
+
+function signatureBlock(title: string, name: string, signature?: string, signedAt?: string, approval?: PMReport['approval']): Content {
   return {
     stack: [
       { text: title, bold: true, alignment: 'center', margin: [0, 0, 0, 4] },
@@ -392,6 +433,7 @@ function signatureBlock(title: string, name: string, signature?: string, signedA
       { canvas: [{ type: 'line', x1: 20, y1: 0, x2: 220, y2: 0, lineWidth: 0.5, lineColor: '#0F172A' }] },
       { text: v(name), bold: true, alignment: 'center', margin: [0, 3, 0, 0] },
       { text: signedAt ? `Ditandatangani: ${signedAt}` : '', fontSize: 7.5, color: '#64748B', alignment: 'center' },
+      ...(approval ? [approvalStamp(approval)] : []),
     ],
   };
 }
@@ -407,7 +449,7 @@ function signOffSection(r: PMReport, no: string): Content[] {
     {
       columns: [
         signatureBlock('Teknisi Pelaksana', r.technician_name, r.technician_signature, r.technician_signed_at),
-        signatureBlock('Pengawas SPBU', r.supervisor_name, r.supervisor_signature, r.supervisor_signed_at),
+        signatureBlock('Pengawas SPBU', r.supervisor_name, r.supervisor_signature, r.supervisor_signed_at, r.approval),
       ],
       columnGap: 20,
     },

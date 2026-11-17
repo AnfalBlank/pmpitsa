@@ -20,7 +20,7 @@ import {
   Lock
 } from 'lucide-react';
 import { UserSession, Site, PMReport } from '@/lib/types';
-import { reportStatus } from '@/lib/report-status';
+import { reportStatus, awaitingApproval } from '@/lib/report-status';
 import { SAMPLE_SITES } from '@/lib/sample-data';
 import { useFeedback } from '@/components/feedback/FeedbackProvider';
 import { can } from '@/lib/rbac';
@@ -62,9 +62,9 @@ export const ReportsModule: React.FC<ReportsModuleProps> = ({
     }
 
     // Sign Status Filter
-    const isSigned = !!r.technician_signature && !!r.supervisor_signature;
-    if (reportSignFilter === 'SIGNED' && !isSigned) return false;
-    if (reportSignFilter === 'PENDING' && isSigned) return false;
+    // "SIGNED" = validated by the Pengawas, "PENDING" = final but awaiting validation
+    if (reportSignFilter === 'SIGNED' && !r.approval) return false;
+    if (reportSignFilter === 'PENDING' && !awaitingApproval(r)) return false;
 
     if (reportSearch.trim()) {
       const q = reportSearch.toLowerCase();
@@ -96,7 +96,9 @@ export const ReportsModule: React.FC<ReportsModuleProps> = ({
     reportSignFilter !== 'ALL';
 
   // Pending signoff for supervisor
-  const pendingSignOffReports = reports.filter(r => !r.supervisor_signature);
+  const pendingApprovalReports = reports.filter(
+    (r) => awaitingApproval(r) && (currentUser.role !== 'SUPERVISOR' || r.site_id === currentUser.assignedSiteId)
+  );
 
   const pmCount = reports.filter(r => r.work_type === 'PREVENTIVE_MAINTENANCE').length;
   const quickCount = reports.filter(r => r.work_type === 'QUICK_CHECK').length;
@@ -141,22 +143,22 @@ export const ReportsModule: React.FC<ReportsModuleProps> = ({
       </div>
 
       {/* Pending Sign-Off Card for Supervisor */}
-      {currentUser.role === 'SUPERVISOR' && pendingSignOffReports.length > 0 && (
+      {can(currentUser.role, 'report.approve') && pendingApprovalReports.length > 0 && (
         <div className="bg-amber-50 rounded-xl p-5 border border-amber-300 space-y-3 shadow-xs">
           <div className="flex items-center gap-2.5">
             <ShieldCheck className="w-6 h-6 text-amber-700 flex-shrink-0" />
             <div>
               <h2 className="text-base font-extrabold text-amber-950">
-                Berita Acara Belum Ditandatangani Pengawas ({pendingSignOffReports.length})
+                Menunggu Validasi Anda ({pendingApprovalReports.length})
               </h2>
               <p className="text-xs text-amber-800">
-                Tanda tangan pengawas dibubuhkan langsung pada perangkat teknisi saat serah terima. Tinjau hasil checklist di bawah.
+                Teknisi sudah memfinalisasi Berita Acara berikut. Periksa isinya lalu tekan &quot;Setujui Berita Acara&quot;.
               </p>
             </div>
           </div>
 
           <div className="space-y-2.5 pt-1">
-            {pendingSignOffReports.map((r) => (
+            {pendingApprovalReports.map((r) => (
               <div 
                 key={r.id}
                 className="bg-white p-4 rounded-xl border border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-2xs"
@@ -177,7 +179,7 @@ export const ReportsModule: React.FC<ReportsModuleProps> = ({
                   className="min-h-[44px] px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-bold text-xs flex items-center justify-center gap-2 shadow-xs transition-colors flex-shrink-0"
                 >
                   <ShieldCheck className="w-4 h-4" />
-                  <span>Tinjau Berita Acara</span>
+                  <span>Tinjau &amp; Setujui</span>
                 </button>
               </div>
             ))}
@@ -292,8 +294,8 @@ export const ReportsModule: React.FC<ReportsModuleProps> = ({
               className="w-full min-h-[44px] px-3 text-xs bg-slate-50 border border-slate-300 rounded-lg font-medium text-slate-800 focus:ring-2 focus:ring-blue-600 focus:outline-none"
             >
               <option value="ALL">Semua Status Pengesahan</option>
-              <option value="SIGNED">Disahkan Lengkap (Teknisi & PWS)</option>
-              <option value="PENDING">Menunggu Pengesahan PWS</option>
+              <option value="SIGNED">Disetujui Pengawas</option>
+              <option value="PENDING">Menunggu Validasi Pengawas</option>
             </select>
           </div>
 
@@ -374,7 +376,8 @@ export const ReportsModule: React.FC<ReportsModuleProps> = ({
       ) : (
         <div className="space-y-3.5">
           {filteredReports.map((r) => {
-            const hasBothSignatures = !!r.technician_signature && !!r.supervisor_signature;
+            const approved = !!r.approval;
+            const waiting = awaitingApproval(r);
 
             return (
               <div 
@@ -417,17 +420,17 @@ export const ReportsModule: React.FC<ReportsModuleProps> = ({
                           {r.ticket_number}
                         </span>
                       )}
-                      {hasBothSignatures ? (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-100 text-blue-900 border border-blue-200 flex items-center gap-1">
-                          <CheckCircle2 className="w-3 h-3 text-blue-700" />
-                          <span>Disahkan Lengkap</span>
+                      {approved ? (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-900 border border-emerald-300 flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-700" />
+                          <span>Disetujui PWS · {r.approval!.by}</span>
                         </span>
-                      ) : (
+                      ) : waiting ? (
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-200 flex items-center gap-1">
                           <Clock className="w-3 h-3 text-amber-700" />
-                          <span>Menunggu TTD PWS</span>
+                          <span>Menunggu validasi PWS</span>
                         </span>
-                      )}
+                      ) : null}
                     </div>
 
                     <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">

@@ -5,7 +5,7 @@ import { PMReport, ChecklistStatus } from '@/lib/types';
 import { reportStatus } from '@/lib/report-status';
 import { WORK_TYPE_TITLE } from '@/lib/work-type';
 import { useFeedback } from '@/components/feedback/FeedbackProvider';
-import { Printer, Cloud, Download, ExternalLink, ArrowLeft, FileDown, FolderOpen, HardDriveUpload, Lock, PencilLine, Clock } from 'lucide-react';
+import { Printer, Cloud, Download, ExternalLink, ArrowLeft, FileDown, FolderOpen, HardDriveUpload, Lock, PencilLine, Clock, BadgeCheck, Loader2 } from 'lucide-react';
 
 interface OfficialPdfPreviewProps {
   report: PMReport;
@@ -20,7 +20,23 @@ interface OfficialPdfPreviewProps {
   onUploadToDrive?: () => void | Promise<void>;
   /** Admin only: revise a finalised BA */
   onAdminEdit?: () => void | Promise<void>;
+  /** Pengawas of this SPBU: validate (approve) the final BA */
+  onApprove?: () => void | Promise<void>;
+  /** The full BA (photos, signatures) is still loading from the server */
+  loadingFull?: boolean;
 }
+
+/** Green "approved" stamp shown over the Pengawas signature */
+export const ApprovalStamp: React.FC<{ by: string; at: string }> = ({ by, at }) => (
+  <div
+    className="inline-flex flex-col items-center px-3 py-1.5 border-[3px] border-emerald-600 text-emerald-700 rounded-md bg-white/85 -rotate-6 shadow-sm leading-tight"
+    aria-label={`Disetujui oleh ${by}`}
+  >
+    <span className="text-[11px] font-black tracking-[0.2em]">✓ DISETUJUI</span>
+    <span className="text-[10px] font-bold max-w-[160px] truncate">{by}</span>
+    <span className="text-[9px] font-mono">{new Date(at).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })}</span>
+  </div>
+);
 
 const STATUS_LABEL: Record<string, string> = { B: 'Baik', R: 'Rusak', X: 'Tidak Ada' };
 const stText = (s?: ChecklistStatus) => (s ? `${s} · ${STATUS_LABEL[s] || s}` : '-');
@@ -34,6 +50,8 @@ export const OfficialPdfPreview: React.FC<OfficialPdfPreviewProps> = ({
   onDownloadPdf,
   onUploadToDrive,
   onAdminEdit,
+  onApprove,
+  loadingFull = false,
 }) => {
   const status = reportStatus(report);
   const isPM = report.work_type === 'PREVENTIVE_MAINTENANCE';
@@ -168,6 +186,18 @@ export const OfficialPdfPreview: React.FC<OfficialPdfPreviewProps> = ({
             <span>Cetak</span>
           </button>
 
+          {onApprove && (
+            <button
+              type="button"
+              disabled={loadingFull}
+              onClick={() => onApprove()}
+              className="col-span-2 sm:col-span-1 min-h-[44px] px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white rounded font-bold text-xs flex items-center justify-center gap-2 shadow-xs transition-colors"
+            >
+              <BadgeCheck className="w-4 h-4" />
+              <span>Setujui Berita Acara</span>
+            </button>
+          )}
+
           {onAdminEdit && (
             <button
               type="button"
@@ -193,6 +223,36 @@ export const OfficialPdfPreview: React.FC<OfficialPdfPreviewProps> = ({
         </div>
       </div>
 
+
+      {loadingFull && (
+        <div className="no-print max-w-4xl mx-auto rounded-lg px-4 py-3 flex items-center gap-2.5 text-xs border bg-blue-50 border-blue-200 text-blue-900">
+          <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" />
+          Memuat dokumen lengkap (foto &amp; tanda tangan) dari server...
+        </div>
+      )}
+
+      {status === 'FINAL' && (
+        <div
+          className={`no-print max-w-4xl mx-auto rounded-lg px-4 py-3 flex items-start gap-2.5 text-xs border ${
+            report.approval ? 'bg-emerald-50 border-emerald-300 text-emerald-900' : 'bg-amber-50 border-amber-300 text-amber-900'
+          }`}
+        >
+          {report.approval ? <BadgeCheck className="w-4 h-4 flex-shrink-0 mt-0.5" /> : <Clock className="w-4 h-4 flex-shrink-0 mt-0.5" />}
+          <span>
+            {report.approval ? (
+              <>
+                <strong>Disetujui Pengawas SPBU</strong> — {report.approval.by},{' '}
+                {new Date(report.approval.at).toLocaleString('id-ID')}.
+              </>
+            ) : (
+              <>
+                <strong>Menunggu validasi Pengawas SPBU.</strong>{' '}
+                {onApprove ? 'Periksa isi Berita Acara di bawah, lalu tekan "Setujui Berita Acara".' : 'Pengawas SPBU terkait akan menyetujui dari akunnya.'}
+              </>
+            )}
+          </span>
+        </div>
+      )}
 
       {/* Document lifecycle status */}
       <div
@@ -676,7 +736,7 @@ export const OfficialPdfPreview: React.FC<OfficialPdfPreviewProps> = ({
                     className="max-h-16 max-w-full object-contain"
                   />
                 ) : (
-                  <span className="text-slate-400 italic">[Belum ditandatangani]</span>
+                  <span className="text-slate-400 italic">{loadingFull ? 'Memuat...' : '[Belum ditandatangani]'}</span>
                 )}
               </div>
               <p className="font-bold text-slate-900">{report.technician_name}</p>
@@ -688,7 +748,7 @@ export const OfficialPdfPreview: React.FC<OfficialPdfPreviewProps> = ({
             {/* Supervisor */}
             <div>
               <p className="font-semibold text-slate-700 mb-2">Pemberi Pengesahan (Supervisor Site SPBU)</p>
-              <div className="h-20 flex items-center justify-center border-b border-slate-300 pb-1 mb-2">
+              <div className="relative h-20 flex items-center justify-center border-b border-slate-300 pb-1 mb-2">
                 {report.supervisor_signature ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
@@ -697,7 +757,12 @@ export const OfficialPdfPreview: React.FC<OfficialPdfPreviewProps> = ({
                     className="max-h-16 max-w-full object-contain"
                   />
                 ) : (
-                  <span className="text-slate-400 italic">[Belum ditandatangani]</span>
+                  <span className="text-slate-400 italic">{loadingFull ? 'Memuat...' : '[Belum ditandatangani]'}</span>
+                )}
+                {report.approval && (
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <ApprovalStamp by={report.approval.by} at={report.approval.at} />
+                  </div>
                 )}
               </div>
               <p className="font-bold text-slate-900">{report.supervisor_name}</p>

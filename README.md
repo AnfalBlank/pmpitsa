@@ -80,6 +80,7 @@ npm start
 
 - **Unduh PDF**: tombol *Unduh PDF* di halaman pratinjau Berita Acara membuat PDF A4 resmi di server (kop surat, tabel checklist sesuai jenis pekerjaan, tanda tangan, nomor halaman, dan lampiran foto dokumentasi).
 - **Finalisasi & penguncian**: Teknisi menekan *Finalisasi* setelah semua isian wajib dan tanda tangan Teknisi + Pengawas lengkap. Berita Acara final **terkunci**: Teknisi dan Pengawas tidak dapat mengubahnya lagi (dicek juga di server). Hanya **Admin** yang dapat merevisi lewat tombol *Ubah Berita Acara (Admin)*; setiap revisi tercatat (nomor revisi, nama Admin, waktu). Bila koneksi putus saat finalisasi, BA tetap terkunci & tersimpan di perangkat lalu dikirim otomatis saat online.
+- **Validasi Pengawas SPBU**: setelah BA final, Pengawas SPBU yang bersangkutan melihatnya di Ikhtisar / Arsip BA ("Menunggu Validasi Anda"). Tombol *Setujui Berita Acara* menambahkan stempel hijau **DISETUJUI** dengan nama Pengawas dan waktu pada lembar pengesahan (layar & PDF). Pengawas hanya dapat memvalidasi BA SPBU-nya sendiri. Revisi oleh Admin mereset validasi sehingga perlu disetujui ulang.
 - **Arsip otomatis**: saat Teknisi memfinalisasi Berita Acara, Berita Acara disimpan ke database lalu PDF dan semua foto diunggah ke Google Drive:
 
 ```

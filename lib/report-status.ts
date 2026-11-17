@@ -39,3 +39,10 @@ export function missingForFinalize(r: PMReport): string[] {
   if (!filled(r.supervisor_signature)) miss.push('Tanda tangan pengawas SPBU');
   return miss;
 }
+
+/** Signature present (works for full reports and server list summaries). */
+export const hasTechnicianSignature = (r: PMReport) => !!r.technician_signature || !!r._has_technician_signature;
+export const hasSupervisorSignature = (r: PMReport) => !!r.supervisor_signature || !!r._has_supervisor_signature;
+
+/** Final BA still waiting for the Pengawas validation. */
+export const awaitingApproval = (r: PMReport) => isFinal(r) && !r.approval;

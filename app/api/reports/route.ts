@@ -36,7 +36,18 @@ export async function GET(req: Request) {
       return NextResponse.json({ success: true, report: parsedData });
     }
 
-    let query = 'SELECT * FROM pm_reports WHERE 1=1';
+    // List = light summaries. Photos and signatures (often hundreds of KB per BA)
+    // are stripped inside the database so the list stays fast; the full BA is
+    // loaded with ?id=... when it is opened.
+    let query = `SELECT id, work_type, site_id, site_code, site_name, terminal_id, execution_date,
+        technician_name, technician_phone, supervisor_name, overall_status, findings_summary,
+        action_plan_summary, gdrive_pdf_id, created_at, updated_at,
+        CASE WHEN json_valid(report_data)
+          THEN json_remove(report_data, '$.attachments', '$.technician_signature', '$.supervisor_signature') END AS summary,
+        CASE WHEN json_valid(report_data) THEN COALESCE(json_array_length(report_data, '$.attachments'), 0) ELSE 0 END AS att_count,
+        (COALESCE(technician_signature, '') <> '') AS has_ts,
+        (COALESCE(supervisor_signature, '') <> '') AS has_ss
+      FROM pm_reports WHERE 1=1`;
     const args: any[] = [];
 
     if (scope !== null) {
@@ -52,12 +63,12 @@ export async function GET(req: Request) {
 
     const res = await db.execute({ sql: query, args });
 
-    const reports: PMReport[] = res.rows.map(row => {
+    const reports: PMReport[] = res.rows.map((row) => {
+      let base: PMReport;
       try {
-        const full: PMReport = JSON.parse(String(row.report_data));
-        return full;
+        base = JSON.parse(String(row.summary));
       } catch {
-        return {
+        base = {
           id: String(row.id),
           work_type: row.work_type as any,
           site_id: Number(row.site_id),
@@ -72,11 +83,21 @@ export async function GET(req: Request) {
           findings_summary: String(row.findings_summary || ''),
           action_plan: String(row.action_plan_summary || ''),
           synced_to_server: true,
-          gdrive_pdf_id: row.gdrive_pdf_id ? String(row.gdrive_pdf_id) : undefined,
           created_at: String(row.created_at),
           updated_at: String(row.updated_at),
         } as unknown as PMReport;
       }
+      return {
+        ...base,
+        attachments: [],
+        technician_signature: undefined,
+        supervisor_signature: undefined,
+        synced_to_server: true,
+        _summary: true,
+        _attachments_count: Number(row.att_count || 0),
+        _has_technician_signature: Number(row.has_ts) === 1 || !!base.technician_signed_at,
+        _has_supervisor_signature: Number(row.has_ss) === 1 || !!base.supervisor_signed_at,
+      };
     });
 
     return NextResponse.json({ success: true, reports });
@@ -98,6 +119,13 @@ export async function POST(req: Request) {
     if (!report.id || !report.site_name) {
       return NextResponse.json(
         { success: false, message: 'Data laporan tidak lengkap (ID & Site Name wajib ada).' },
+        { status: 400 }
+      );
+    }
+    if (report._summary) {
+      // A list summary has no photos/signatures; saving it would wipe them
+      return NextResponse.json(
+        { success: false, code: 'INCOMPLETE', message: 'Data Berita Acara belum termuat lengkap. Muat ulang dokumen lalu coba lagi.' },
         { status: 400 }
       );
     }
@@ -135,6 +163,7 @@ export async function POST(req: Request) {
         finalized_by: session.name,
         revision: 1,
         revision_log: [],
+        approval: undefined,
         updated_at: now,
         gdrive: undefined,
         gdrive_pdf_id: undefined,
@@ -149,7 +178,15 @@ export async function POST(req: Request) {
         finalized_at: existing.finalized_at || existing.created_at || now,
         finalized_by: existing.finalized_by || existing.technician_name,
         revision,
-        revision_log: [...(existing.revision_log || []), { at: now, by: session.name, note: `Revisi ${revision} oleh Admin` }],
+        revision_log: [
+          ...(existing.revision_log || []),
+          {
+            at: now,
+            by: session.name,
+            note: `Revisi ${revision} oleh Admin${existing.approval ? ' (validasi Pengawas direset, perlu disetujui ulang)' : ''}`,
+          },
+        ],
+        approval: undefined,
         updated_at: now,
         gdrive: existing.gdrive,
         gdrive_pdf_id: existing.gdrive?.pdf_file_id || existing.gdrive_pdf_id,

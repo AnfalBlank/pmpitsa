@@ -278,6 +278,15 @@ export interface PMReport {
   revision?: number;
   revision_log?: { at: string; by: string; note: string }[];
 
+  /** Validation by the SPBU supervisor (Pengawas) after the BA is final */
+  approval?: ReportApproval;
+
+  /** List rows from the server are summaries (no photos/signatures); load the full BA before use */
+  _summary?: boolean;
+  _attachments_count?: number;
+  _has_technician_signature?: boolean;
+  _has_supervisor_signature?: boolean;
+
   /** Set when this report is a corrective repair started from a ticket */
   ticket_id?: string;
   ticket_number?: string;
@@ -287,6 +296,13 @@ export interface PMReport {
 }
 
 export type ReportStatus = 'DRAFT' | 'PENDING_SYNC' | 'FINAL';
+
+export interface ReportApproval {
+  status: 'APPROVED';
+  by: string;
+  by_id: string;
+  at: string;
+}
 
 export interface GDriveArchiveInfo {
   folder_id: string;

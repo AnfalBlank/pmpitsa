@@ -17,6 +17,7 @@ export type Permission =
   | 'pm.perform' // open PM form, start PM/quick check/repair, save draft, submit BA
   | 'report.sync' // save / sync Berita Acara to the server
   | 'report.edit' // revise a finalised Berita Acara
+  | 'report.approve' // Pengawas validates a final BA of their own SPBU
   | 'report.delete'
   | 'ticket.create'
   | 'ticket.update' // change status / notes / assignee
@@ -42,7 +43,7 @@ const MATRIX: Record<UserRole, Permission[]> = {
     'user.manage',
     'data.allSites',
   ],
-  SUPERVISOR: ['ticket.create'],
+  SUPERVISOR: ['ticket.create', 'report.approve'],
   TECHNICIAN: ['pm.perform', 'report.sync', 'ticket.create', 'ticket.update', 'data.allSites'],
 };
 

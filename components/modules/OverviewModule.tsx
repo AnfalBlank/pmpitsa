@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { UserSession, Site, WorkType, SPBUTicket, MaintenancePlan, PMReport } from '@/lib/types';
 import { SAMPLE_SITES } from '@/lib/sample-data';
+import { awaitingApproval } from '@/lib/report-status';
 
 interface OverviewModuleProps {
   currentUser: UserSession;
@@ -57,7 +58,7 @@ export const OverviewModule: React.FC<OverviewModuleProps> = ({
   const siteTickets = tickets.filter(t => t.site_id === currentSite.id);
   const openSiteTickets = siteTickets.filter(t => t.status !== 'Selesai (Resolved)');
   const sitePlans = plans.filter(p => p.site_id === currentSite.id);
-  const pendingSignOffReports = reports.filter(r => r.site_id === currentSite.id && !r.supervisor_signature);
+  const pendingSignOffReports = reports.filter(r => r.site_id === currentUser.assignedSiteId && awaitingApproval(r));
 
   // Technician assigned
   const myAssignedTickets = tickets.filter(
@@ -214,10 +215,10 @@ export const OverviewModule: React.FC<OverviewModuleProps> = ({
             <ShieldCheck className="w-5 h-5 text-amber-700 flex-shrink-0" />
             <div>
               <h3 className="text-sm font-extrabold text-amber-950">
-                Berita Acara Menunggu Pengesahan PWS ({pendingSignOffReports.length})
+                Berita Acara Menunggu Validasi Anda ({pendingSignOffReports.length})
               </h3>
               <p className="text-xs text-amber-800">
-                Pemeriksaan selesai. Lakukan verifikasi hasil temuan dan berikan tanda tangan digital resmi.
+                Teknisi sudah memfinalisasi Berita Acara. Periksa isinya lalu tekan &quot;Setujui Berita Acara&quot;.
               </p>
             </div>
           </div>
@@ -242,7 +243,7 @@ export const OverviewModule: React.FC<OverviewModuleProps> = ({
                   className="min-h-[38px] px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 transition-colors flex-shrink-0"
                 >
                   <ShieldCheck className="w-4 h-4" />
-                  <span>Tinjau BA</span>
+                  <span>Tinjau &amp; Setujui</span>
                 </button>
               </div>
             ))}

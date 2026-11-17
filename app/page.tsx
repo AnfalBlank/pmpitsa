@@ -35,7 +35,7 @@ import { CorrectiveRepairSection } from '@/components/sections/CorrectiveRepairS
 
 import { PMReport, Site, UserSession, SPBUTicket, MaintenancePlan, WorkType } from '@/lib/types';
 import { SAMPLE_SITES, createDefaultPMReport, newReportId } from '@/lib/sample-data';
-import { isFinal, isLocked, missingForFinalize, reportStatus } from '@/lib/report-status';
+import { awaitingApproval, isFinal, isLocked, missingForFinalize, reportStatus } from '@/lib/report-status';
 import { 
   getCurrentReport, 
   saveCurrentReport, 
@@ -62,6 +62,8 @@ import {
   downloadBaPdfApi,
   fetchPlansApi, 
   fetchReportsApi,
+  fetchReportByIdApi,
+  approveReportApi,
   fetchSitesApi,
   fetchUsersApi,
   logoutApi,
@@ -151,57 +153,85 @@ export default function Home() {
     };
     window.addEventListener('popstate', handlePopState);
 
-    // 3. Initial sync with Turso Database
-    const syncCloudData = async () => {
-      try {
-        const [cloudTickets, cloudPlans, cloudReports, cloudSites] = await Promise.all([
-          fetchTicketsApi(),
-          fetchPlansApi(),
-          fetchReportsApi(),
-          fetchSitesApi(),
-        ]);
-        if (isMounted) {
-          if (Array.isArray(cloudTickets)) {
-            setTickets(cloudTickets);
-            saveAllTickets(cloudTickets);
-          }
-          if (Array.isArray(cloudPlans)) {
-            setPlans(cloudPlans);
-            saveAllPlans(cloudPlans);
-          }
-          if (Array.isArray(cloudReports)) {
-            // Keep BAs that exist only on this device (drafts / finalised but not yet sent)
-            const localOnly = getAllReports().filter(
-              (r) => reportStatus(r) !== 'FINAL' && !cloudReports.some((c: PMReport) => c.id === r.id)
-            );
-            const merged = [...localOnly, ...cloudReports];
-            setReports(merged);
-            saveAllReports(merged);
-          }
-          if (cloudSites && cloudSites.length > 0) {
-            setSites(cloudSites);
-            saveAllSites(cloudSites);
-          }
-        }
-
-        // Fetch users for RBAC
-        try {
-          const users = await fetchUsersApi();
-          if (isMounted && users) {
-            setUsersList(users);
-          }
-        } catch {}
-      } catch (err) {
-        console.warn('Sync warning:', err);
-      }
-    };
-    syncCloudData();
-
     return () => { 
       isMounted = false; 
       window.removeEventListener('popstate', handlePopState);
     };
   }, []);
+
+  // ---- Server sync -------------------------------------------------------
+  // Runs after login / session restore, when the app comes back to the
+  // foreground, when the connection returns, and every minute. A failed
+  // request never replaces the lists (no more "only 1 BA" after an error).
+  const syncingRef = React.useRef(false);
+  const refreshFromServer = React.useCallback(async () => {
+    if (syncingRef.current || (typeof navigator !== 'undefined' && !navigator.onLine)) return;
+    syncingRef.current = true;
+    try {
+      const [cloudTickets, cloudPlans, cloudReports, cloudSites] = await Promise.all([
+        fetchTicketsApi(),
+        fetchPlansApi(),
+        fetchReportsApi(),
+        fetchSitesApi(),
+      ]);
+      if (cloudTickets) {
+        setTickets(cloudTickets);
+        saveAllTickets(cloudTickets);
+      }
+      if (cloudPlans) {
+        setPlans(cloudPlans);
+        saveAllPlans(cloudPlans);
+      }
+      if (cloudReports) {
+        setReports((prev) => {
+          const byId = new Map(prev.map((r) => [r.id, r]));
+          // Keep BAs that exist only on this device (drafts / finalised but not yet sent)
+          const localOnly = prev.filter((r) => reportStatus(r) !== 'FINAL' && !cloudReports.some((c) => c.id === r.id));
+          const merged = [
+            ...localOnly,
+            ...cloudReports.map((c) => {
+              // Keep an already-loaded full copy when nothing changed on the server
+              const local = byId.get(c.id);
+              return local && !local._summary && local.updated_at === c.updated_at && !!local.approval === !!c.approval ? local : c;
+            }),
+          ];
+          saveAllReports(merged);
+          return merged;
+        });
+        // Keep the open BA in step with the server (e.g. a new approval)
+        setReport((prev) => {
+          const c = cloudReports.find((x) => x.id === prev.id);
+          if (!c || prev._summary || !isFinal(prev)) return prev;
+          if (c.updated_at === prev.updated_at && !!c.approval === !!prev.approval) return prev;
+          return { ...prev, approval: c.approval, revision: c.revision, gdrive: c.gdrive, updated_at: c.updated_at };
+        });
+      }
+      if (cloudSites && cloudSites.length > 0) {
+        setSites(cloudSites);
+        saveAllSites(cloudSites);
+      }
+      try {
+        const users = await fetchUsersApi();
+        if (users) setUsersList(users);
+      } catch {}
+    } finally {
+      syncingRef.current = false;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!currentUser) return;
+    refreshFromServer();
+    const onVisible = () => document.visibilityState === 'visible' && refreshFromServer();
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('online', refreshFromServer);
+    const timer = setInterval(() => document.visibilityState === 'visible' && refreshFromServer(), 60_000);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('online', refreshFromServer);
+      clearInterval(timer);
+    };
+  }, [currentUser?.id, refreshFromServer]);
 
   // Force logout when the server session is missing/expired (e.g. old login before
   // session cookies existed, or 12h shift timeout)
@@ -517,8 +547,16 @@ export default function Home() {
       confirmLabel: 'Ya, Ubah',
     });
     if (!ok) return;
+    const full = await feedback.run(
+      async () => {
+        const f = await loadFullReport(target);
+        return f ? { success: true as const, report: f } : { success: false as const, message: 'Dokumen lengkap belum dapat dimuat.' };
+      },
+      { pending: 'Memuat Berita Acara lengkap...', success: { title: 'Siap Diubah' }, error: { title: 'Gagal Memuat Berita Acara' } }
+    );
+    if (!full.success) return;
     setAdminEditing(true);
-    setReport({ ...target });
+    setReport({ ...full.report });
     setActiveTab('info');
     setCurrentModule('form');
     window.history.pushState(null, '', '/form');
@@ -592,7 +630,7 @@ export default function Home() {
 
   const handleDownloadPdf = async (target: PMReport) => {
     // Technicians get the PDF of exactly what is on screen (may be an unsynced draft)
-    const draft = can(currentUser?.role, 'pm.perform');
+    const draft = can(currentUser?.role, 'pm.perform') && !isFinal(target) && !target._summary;
     await feedback.run(() => downloadBaPdfApi(target, { draft }), {
       pending: 'Menyiapkan PDF Berita Acara...',
       success: (r) => ({
@@ -653,11 +691,73 @@ export default function Home() {
     window.history.pushState(null, '', '/');
   };
 
-  const handleSelectPastReport = (pastReport: PMReport) => {
+  const [loadingFullReport, setLoadingFullReport] = useState(false);
+
+  /** List items are summaries: fetch the full BA (photos, signatures) from the server. */
+  const loadFullReport = async (r: PMReport): Promise<PMReport | null> => {
+    if (!r._summary) return r;
+    const res = await fetchReportByIdApi(r.id);
+    if (!res.success || !res.report) return null;
+    const full = { ...res.report, synced_to_server: true };
+    setReports((prev) => {
+      const next = prev.map((x) => (x.id === full.id ? full : x));
+      saveAllReports(next);
+      return next;
+    });
+    return full;
+  };
+
+  const handleSelectPastReport = async (pastReport: PMReport) => {
     setReport(pastReport);
     setCurrentModule('preview');
     window.history.pushState(null, '', '/preview');
-    showToast(`Membuka Berita Acara #${pastReport.id}`);
+    if (!pastReport._summary) return;
+    setLoadingFullReport(true);
+    const full = await loadFullReport(pastReport);
+    setLoadingFullReport(false);
+    if (full) {
+      setReport((prev) => (prev.id === full.id ? full : prev));
+    } else {
+      feedback.notify({
+        variant: 'error',
+        title: 'Gagal Memuat Berita Acara',
+        message: 'Dokumen lengkap (foto & tanda tangan) belum dapat dimuat. Periksa koneksi lalu buka kembali.',
+      });
+    }
+  };
+
+  /** Pengawas validates the BA of their own SPBU */
+  const handleApproveReport = async (target: PMReport) => {
+    if (!currentUser || !can(currentUser.role, 'report.approve')) return;
+    const ok = await feedback.confirm({
+      title: 'Setujui Berita Acara?',
+      message: (
+        <>
+          Anda menyatakan isi Berita Acara <strong>#{target.id}</strong> ({target.site_name}) sudah sesuai. Stempel
+          &quot;DISETUJUI&quot; dengan nama Anda akan tampil pada lembar pengesahan.
+        </>
+      ),
+      confirmLabel: 'Ya, Setujui',
+    });
+    if (!ok) return;
+    const result = await feedback.run(() => approveReportApi(target.id), {
+      pending: 'Menyimpan validasi Pengawas...',
+      success: (r) => ({
+        title: 'Berita Acara Disetujui',
+        message: `Berita Acara #${target.id} sudah divalidasi${r.approval?.by ? ` oleh ${r.approval.by}` : ''}.`,
+      }),
+      error: { title: 'Gagal Menyimpan Validasi', message: 'Validasi belum tersimpan. Periksa koneksi lalu coba lagi.' },
+    });
+    if (result.success && result.approval) {
+      const approval = result.approval;
+      const patch = (r: PMReport) => (r.id === target.id ? { ...r, approval } : r);
+      setReport((prev) => patch(prev));
+      setReports((prev) => {
+        const next = prev.map(patch);
+        saveAllReports(next);
+        return next;
+      });
+    }
   };
 
   /** A blank Berita Acara (new ID, no signatures/photos) for a new job. */
@@ -976,6 +1076,12 @@ export default function Home() {
               canSync={can(currentUser.role, 'pm.perform') && !isFinal(report)}
               onBackToForm={can(currentUser.role, 'pm.perform') && !isLocked(report) ? () => setCurrentModule('form') : undefined}
               onAdminEdit={can(currentUser.role, 'report.edit') && isFinal(report) ? () => handleAdminEdit(report) : undefined}
+              onApprove={
+                can(currentUser.role, 'report.approve') && awaitingApproval(report) && (scope === null || report.site_id === scope)
+                  ? () => handleApproveReport(report)
+                  : undefined
+              }
+              loadingFull={loadingFullReport || !!report._summary}
               onBackToList={() => {
                 setCurrentModule('reports');
                 window.history.pushState(null, '', '/reports');
