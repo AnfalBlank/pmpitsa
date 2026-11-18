@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { MasterSelect } from '@/components/ui/MasterSelect';
-import { supervisorOptions, technicianOptions, UserLite } from '@/lib/user-options';
+import { siteSupervisorNames, UserLite } from '@/lib/user-options';
 import { PMReport, WorkType, Site, UserSession } from '@/lib/types';
 import { SAMPLE_SITES } from '@/lib/sample-data';
 import { 
@@ -18,8 +18,7 @@ import {
   CheckCircle2, 
   Phone, 
   AlertTriangle,
-  Plus
-} from 'lucide-react';
+  Plus, Lock } from 'lucide-react';
 
 interface InitiationLandingProps {
   report: PMReport;
@@ -43,9 +42,8 @@ export const InitiationLanding: React.FC<InitiationLandingProps> = ({
   onOpenTicketModal,
   users = [],
 }) => {
-  const techOptions = technicianOptions(users);
   const activeSites = sites && sites.length > 0 ? sites : SAMPLE_SITES;
-  const spvOptions = supervisorOptions(users, activeSites.find((x) => x.id === report.site_id));
+  const siteSpv = siteSupervisorNames(users, activeSites.find((x) => x.id === report.site_id));
 
   const updateField = <K extends keyof PMReport>(key: K, val: PMReport[K]) => {
     onChange({
@@ -61,7 +59,7 @@ export const InitiationLanding: React.FC<InitiationLandingProps> = ({
       site_id: site.id,
       site_code: site.site_code,
       site_name: site.site_name,
-      supervisor_name: site.contact_person.split(' (')[0],
+      supervisor_name: siteSupervisorNames(users, site)[0] || site.contact_person.split(' (')[0],
     });
   };
 
@@ -309,17 +307,11 @@ export const InitiationLanding: React.FC<InitiationLandingProps> = ({
             >
               Nama Petugas Pelaksana (Teknisi) <span className="text-red-500">*</span>
             </label>
-            <MasterSelect
-              id="landing-technician-name"
-              value={report.technician_name}
-              onChange={(v) => {
-                const t = techOptions.find((o) => o.value === v);
-                onChange({ ...report, technician_name: v, technician_phone: t?.phone || report.technician_phone });
-              }}
-              options={techOptions}
-              placeholder="— Pilih teknisi —"
-              customPlaceholder="Nama lengkap & ID teknisi"
-            />
+            <div id="landing-technician-name" className="w-full min-h-[44px] px-3 py-2 bg-slate-100 border border-slate-300 rounded-lg text-sm font-semibold text-slate-800 flex items-center gap-2">
+              <Lock className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" aria-hidden="true" />
+              <span className="min-w-0 break-words">{report.technician_name || '-'}</span>
+            </div>
+            <span className="text-[11px] text-slate-500 mt-1 block">Otomatis sesuai akun yang sedang login</span>
           </div>
 
           <div>
@@ -349,16 +341,23 @@ export const InitiationLanding: React.FC<InitiationLandingProps> = ({
             >
               Nama PWS / Pengawas yang Sedang Bertugas <span className="text-red-500">*</span>
             </label>
-            <MasterSelect
-              id="landing-pws-name"
-              value={report.supervisor_name}
-              onChange={(v) => updateField('supervisor_name', v)}
-              options={spvOptions}
-              placeholder="— Pilih pengawas —"
-              customPlaceholder="Contoh: Armando Da Costa"
-            />
+            {siteSpv.length > 1 ? (
+              <MasterSelect
+                id="landing-pws-name"
+                value={report.supervisor_name}
+                onChange={(v) => updateField('supervisor_name', v)}
+                options={siteSpv.map((v) => ({ value: v }))}
+                allowCustom={false}
+                placeholder="— Pilih pengawas SPBU ini —"
+              />
+            ) : (
+              <div id="landing-pws-name" className="w-full min-h-[44px] px-3 py-2 bg-slate-100 border border-slate-300 rounded-lg text-sm font-semibold text-slate-800 flex items-center gap-2">
+                <Lock className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" aria-hidden="true" />
+                <span className="min-w-0 break-words">{report.supervisor_name || 'Belum ada Pengawas terdaftar untuk SPBU ini'}</span>
+              </div>
+            )}
             <span className="text-[11px] text-slate-500 mt-1 block">
-              Pengawas SPBU yang bertugas saat kegiatan berlangsung
+              Sesuai Pengawas yang terdaftar untuk SPBU yang dipilih
             </span>
           </div>
         </div>

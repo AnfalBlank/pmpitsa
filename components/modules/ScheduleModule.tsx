@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { ScheduleCalendar } from '@/components/modules/ScheduleCalendar';
 import { MasterSelect } from '@/components/ui/MasterSelect';
 import { ModalPortal } from '@/components/ui/ModalPortal';
 import { 
@@ -46,6 +47,7 @@ export const ScheduleModule: React.FC<ScheduleModuleProps> = ({
   const canCreatePlan = can(currentUser.role, 'plan.create');
   const canDeletePlan = can(currentUser.role, 'plan.delete');
   const canExecute = can(currentUser.role, 'pm.perform');
+  const [view, setView] = useState<'calendar' | 'list'>('calendar');
   const feedback = useFeedback();
 
   const [planSearch, setPlanSearch] = useState('');
@@ -329,6 +331,34 @@ export const ScheduleModule: React.FC<ScheduleModuleProps> = ({
         )}
       </div>
 
+      {/* View switch */}
+      <div className="flex items-center justify-between gap-2">
+        <div role="tablist" aria-label="Tampilan jadwal" className="inline-flex rounded-lg border border-slate-300 bg-white p-0.5">
+          {([
+            ['calendar', 'Kalender'],
+            ['list', 'Daftar'],
+          ] as const).map(([v, label]) => (
+            <button
+              key={v}
+              type="button"
+              role="tab"
+              aria-selected={view === v}
+              onClick={() => setView(v)}
+              className={`min-h-[40px] px-4 rounded-md text-xs font-bold transition-colors ${
+                view === v ? 'bg-[#0B2545] text-white' : 'text-slate-700 hover:bg-slate-100'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <span className="text-[11px] text-slate-500">{filteredPlans.length} jadwal</span>
+      </div>
+
+      {view === 'calendar' ? (
+        <ScheduleCalendar plans={filteredPlans} sites={activeSites} canExecute={canExecute} onExecute={onStartExecutionFromPlan} />
+      ) : (
+      <>
       {/* Schedule List Cards */}
       {filteredPlans.length === 0 ? (
         <div className="bg-white rounded-xl p-10 sm:p-14 text-center border border-slate-200 shadow-2xs space-y-3">
@@ -448,6 +478,9 @@ export const ScheduleModule: React.FC<ScheduleModuleProps> = ({
             );
           })}
         </div>
+      )}
+
+      </>
       )}
 
       {/* MODAL: BUAT JADWAL BARU */}

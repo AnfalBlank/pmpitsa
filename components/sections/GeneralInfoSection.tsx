@@ -2,9 +2,10 @@
 
 import React from 'react';
 import { MasterSelect } from '@/components/ui/MasterSelect';
+import { siteSupervisorNames } from '@/lib/user-options';
 import { PMReport, PMOverallStatus, Site } from '@/lib/types';
 import { SAMPLE_SITES } from '@/lib/sample-data';
-import { Building2, Calendar, Clock, User, Phone, ShieldCheck, AlertCircle } from 'lucide-react';
+import { Building2, Calendar, Clock, User, Phone, ShieldCheck, AlertCircle, Lock } from 'lucide-react';
 
 interface GeneralInfoSectionProps {
   report: PMReport;
@@ -12,6 +13,11 @@ interface GeneralInfoSectionProps {
   sites?: Site[];
   /** Users from Manajemen User (for technician / supervisor dropdowns) */
   users?: { name: string; role: string; employeeId?: string; phone?: string; assignedSiteId?: number }[];
+  /**
+   * Lock SPBU, technician and Pengawas (default). Only Admin revising a final
+   * BA gets the editable fields.
+   */
+  locked?: boolean;
 }
 
 export const GeneralInfoSection: React.FC<GeneralInfoSectionProps> = ({
@@ -19,6 +25,7 @@ export const GeneralInfoSection: React.FC<GeneralInfoSectionProps> = ({
   onChange,
   sites,
   users = [],
+  locked = true,
 }) => {
   const technicians = users
     .filter((u) => u.role === 'TECHNICIAN')
@@ -33,6 +40,7 @@ export const GeneralInfoSection: React.FC<GeneralInfoSectionProps> = ({
     ...(pic && !users.some((u) => u.name === pic) ? [{ value: pic, group: 'PIC terdaftar di Data SPBU' }] : []),
   ];
   const activeSites = sites && sites.length > 0 ? sites : SAMPLE_SITES;
+  const siteSpv = siteSupervisorNames(users, currentSiteObj);
 
   const updateField = <K extends keyof PMReport>(key: K, val: PMReport[K]) => {
     onChange({
@@ -83,7 +91,18 @@ export const GeneralInfoSection: React.FC<GeneralInfoSectionProps> = ({
             >
               Nama Site / SPBU Pertamina (Sesuai Konfigurasi) <span className="text-red-500">*</span>
             </label>
-            <select
+{locked ? (
+              <div
+                id="general-site-select"
+                className="w-full min-h-[44px] px-3 py-2 bg-slate-100 border border-slate-300 rounded-md text-sm font-semibold text-slate-800 flex items-center gap-2"
+              >
+                <Lock className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" aria-hidden="true" />
+                <span className="min-w-0 break-words">
+                  {report.site_code} - {report.site_name}
+                </span>
+              </div>
+            ) : (
+                        <select
               id="general-site-select"
               value={report.site_id}
               onChange={(e) => {
@@ -107,8 +126,10 @@ export const GeneralInfoSection: React.FC<GeneralInfoSectionProps> = ({
                 </option>
               ))}
             </select>
+            )}
             <span className="text-[11px] text-slate-500 mt-1 block">
               {activeSites.find((s) => s.id === report.site_id)?.location || 'Lokasi SPBU PITSA'}
+              {locked && ' · Dikunci sesuai SPBU yang dipilih saat memulai kegiatan.'}
             </span>
           </div>
 
@@ -189,6 +210,12 @@ export const GeneralInfoSection: React.FC<GeneralInfoSectionProps> = ({
             >
               Nama Teknisi Pelaksana <span className="text-red-500">*</span>
             </label>
+            {locked ? (
+              <div id="technician-name-input" className="w-full min-h-[44px] px-3 py-2 bg-slate-100 border border-slate-300 rounded-md text-sm font-semibold text-slate-800 flex items-center gap-2">
+                <Lock className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" aria-hidden="true" />
+                <span className="min-w-0 break-words">{report.technician_name || '-'}</span>
+              </div>
+            ) : (
             <MasterSelect
               id="technician-name-input"
               value={report.technician_name}
@@ -199,8 +226,8 @@ export const GeneralInfoSection: React.FC<GeneralInfoSectionProps> = ({
               options={technicians}
               placeholder="— Pilih teknisi —"
               customPlaceholder="Nama lengkap dan ID teknisi"
-              hint="Daftar dari Manajemen User (peran Teknisi)"
             />
+            )}
           </div>
 
           <div>
@@ -227,15 +254,22 @@ export const GeneralInfoSection: React.FC<GeneralInfoSectionProps> = ({
             >
               Nama Supervisor / Pengawas Site <span className="text-red-500">*</span>
             </label>
+            {locked && siteSpv.length <= 1 ? (
+              <div id="supervisor-name-input" className="w-full min-h-[44px] px-3 py-2 bg-slate-100 border border-slate-300 rounded-md text-sm font-semibold text-slate-800 flex items-center gap-2">
+                <Lock className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" aria-hidden="true" />
+                <span className="min-w-0 break-words">{report.supervisor_name || 'Belum ada Pengawas terdaftar untuk SPBU ini'}</span>
+              </div>
+            ) : (
             <MasterSelect
               id="supervisor-name-input"
               value={report.supervisor_name}
               onChange={(v) => updateField('supervisor_name', v)}
-              options={supervisors}
+              options={locked ? siteSpv.map((v) => ({ value: v })) : supervisors}
+              allowCustom={!locked}
               placeholder="— Pilih pengawas —"
               customPlaceholder="Nama pengawas SPBU"
-              hint="Pengawas SPBU ini ditampilkan paling atas"
             />
+            )}
           </div>
         </div>
       </div>

@@ -105,6 +105,13 @@ export async function POST(req: Request) {
       return forbidden('Akses ditolak: Pengawas hanya dapat membuat tiket untuk SPBU yang ditugaskan.');
     }
 
+    // Site code / name always come from Data SPBU (the client copy may be stale or missing)
+    const siteRow = await db.execute({ sql: 'SELECT site_code, site_name FROM sites WHERE id = ? LIMIT 1;', args: [Number(site_id)] });
+    if (!siteRow.rows.length) {
+      return NextResponse.json({ success: false, message: 'SPBU tidak ditemukan di Data SPBU.' }, { status: 400 });
+    }
+    const siteCode = String(siteRow.rows[0].site_code);
+    const siteName = String(siteRow.rows[0].site_name);
     const id = `TIK-${Date.now()}`;
     const year = new Date().getFullYear();
     const randomSuffix = Math.floor(1000 + Math.random() * 9000);
@@ -122,8 +129,8 @@ export async function POST(req: Request) {
         id,
         ticket_number,
         Number(site_id),
-        site_code || 'PITL',
-        site_name || 'SPBU Pertamina',
+        siteCode,
+        siteName,
         terminal_id || 'POS-01',
         category || 'Dispenser & Forecourt',
         priority || 'Sedang',
@@ -140,8 +147,8 @@ export async function POST(req: Request) {
       id,
       ticket_number,
       site_id: Number(site_id),
-      site_code: site_code || 'PITL',
-      site_name: site_name || 'SPBU Pertamina',
+      site_code: siteCode,
+      site_name: siteName,
       terminal_id: terminal_id || 'POS-01',
       category: category || 'Dispenser & Forecourt',
       priority: priority || 'Sedang',

@@ -38,6 +38,7 @@ import { SAMPLE_SITES, createDefaultPMReport, newReportId } from '@/lib/sample-d
 import { awaitingApproval, isFinal, isLocked, missingForFinalize, reportStatus } from '@/lib/report-status';
 import { baNumber } from '@/lib/work-type';
 import { applySiteForecourt, hasForecourtConfig, needsSiteForecourt } from '@/lib/forecourt';
+import { siteSupervisorNames, technicianLabel } from '@/lib/user-options';
 import { LoadingBlock, LoadingScreen, LoadStepState } from '@/components/ui/Loading';
 import { refreshMasterData } from '@/lib/use-master-config';
 import { 
@@ -410,6 +411,29 @@ export default function Home() {
     } catch {}
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sites, report.id, report.site_id, report.status, report.forecourt?.config_site_id, report.forecourt?.config_version, adminEditing]);
+
+  // Drafts: the technician is always the logged-in account and the Pengawas is
+  // the one registered for the chosen SPBU (they can't be typed freely)
+  useEffect(() => {
+    if (!currentUser || !can(currentUser.role, 'pm.perform') || adminEditing || reportStatus(report) !== 'DRAFT') return;
+    const me = usersList.find((u: any) => u.id === currentUser.id);
+    const techName = technicianLabel({ name: currentUser.name, employeeId: currentUser.employeeId });
+    const site = sites.find((s) => s.id === report.site_id);
+    const allowedSpv = siteSupervisorNames(usersList, site);
+    const patch: Partial<PMReport> = {};
+    if (report.technician_name !== techName) {
+      patch.technician_name = techName;
+      if (!report.technician_phone || report.technician_phone === '-') patch.technician_phone = me?.phone || currentUser.phone;
+    }
+    if (allowedSpv.length && !allowedSpv.includes(report.supervisor_name)) patch.supervisor_name = allowedSpv[0];
+    if (!Object.keys(patch).length) return;
+    const next = { ...report, ...patch };
+    setReport(next);
+    try {
+      saveCurrentReport(next);
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser?.id, usersList, sites, report.id, report.site_id, report.technician_name, report.supervisor_name, report.status, adminEditing]);
 
   // Fetch the latest SPBU configuration when a technician opens the landing / form
   useEffect(() => {
@@ -1307,7 +1331,7 @@ export default function Home() {
               {/* Form Step Workspace */}
               <div className="mt-4">
                 {activeTab === 'info' && (
-                  <GeneralInfoSection report={report} onChange={handleReportChange} sites={sites} users={usersList} />
+                  <GeneralInfoSection report={report} onChange={handleReportChange} sites={sites} users={usersList} locked={!adminEditing} />
                 )}
                 {activeTab === 'quick_check' && (
                   <QuickCheckSection report={report} onChange={handleReportChange} />

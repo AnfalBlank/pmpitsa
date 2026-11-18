@@ -155,6 +155,24 @@ export async function POST(req: Request) {
           { status: 400 }
         );
       }
+      // Technician = the logged-in account; Pengawas = one registered for this SPBU
+      if (!String(report.technician_name || '').toLowerCase().includes(session.name.toLowerCase())) {
+        return NextResponse.json(
+          { success: false, code: 'INCOMPLETE', message: `Nama teknisi pelaksana harus akun yang sedang login (${session.name}).` },
+          { status: 400 }
+        );
+      }
+      const spv = await db.execute({
+        sql: "SELECT name FROM users WHERE role = 'SUPERVISOR' AND assigned_site_id = ?;",
+        args: [Number(report.site_id)],
+      });
+      const allowed = spv.rows.map((r) => String(r.name));
+      if (allowed.length && !allowed.includes(String(report.supervisor_name || ''))) {
+        return NextResponse.json(
+          { success: false, code: 'INCOMPLETE', message: `Pengawas harus yang terdaftar untuk SPBU ini: ${allowed.join(', ')}.` },
+          { status: 400 }
+        );
+      }
       updatedReport = {
         ...report,
         status: 'FINAL',
