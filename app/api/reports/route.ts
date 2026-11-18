@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+import { baNumber } from '@/lib/work-type';
+import { notify, userIdsMentioned } from '@/lib/notify';
 import { requireSession, forbidden } from '@/lib/session';
 import { can, siteScope } from '@/lib/rbac';
 import { missingForFinalize } from '@/lib/report-status';
@@ -287,6 +289,30 @@ export async function POST(req: Request) {
         now,
       ],
     });
+
+    {
+      const no = baNumber(updatedReport);
+      const base = { link_module: 'preview' as const, link_id: updatedReport.id, actor_id: session.id };
+      if (!existing) {
+        await notify(
+          db,
+          { ...base, type: 'ba.final', title: `BA ${no} menunggu validasi`, message: `${updatedReport.site_code} · ${updatedReport.site_name} · oleh ${session.name}` },
+          [{ role: 'SUPERVISOR', siteId: Number(updatedReport.site_id) }, { role: 'ADMIN' }]
+        );
+      } else {
+        const techIds = await userIdsMentioned(db, updatedReport.technician_name, 'TECHNICIAN');
+        await notify(
+          db,
+          {
+            ...base,
+            type: 'ba.revised',
+            title: `BA ${no} direvisi Admin`,
+            message: `${updatedReport.site_code} · Revisi ${updatedReport.revision}${existing.approval ? ' · perlu disetujui ulang' : ''}`,
+          },
+          [...techIds.map((userId) => ({ userId })), { role: 'SUPERVISOR', siteId: Number(updatedReport.site_id) }]
+        );
+      }
+    }
 
     return NextResponse.json({
       success: true,

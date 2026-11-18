@@ -41,6 +41,9 @@ import { applySiteForecourt, hasForecourtConfig, needsSiteForecourt } from '@/li
 import { siteSupervisorNames, technicianLabel } from '@/lib/user-options';
 import { LoadingBlock, LoadingScreen, LoadStepState } from '@/components/ui/Loading';
 import { refreshMasterData } from '@/lib/use-master-config';
+import { useNotifications } from '@/components/notifications/useNotifications';
+import { NotificationBell, NotificationToasts } from '@/components/notifications/NotificationBell';
+import type { AppNotification } from '@/lib/api-client';
 import { 
   getCurrentReport, 
   saveCurrentReport, 
@@ -1055,6 +1058,41 @@ export default function Home() {
     CORRECTIVE_REPAIR: 'Corrective Maintenance (CM)',
   };
 
+  // ---- Notifications (per user / role / SPBU), refreshed every 15 s ----
+  const notif = useNotifications(currentUser?.id, () => {
+    // Something changed for this user: refresh lists so the new ticket / BA shows up
+    refreshFromServer();
+  });
+
+  const openNotification = (n: AppNotification) => {
+    notif.markRead([n.id]);
+    notif.dismissToast(n.id);
+    if (n.link_module === 'preview' && n.link_id) {
+      const r = reports.find((x) => x.id === n.link_id);
+      if (r) {
+        handleSelectPastReport(r);
+        return;
+      }
+      // Not in the list yet: open it straight from the server
+      handleSelectPastReport({ id: n.link_id, _summary: true, status: 'FINAL', synced_to_server: true, work_type: 'PREVENTIVE_MAINTENANCE', site_id: 0 } as PMReport);
+      return;
+    }
+    if (n.link_module === 'tickets' || n.link_module === 'schedule' || n.link_module === 'reports') {
+      handleSelectModule(n.link_module);
+    }
+  };
+
+  const notificationBell = (
+    <NotificationBell
+      items={notif.items}
+      unread={notif.unread}
+      permission={notif.permission}
+      onOpen={openNotification}
+      onMarkAll={notif.markAll}
+      onRequestPermission={notif.requestPermission}
+    />
+  );
+
   if (!isClientLoaded) {
     return <LoadingScreen title="Memuat Portal PM" />;
   }
@@ -1091,7 +1129,9 @@ export default function Home() {
         currentSite={assignedSite}
         onSelectModule={handleSelectModule}
         onLogout={handleLogout}
+        notificationSlot={notificationBell}
       />
+      <NotificationToasts toasts={notif.toasts} onOpen={openNotification} onDismiss={notif.dismissToast} />
 
       {/* 3. Main Workspace Container (offset by sidebar on desktop, padded bottom for mobile nav) */}
       <div className="flex-1 min-w-0 flex flex-col lg:pl-64 xl:pl-72 pb-28 lg:pb-8">
@@ -1102,6 +1142,7 @@ export default function Home() {
           currentModule={currentModule}
           currentUser={currentUser}
           onLogout={handleLogout}
+          notificationSlot={notificationBell}
         />
 
         {/* ========================================================= */}

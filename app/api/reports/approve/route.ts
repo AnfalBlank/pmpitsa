@@ -5,6 +5,8 @@ import { getTursoClient, ensureSchema } from '@/lib/turso';
 import { isDriveConfigured } from '@/lib/gdrive';
 import { archiveReportToDrive } from '@/lib/ba-archive';
 import type { PMReport, ReportApproval } from '@/lib/types';
+import { notify, userIdsMentioned } from '@/lib/notify';
+import { baNumber } from '@/lib/work-type';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -55,6 +57,27 @@ export async function POST(req: Request) {
       sql: `UPDATE pm_reports SET report_data = json_set(report_data, '$.approval', json(?)), updated_at = ? WHERE id = ?;`,
       args: [JSON.stringify(approval), approval.at, id],
     });
+
+    {
+      const info = await db.execute({
+        sql: `SELECT json_extract(report_data, '$.technician_name') AS tech, json_extract(report_data, '$.work_type') AS wt, site_code FROM pm_reports WHERE id = ?;`,
+        args: [id],
+      });
+      const r = info.rows[0];
+      const techIds = await userIdsMentioned(db, r?.tech ? String(r.tech) : '', 'TECHNICIAN');
+      await notify(
+        db,
+        {
+          type: 'ba.approved',
+          title: `BA ${baNumber({ id, work_type: (r?.wt as any) || 'PREVENTIVE_MAINTENANCE' })} disetujui`,
+          message: `${r?.site_code || ''} · divalidasi oleh ${session.name}`,
+          link_module: 'preview',
+          link_id: id,
+          actor_id: session.id,
+        },
+        [...techIds.map((userId) => ({ userId })), { role: 'ADMIN' }]
+      );
+    }
 
     // Refresh the archived PDF so it shows the approval stamp (best effort)
     let driveUpdated = false;

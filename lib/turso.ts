@@ -220,6 +220,32 @@ async function createSchema(): Promise<void> {
       description TEXT
     );
   `);
+
+  // Notifications per user / role (+ SPBU) and who has read them
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS notifications (
+      id TEXT PRIMARY KEY,
+      created_at TEXT NOT NULL,
+      type TEXT NOT NULL,
+      title TEXT NOT NULL,
+      message TEXT NOT NULL,
+      link_module TEXT,
+      link_id TEXT,
+      target_user_id TEXT,
+      target_role TEXT,
+      target_site_id INTEGER,
+      actor_id TEXT
+    );
+  `);
+  await db.execute('CREATE INDEX IF NOT EXISTS idx_notifications_created ON notifications(created_at);');
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS notification_reads (
+      notification_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      read_at TEXT NOT NULL,
+      PRIMARY KEY (notification_id, user_id)
+    );
+  `);
 }
 
 /**

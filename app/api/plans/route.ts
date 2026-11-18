@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { notify, userIdsMentioned } from '@/lib/notify';
 import { requireSession } from '@/lib/session';
 import { siteScope } from '@/lib/rbac';
 import { getTursoClient, ensureSchema } from '@/lib/turso';
@@ -130,6 +131,20 @@ export async function POST(req: Request) {
       status: planStatus,
       notes: notes || '',
     };
+
+    const techIds = await userIdsMentioned(db, assigned_technician, 'TECHNICIAN');
+    await notify(
+      db,
+      {
+        type: 'plan.new',
+        title: `Jadwal ${plan_type === 'CORRECTIVE_REPAIR' ? 'CM' : plan_type === 'QUICK_CHECK' ? 'pengecekan' : 'PM'} baru: ${siteCode}`,
+        message: `${scheduled_date} · ${siteName} · Teknisi: ${assigned_technician || '-'}`,
+        link_module: 'schedule',
+        link_id: id,
+        actor_id: session.id,
+      },
+      [...techIds.map((userId) => ({ userId })), { role: 'SUPERVISOR', siteId: Number(site_id) }]
+    );
 
     return NextResponse.json({ success: true, message: 'Jadwal PM berhasil disimpan.', plan: newPlan });
   } catch (err: any) {

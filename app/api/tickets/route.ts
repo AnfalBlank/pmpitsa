@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { notify, userIdsMentioned } from '@/lib/notify';
 import { requireSession, forbidden } from '@/lib/session';
 import { siteScope } from '@/lib/rbac';
 import { getTursoClient, ensureSchema } from '@/lib/turso';
@@ -160,6 +161,25 @@ export async function POST(req: Request) {
       assigned_to: assigned_to || undefined,
     };
 
+    // Notify Admin, the assigned technician (or all technicians) and the SPBU's Pengawas
+    const assignedIds = await userIdsMentioned(db, assigned_to, 'TECHNICIAN');
+    await notify(
+      db,
+      {
+        type: 'ticket.new',
+        title: `Tiket baru ${ticket_number}${priority === 'Darurat' ? ' (DARURAT)' : ''}`,
+        message: `${siteCode} · ${priority || 'Sedang'} · ${title}`,
+        link_module: 'tickets',
+        link_id: id,
+        actor_id: session.id,
+      },
+      [
+        { role: 'ADMIN' },
+        ...(assignedIds.length ? assignedIds.map((userId) => ({ userId })) : [{ role: 'TECHNICIAN' as const }]),
+        { role: 'SUPERVISOR', siteId: Number(site_id) },
+      ]
+    );
+
     return NextResponse.json({ success: true, message: 'Tiket kendala berhasil dibuat.', ticket: newTicket });
   } catch (err: any) {
     return NextResponse.json({ success: false, message: err.message }, { status: 500 });
@@ -181,6 +201,9 @@ export async function PUT(req: Request) {
       return NextResponse.json({ success: false, message: 'ID tiket wajib disertakan.' }, { status: 400 });
     }
 
+    const before = await db.execute({ sql: 'SELECT ticket_number, title, site_id, site_code, status, assigned_to FROM tickets WHERE id = ? LIMIT 1;', args: [id] });
+    const old = before.rows[0];
+
     const resolved_at = status === 'Selesai (Resolved)' 
       ? new Date().toISOString().replace('T', ' ').substring(0, 16) 
       : null;
@@ -194,6 +217,28 @@ export async function PUT(req: Request) {
             WHERE id = ?;`,
       args: [status || null, resolution_notes || null, assigned_to || null, status || '', resolved_at, id],
     });
+
+    if (old) {
+      const newAssignee = assigned_to && assigned_to !== old.assigned_to ? String(assigned_to) : '';
+      const statusChanged = status && status !== old.status;
+      const base = { link_module: 'tickets' as const, link_id: String(id), actor_id: session.id };
+      if (newAssignee) {
+        const ids = await userIdsMentioned(db, newAssignee, 'TECHNICIAN');
+        await notify(
+          db,
+          { ...base, type: 'ticket.assigned', title: `Anda ditugaskan ke tiket ${old.ticket_number}`, message: `${old.site_code} · ${old.title}` },
+          ids.map((userId) => ({ userId }))
+        );
+      }
+      if (statusChanged) {
+        const techIds = await userIdsMentioned(db, newAssignee || String(old.assigned_to || ''), 'TECHNICIAN');
+        await notify(
+          db,
+          { ...base, type: 'ticket.update', title: `Tiket ${old.ticket_number}: ${status}`, message: `${old.site_code} · ${old.title}` },
+          [{ role: 'SUPERVISOR', siteId: Number(old.site_id) }, { role: 'ADMIN' }, ...techIds.map((userId) => ({ userId }))]
+        );
+      }
+    }
 
     return NextResponse.json({ success: true, message: 'Tiket berhasil diperbarui.' });
   } catch (err: any) {

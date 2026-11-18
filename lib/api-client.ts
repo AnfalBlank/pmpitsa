@@ -374,6 +374,39 @@ export async function updateSiteForecourtApi(
   }
 }
 
+export interface AppNotification {
+  id: string;
+  created_at: string;
+  type: string;
+  title: string;
+  message: string;
+  link_module?: 'tickets' | 'schedule' | 'reports' | 'preview';
+  link_id?: string;
+  read: boolean;
+}
+
+export async function fetchNotificationsApi(): Promise<{ notifications: AppNotification[]; unread: number } | null> {
+  try {
+    const res = await apiFetch('/api/notifications', { cache: 'no-store' });
+    const data = await res.json();
+    if (data.success) return { notifications: data.notifications, unread: data.unread };
+  } catch {}
+  return null;
+}
+
+export async function markNotificationsReadApi(payload: { ids?: string[]; all?: boolean }): Promise<boolean> {
+  try {
+    const res = await apiFetch('/api/notifications', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    return (await res.json()).success === true;
+  } catch {
+    return false;
+  }
+}
+
 export async function fetchMasterConfigApi(): Promise<{
   success: boolean;
   products: any[];

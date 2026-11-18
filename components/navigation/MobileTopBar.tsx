@@ -1,7 +1,6 @@
 'use client';
 
 import React from 'react';
-import { LogOut } from 'lucide-react';
 import { UserSession, Site } from '@/lib/types';
 import { AppModule } from './AppSidebar';
 import { ProfileMenu } from './ProfileMenu';
@@ -12,6 +11,8 @@ interface MobileTopBarProps {
   onSelectModule?: (module: AppModule) => void;
   onLogout: () => void;
   onOpenLogin?: () => void;
+  /** Notification bell (rendered next to the profile) */
+  notificationSlot?: React.ReactNode;
 }
 
 export const MobileTopBar: React.FC<MobileTopBarProps> = ({
@@ -19,9 +20,10 @@ export const MobileTopBar: React.FC<MobileTopBarProps> = ({
   currentSite,
   onSelectModule,
   onLogout,
+  notificationSlot,
 }) => {
   return (
-    <header className="lg:hidden sticky top-0 z-30 h-16 bg-white border-b border-slate-200 shadow-2xs px-3 sm:px-4 flex items-center justify-between select-none">
+    <header className="lg:hidden sticky top-0 z-30 h-16 min-h-16 flex-shrink-0 bg-white/95 backdrop-blur border-b border-slate-200 shadow-2xs px-3 sm:px-4 flex items-center justify-between gap-3 select-none">
       
       {/* Brand Logo: Clean /sa.jpeg */}
       <div className="flex items-center min-w-0">
@@ -41,24 +43,17 @@ export const MobileTopBar: React.FC<MobileTopBarProps> = ({
           <img
             src="/sa.jpeg"
             alt="Pertamina International Timor"
-            className="h-10 sm:h-11 w-auto max-w-[170px] sm:max-w-[220px] object-contain"
+            className="h-9 sm:h-10 w-auto max-w-[150px] sm:max-w-[200px] object-contain"
           />
         </button>
       </div>
 
       {/* User Profile & Logout Actions */}
       <div className="flex items-center gap-2 flex-shrink-0">
+        {notificationSlot}
         <ProfileMenu currentUser={currentUser} assignedSite={currentSite} onLogout={onLogout} compact />
 
-        <button
-          type="button"
-          onClick={onLogout}
-          className="min-h-[40px] min-w-[40px] flex items-center justify-center rounded-lg bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 transition-colors shadow-2xs"
-          title="Keluar dari Akun"
-          aria-label="Logout"
-        >
-          <LogOut className="w-4 h-4 text-red-600" />
-        </button>
+
       </div>
 
     </header>

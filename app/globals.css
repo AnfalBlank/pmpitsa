@@ -218,3 +218,19 @@ svg.absolute {
     animation: none !important;
   }
 }
+
+/* Bell wiggles while there are unread notifications */
+.pm-bell-ring {
+  transform-origin: 50% 0;
+  animation: pm-bell 2.4s ease-in-out infinite;
+}
+@keyframes pm-bell {
+  0%, 70%, 100% { transform: rotate(0); }
+  75% { transform: rotate(14deg); }
+  80% { transform: rotate(-12deg); }
+  85% { transform: rotate(8deg); }
+  90% { transform: rotate(-4deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pm-bell-ring { animation: none !important; }
+}

@@ -23,6 +23,8 @@ import { AppModule } from './AppSidebar';
 import { ProfileMenu } from './ProfileMenu';
 
 interface TopContextBarProps {
+  /** Notification bell */
+  notificationSlot?: React.ReactNode;
   currentSite?: Site;
   terminalId?: string;
   onSelectSite?: (site: Site) => void;
@@ -38,7 +40,19 @@ export const TopContextBar: React.FC<TopContextBarProps> = ({
   currentModule,
   currentUser,
   onLogout,
+  notificationSlot,
 }) => {
+  const [online, setOnline] = React.useState(true);
+  React.useEffect(() => {
+    const update = () => setOnline(navigator.onLine);
+    update();
+    window.addEventListener('online', update);
+    window.addEventListener('offline', update);
+    return () => {
+      window.removeEventListener('online', update);
+      window.removeEventListener('offline', update);
+    };
+  }, []);
   // Dynamic Module Meta
   const moduleMeta: Record<AppModule, { title: string; icon: React.ReactNode }> = {
     overview: {
@@ -93,7 +107,7 @@ export const TopContextBar: React.FC<TopContextBarProps> = ({
 
   return (
     <>
-      <header className="hidden lg:flex items-center justify-between px-6 h-16 bg-white border-b border-slate-200 shadow-2xs sticky top-0 z-20">
+      <header className="hidden lg:flex items-center justify-between gap-4 px-6 h-16 min-h-16 flex-shrink-0 bg-white/95 backdrop-blur border-b border-slate-200 shadow-2xs sticky top-0 z-20">
         
         {/* Left: Breadcrumbs & Current Page Title (Unified with Sidebar Header) */}
         <div className="flex items-center gap-3">
@@ -119,14 +133,18 @@ export const TopContextBar: React.FC<TopContextBarProps> = ({
         {/* Right: Turso Status & User Profile */}
         <div className="flex items-center gap-3">
 
-          {/* Turso Cloud Database Live Indicator */}
-          <div
-            className="min-h-[38px] px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 border bg-slate-50 text-slate-700 border-slate-200"
-            title="Database Turso Cloud Aktif"
+          {/* Real connection status */}
+          <span
+            className={`hidden xl:inline-flex min-h-[36px] px-3 rounded-lg text-xs font-semibold items-center gap-2 border ${
+              online ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-amber-50 text-amber-900 border-amber-300'
+            }`}
+            title={online ? 'Terhubung ke server' : 'Offline — data tersimpan di perangkat'}
           >
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="font-medium text-slate-800">Turso Cloud</span>
-          </div>
+            <span className={`w-2 h-2 rounded-full ${online ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+            {online ? 'Online' : 'Offline'}
+          </span>
+
+          {notificationSlot}
 
           <ProfileMenu currentUser={currentUser} assignedSite={currentSite} onLogout={onLogout} />
         </div>
