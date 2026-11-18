@@ -21,6 +21,7 @@ import {
 import { UserSession, Site, WorkType, SPBUTicket, MaintenancePlan, PMReport } from '@/lib/types';
 import { SAMPLE_SITES } from '@/lib/sample-data';
 import { awaitingApproval } from '@/lib/report-status';
+import { formatHours, latestSiteReport, STATUS_WORD, tankWaterStatus, ticketSla } from '@/lib/dashboard-metrics';
 import { baNumber } from '@/lib/work-type';
 
 interface OverviewModuleProps {
@@ -65,6 +66,13 @@ export const OverviewModule: React.FC<OverviewModuleProps> = ({
   const myAssignedTickets = tickets.filter(
     t => t.status !== 'Selesai (Resolved)' && (t.assigned_to?.includes(currentUser.name.split(' ')[0]) || !t.assigned_to)
   );
+  // ---- Real figures (no placeholders) ----
+  const sla = ticketSla(currentUser.role === 'SUPERVISOR' ? siteTickets : tickets);
+  const lastSiteBa = latestSiteReport(reports, currentSite.id);
+  const lastSitePm = latestSiteReport(reports, currentSite.id, 'PREVENTIVE_MAINTENANCE');
+  const water = tankWaterStatus(reports, currentSite.id);
+  const fmtDate = (d?: string) => (d ? new Date(d).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-');
+
   const myUpcomingPlans = plans.filter(
     p => p.status !== 'Selesai' && (p.assigned_technician.includes(currentUser.name.split(' ')[0]) || p.assigned_technician.includes('Rizky'))
   );
@@ -158,10 +166,22 @@ export const OverviewModule: React.FC<OverviewModuleProps> = ({
             <Building2 className="w-4 h-4 text-slate-400" />
           </div>
           <div className="text-2xl font-extrabold text-[#0B2545]">
-            {currentUser.role === 'ADMIN' ? activeSites.length : 'Normal'}
+            {currentUser.role === 'ADMIN'
+              ? activeSites.length
+              : lastSiteBa
+              ? lastSiteBa.overall_status === 'Selesai (Normal)'
+                ? 'Normal'
+                : lastSiteBa.overall_status === 'Perlu Tindak Lanjut'
+                ? 'Perlu Cek'
+                : 'Kritis'
+              : '-'}
           </div>
           <div className="text-[11px] text-slate-500 mt-1">
-            {currentUser.role === 'ADMIN' ? `${activeSites.length} Site SPBU Terdaftar` : 'POS-01 & POS-02 Online'}
+            {currentUser.role === 'ADMIN'
+              ? `${activeSites.length} Site SPBU Terdaftar`
+              : lastSiteBa
+              ? `BA terakhir ${fmtDate(lastSiteBa.execution_date)}`
+              : 'Belum ada Berita Acara final'}
           </div>
         </div>
 
@@ -183,15 +203,21 @@ export const OverviewModule: React.FC<OverviewModuleProps> = ({
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
           <div className="flex items-center justify-between text-slate-500 mb-1.5">
             <span className="text-[11px] font-bold uppercase tracking-wider">
-              {currentUser.role === 'SUPERVISOR' ? 'Tangki ATG Water' : 'PM Bulan Ini'}
+              {currentUser.role === 'SUPERVISOR' ? 'Tangki Bebas Air' : 'PM Bulan Ini'}
             </span>
             <Calendar className="w-4 h-4 text-slate-400" />
           </div>
           <div className="text-2xl font-extrabold text-[#0B2545]">
-            {currentUser.role === 'SUPERVISOR' ? '0.0 mm' : plans.length}
+            {currentUser.role === 'SUPERVISOR' ? (water ? `${water.total - water.withWater.length}/${water.total}` : '-') : plans.length}
           </div>
           <div className="text-[11px] text-slate-500 mt-1">
-            {currentUser.role === 'SUPERVISOR' ? 'Bebas kontaminasi air' : `${upcomingPlans.length} mendekati jadwal`}
+            {currentUser.role === 'SUPERVISOR'
+              ? water
+                ? water.withWater.length
+                  ? `Air terdeteksi: ${water.withWater.join(', ')}`
+                  : `Tangki bebas air · BA PM ${fmtDate(water.reportDate)}`
+                : 'Belum ada BA PM dengan data tangki'
+              : `${upcomingPlans.length} mendekati jadwal`}
           </div>
         </div>
 
@@ -200,11 +226,16 @@ export const OverviewModule: React.FC<OverviewModuleProps> = ({
             <span className="text-[11px] font-bold uppercase tracking-wider">Kepatuhan SLA</span>
             <CheckCircle2 className="w-4 h-4 text-slate-400" />
           </div>
-          <div className="text-2xl font-extrabold text-[#0B2545]">
-            94.8%
+          <div
+            className={`text-2xl font-extrabold ${
+              sla.compliance === null ? 'text-[#0B2545]' : sla.compliance >= 90 ? 'text-emerald-700' : sla.compliance >= 75 ? 'text-amber-600' : 'text-red-600'
+            }`}
+          >
+            {sla.compliance === null ? '-' : `${sla.compliance.toLocaleString('id-ID')}%`}
           </div>
           <div className="text-[11px] text-slate-500 mt-1">
-            Rata-rata respons 2.4 jam
+            {sla.resolvedCount ? `Rata-rata selesai ${formatHours(sla.avgResolutionHours)}` : 'Belum ada tiket selesai'}
+            {sla.overdueOpen > 0 && <span className="block text-red-600 font-semibold">{sla.overdueOpen} tiket lewat target</span>}
           </div>
         </div>
       </div>
@@ -374,51 +405,108 @@ export const OverviewModule: React.FC<OverviewModuleProps> = ({
                   Status Komponen Teknis di {currentSite.site_name}
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Hasil diagnostik telemetri perangkat forecourt dan terminal kasir
+                  {lastSitePm
+                    ? `Sesuai Berita Acara PM ${fmtDate(lastSitePm.execution_date)} oleh ${lastSitePm.technician_name}`
+                    : 'Belum ada Berita Acara PM final untuk SPBU ini'}
                 </p>
               </div>
-              <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-300">
-                Operasional Normal
-              </span>
+              {lastSitePm && (
+                <span
+                  className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${
+                    lastSitePm.overall_status === 'Selesai (Normal)'
+                      ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                      : lastSitePm.overall_status === 'Perlu Tindak Lanjut'
+                      ? 'bg-amber-50 text-amber-800 border-amber-300'
+                      : 'bg-red-50 text-red-800 border-red-300'
+                  }`}
+                >
+                  {lastSitePm.overall_status}
+                </span>
+              )}
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <div className="p-3.5 rounded-lg border border-slate-200 bg-slate-50/50 space-y-1.5 text-xs">
-                <span className="font-bold text-slate-800 flex items-center gap-1.5">
-                  <Activity className="w-3.5 h-3.5 text-slate-600" />
-                  Terminal POS Kasir
-                </span>
-                <div className="space-y-1 text-slate-600 pt-1">
-                  <div className="flex justify-between"><span>Advantech POS-01:</span><strong className="text-emerald-700">Online</strong></div>
-                  <div className="flex justify-between"><span>Printer Epson TM-T82:</span><strong className="text-slate-800">Ready</strong></div>
-                  <div className="flex justify-between"><span>EDC Mandiri & BNU:</span><strong className="text-emerald-700">Terhubung</strong></div>
-                </div>
-              </div>
+            {!lastSitePm ? (
+              <p className="text-xs text-slate-500 py-4 text-center">
+                Status perangkat akan tampil setelah teknisi memfinalisasi Berita Acara PM pertama untuk SPBU ini.
+              </p>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                {(() => {
+                  const r = lastSitePm;
+                  const st = (v?: string) => STATUS_WORD[v || ''] || '-';
+                  const col = (v?: string) => (v === 'R' ? 'text-red-600' : v === 'B' ? 'text-emerald-700' : 'text-slate-800');
+                  const worst = (...v: (string | undefined)[]) => (v.includes('R') ? 'R' : v.includes('X') ? 'X' : 'B');
+                  const pcStatus = worst(r.hardware?.fan_cleanliness, r.hardware?.heatsink_condition, r.hardware?.airflow_condition);
+                  const edcs = r.edc_list || [];
+                  const edcOk = edcs.filter((e) => e.physical_status !== 'R' && e.connection_status !== 'R').length;
+                  const ng = Number(r.network_power?.voltage_ng);
+                  const Row = ({ label, value, cls }: { label: string; value: string; cls?: string }) => (
+                    <div className="flex justify-between gap-2">
+                      <span className="min-w-0 truncate">{label}</span>
+                      <strong className={`flex-shrink-0 ${cls || 'text-slate-800'}`}>{value}</strong>
+                    </div>
+                  );
+                  return (
+                    <>
+                      <div className="p-3.5 rounded-lg border border-slate-200 bg-slate-50/50 space-y-1.5 text-xs">
+                        <span className="font-bold text-slate-800 flex items-center gap-1.5">
+                          <Activity className="w-3.5 h-3.5 text-slate-600" />
+                          Terminal POS Kasir
+                        </span>
+                        <div className="space-y-1 text-slate-600 pt-1">
+                          <Row label={r.hardware?.pc_brand_model || 'PC POS'} value={st(pcStatus)} cls={col(pcStatus)} />
+                          <Row label="Printer struk" value={st(r.peripherals?.receipt_printer?.status)} cls={col(r.peripherals?.receipt_printer?.status)} />
+                          <Row label="Mesin EDC" value={edcs.length ? `${edcOk}/${edcs.length} normal` : '-'} cls={edcs.length && edcOk < edcs.length ? 'text-red-600' : 'text-emerald-700'} />
+                        </div>
+                      </div>
 
-              <div className="p-3.5 rounded-lg border border-slate-200 bg-slate-50/50 space-y-1.5 text-xs">
-                <span className="font-bold text-slate-800 flex items-center gap-1.5">
-                  <Layers className="w-3.5 h-3.5 text-slate-600" />
-                  Automatic Tank Gauge (ATG)
-                </span>
-                <div className="space-y-1 text-slate-600 pt-1">
-                  <div className="flex justify-between"><span>Konsol Veeder-Root:</span><strong className="text-emerald-700">TLS-450 Normal</strong></div>
-                  <div className="flex justify-between"><span>Probe Pertamax:</span><strong className="text-slate-800">Water 0.0 mm</strong></div>
-                  <div className="flex justify-between"><span>Probe Dexlite:</span><strong className="text-slate-800">Water 0.0 mm</strong></div>
-                </div>
-              </div>
+                      <div className="p-3.5 rounded-lg border border-slate-200 bg-slate-50/50 space-y-1.5 text-xs">
+                        <span className="font-bold text-slate-800 flex items-center gap-1.5">
+                          <Layers className="w-3.5 h-3.5 text-slate-600" />
+                          Automatic Tank Gauge (ATG)
+                        </span>
+                        <div className="space-y-1 text-slate-600 pt-1">
+                          <Row label={r.forecourt?.atg_brand || 'Konsol ATG'} value={st(r.forecourt?.atg_controller_status)} cls={col(r.forecourt?.atg_controller_status)} />
+                          {(r.forecourt?.tanks || []).slice(0, 4).map((t) => (
+                            <Row
+                              key={t.id}
+                              label={`Water ${t.tank_number}`}
+                              value={t.water_sensor_status === 'R' ? 'Ada air' : t.water_sensor_status === 'B' ? 'Bebas air' : '-'}
+                              cls={col(t.water_sensor_status)}
+                            />
+                          ))}
+                          {!(r.forecourt?.tanks || []).length && <Row label="Tangki" value="Tidak ada data" />}
+                        </div>
+                      </div>
 
-              <div className="p-3.5 rounded-lg border border-slate-200 bg-slate-50/50 space-y-1.5 text-xs">
-                <span className="font-bold text-slate-800 flex items-center gap-1.5">
-                  <Zap className="w-3.5 h-3.5 text-slate-600" />
-                  Kelistrikan & Forecourt
-                </span>
-                <div className="space-y-1 text-slate-600 pt-1">
-                  <div className="flex justify-between"><span>Dispenser Tatsuno:</span><strong className="text-emerald-700">Tersinkron</strong></div>
-                  <div className="flex justify-between"><span>UPS ICA 1200VA:</span><strong className="text-slate-800">224V Stabil</strong></div>
-                  <div className="flex justify-between"><span>Grounding System:</span><strong className="text-emerald-700">1.2 V (Aman)</strong></div>
-                </div>
+                      <div className="p-3.5 rounded-lg border border-slate-200 bg-slate-50/50 space-y-1.5 text-xs">
+                        <span className="font-bold text-slate-800 flex items-center gap-1.5">
+                          <Zap className="w-3.5 h-3.5 text-slate-600" />
+                          Kelistrikan & Forecourt
+                        </span>
+                        <div className="space-y-1 text-slate-600 pt-1">
+                          <Row
+                            label={r.forecourt?.dispenser_brand || 'Interface dispenser'}
+                            value={st(r.forecourt?.dispenser_interface_box)}
+                            cls={col(r.forecourt?.dispenser_interface_box)}
+                          />
+                          <Row
+                            label={r.network_power?.ups_model || 'UPS'}
+                            value={r.network_power?.voltage_pn ? `${r.network_power.voltage_pn} V` : st(r.network_power?.ups_shutdown_test)}
+                            cls={col(r.network_power?.ups_shutdown_test)}
+                          />
+                          <Row
+                            label="Grounding (N-G)"
+                            value={Number.isFinite(ng) && r.network_power?.voltage_ng !== undefined ? `${ng} V ${ng <= 2 ? '(Aman)' : '(Tinggi)'}` : '-'}
+                            cls={Number.isFinite(ng) ? (ng <= 2 ? 'text-emerald-700' : 'text-red-600') : 'text-slate-800'}
+                          />
+                        </div>
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
-            </div>
+            )}
           </div>
 
           {/* Daily Shift Checklist */}
