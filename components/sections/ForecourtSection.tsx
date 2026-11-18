@@ -1,21 +1,38 @@
 'use client';
 
 import React from 'react';
-import { PMReport, ForecourtFMS, TankItem, NozzleItem, ChecklistStatus } from '@/lib/types';
+import { PMReport, ForecourtFMS, TankItem, NozzleItem, ChecklistStatus, Site } from '@/lib/types';
 import { StatusSelector } from '../StatusSelector';
 import { useFeedback } from '@/components/feedback/FeedbackProvider';
-import { Fuel, Gauge, Droplet, Plus, Trash2, AlertCircle, ShieldAlert, Radio, Award } from 'lucide-react';
+import { AutoTextarea } from '@/components/ui/AutoTextarea';
+import { activeOnly, atgLabel, dispenserLabel, useMasterData } from '@/lib/use-master-config';
+import { applySiteForecourt, forecourtSummary, hasForecourtConfig } from '@/lib/forecourt';
+import { Fuel, Gauge, Droplet, Plus, Trash2, AlertCircle, ShieldAlert, Radio, Award, RotateCcw } from 'lucide-react';
 
 interface ForecourtSectionProps {
   report: PMReport;
   onChange: (updated: PMReport) => void;
+  /** SPBU of this BA (its forecourt configuration pre-fills this step) */
+  site?: Site;
 }
 
 export const ForecourtSection: React.FC<ForecourtSectionProps> = ({
   report,
   onChange,
+  site,
 }) => {
   const feedback = useFeedback();
+  const master = useMasterData();
+  const configured = hasForecourtConfig(site);
+  const reloadFromConfig = async () => {
+    if (!site || !configured) return;
+    const ok = await feedback.confirm({
+      title: 'Muat Ulang dari Konfigurasi SPBU?',
+      message: `Daftar pump, nozzle, tangki dan merek akan disamakan dengan konfigurasi ${site.site_code}. Status & catatan yang sudah diisi untuk pump/tangki yang sama tetap dipertahankan.`,
+      confirmLabel: 'Muat Ulang',
+    });
+    if (ok) onChange(applySiteForecourt(report, site));
+  };
   const updateForecourt = <K extends keyof ForecourtFMS>(
     key: K,
     val: ForecourtFMS[K]
@@ -115,28 +132,38 @@ export const ForecourtSection: React.FC<ForecourtSectionProps> = ({
     setNozzles(nozzles.filter((n) => n.id !== nz.id));
   };
 
-  const bbmOptions = [
-    "Pertalite (RON 90)",
-    "Pertamax (RON 92)",
-    "Pertamax Turbo (RON 98)",
-    "Pertamax Green 95",
-    "Solar / Biosolar (B35)",
-    "Dexlite (CN 51)",
-    "Pertamina Dex (CN 53)",
-  ];
-
-  const atgBrands = [
-    "Veeder-Root TLS-450 Plus",
-    "Veeder-Root TLS-350",
-    "Gilbarco Veeder-Root",
-    "Franklin Fueling INCON TS-550",
-    "OPW Fuel Management",
-    "Meggitt FMS",
-    "Lainnya / Standalone",
-  ];
-
+  // Options come from master data (Konfigurasi > Produk BBM / Brand ATG / Dispenser)
+  const masterProducts = activeOnly(master.products).map((p) => p.name);
+  const bbmOptions = masterProducts.length
+    ? masterProducts
+    : ['Pertalite (RON 90)', 'Pertamax (RON 92)', 'Pertamax Turbo (RON 98)', 'Solar / Biosolar (B35)', 'Dexlite (CN 51)', 'Pertamina Dex (CN 53)'];
+  const withCurrent = (list: string[], current?: string) => (current && !list.includes(current) ? [current, ...list] : list);
+  const atgBrands = withCurrent(activeOnly(master.atgBrands).map(atgLabel), report.forecourt.atg_brand);
+  const dispenserBrands = withCurrent(activeOnly(master.dispenserBrands).map(dispenserLabel), report.forecourt.dispenser_brand);
   return (
     <div className="space-y-6">
+      {/* Link with the SPBU configuration */}
+      {configured ? (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-emerald-900">
+          <span>
+            <strong>Terisi otomatis dari konfigurasi {site!.site_code}</strong> ({forecourtSummary(site!.forecourt)}). Cukup ubah status atau isi
+            catatan bila ada temuan.
+          </span>
+          <button
+            type="button"
+            onClick={reloadFromConfig}
+            className="min-h-[40px] px-3 rounded-lg border border-emerald-300 bg-white hover:bg-emerald-100 font-semibold flex items-center justify-center gap-1.5 flex-shrink-0"
+          >
+            <RotateCcw className="w-3.5 h-3.5" /> Muat Ulang Konfigurasi
+          </button>
+        </div>
+      ) : (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-900">
+          Forecourt SPBU ini belum dikonfigurasi Admin, jadi pump dan tangki perlu ditambahkan manual. Admin dapat mengaturnya di Konfigurasi &gt; Data
+          SPBU &gt; Forecourt &amp; ATG.
+        </div>
+      )}
+
       {/* Dispenser, Controller & Metrology Legal Card */}
       <div className="bg-white rounded-lg border border-slate-200 p-4 sm:p-5 shadow-xs">
         <div className="flex items-center gap-2 border-b border-slate-100 pb-3 mb-4">
@@ -151,20 +178,20 @@ export const ForecourtSection: React.FC<ForecourtSectionProps> = ({
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4">
           <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
-            <span className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">Jumlah Pump / Dispenser</span>
+            <span className="block text-[11px] font-semibold text-slate-700 uppercase tracking-wider">Jumlah Pump</span>
             <span className="text-lg font-black font-mono text-slate-900">{pumpNumbers.length}</span>
-            <span className="block text-[11px] text-slate-500">Otomatis dari daftar pump di bawah</span>
+            <span className="block text-[11px] text-slate-500">Otomatis</span>
           </div>
 
           <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
-            <span className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">Total Nozzle</span>
+            <span className="block text-[11px] font-semibold text-slate-700 uppercase tracking-wider">Total Nozzle</span>
             <span className="text-lg font-black font-mono text-slate-900">{nozzles.length}</span>
-            <span className="block text-[11px] text-slate-500">Otomatis dari daftar nozzle</span>
+            <span className="block text-[11px] text-slate-500">Otomatis</span>
           </div>
 
-          <div>
+          <div className="col-span-2 sm:col-span-1">
             <label 
               htmlFor="atg-brand-select"
               className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1"
@@ -177,13 +204,34 @@ export const ForecourtSection: React.FC<ForecourtSectionProps> = ({
               onChange={(e) => updateForecourt('atg_brand', e.target.value)}
               className="w-full min-h-[44px] px-3 py-2 bg-white border border-slate-300 rounded-md text-sm text-slate-900 focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
             >
+              <option value="">— Pilih brand ATG —</option>
               {atgBrands.map((brand) => (
                 <option key={brand} value={brand}>{brand}</option>
               ))}
             </select>
           </div>
 
-          <div>
+          <div className="col-span-2 sm:col-span-1">
+            <label
+              htmlFor="dispenser-brand-select"
+              className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1"
+            >
+              Merek / Model Dispenser
+            </label>
+            <select
+              id="dispenser-brand-select"
+              value={report.forecourt.dispenser_brand || ''}
+              onChange={(e) => updateForecourt('dispenser_brand', e.target.value)}
+              className="w-full min-h-[44px] px-3 py-2 bg-white border border-slate-300 rounded-md text-sm text-slate-900 focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
+            >
+              <option value="">— Pilih brand dispenser —</option>
+              {dispenserBrands.map((brand) => (
+                <option key={brand} value={brand}>{brand}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="col-span-2 lg:col-span-1">
             <span className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
               Koneksi Konsol ATG ke POS
             </span>
@@ -350,6 +398,18 @@ export const ForecourtSection: React.FC<ForecourtSectionProps> = ({
                   />
                 </div>
               </div>
+              <div className="mt-3">
+                <label htmlFor={`tank-notes-${tank.id}`} className="block text-[11px] font-semibold text-slate-600 mb-1">
+                  Catatan temuan (isi bila ada)
+                </label>
+                <AutoTextarea
+                  id={`tank-notes-${tank.id}`}
+                  value={tank.notes || ''}
+                  onChange={(e) => updateTank(idx, { notes: e.target.value })}
+                  placeholder="Contoh: water sensor membaca 12 mm, perlu dikuras"
+                  className="w-full min-h-[44px] px-2.5 py-2 bg-white border border-slate-300 rounded text-xs text-slate-900"
+                />
+              </div>
             </div>
           ))}
         </div>
@@ -448,6 +508,18 @@ export const ForecourtSection: React.FC<ForecourtSectionProps> = ({
                               <span className="block text-[11px] font-semibold text-slate-600 mb-1">Kondisi Nozzle</span>
                               <StatusSelector value={nz.status} onChange={(val) => updateNozzle(nz.id, { status: val })} size="sm" />
                             </div>
+                          </div>
+                          <div className="mt-2">
+                            <label htmlFor={`nz-notes-${nz.id}`} className="block text-[11px] font-semibold text-slate-600 mb-1">
+                              Catatan temuan (isi bila ada)
+                            </label>
+                            <AutoTextarea
+                              id={`nz-notes-${nz.id}`}
+                              value={nz.notes || ''}
+                              onChange={(e) => updateNozzle(nz.id, { notes: e.target.value })}
+                              placeholder="Contoh: selang retak, nozzle menetes"
+                              className="w-full min-h-[44px] px-2.5 py-2 bg-white border border-slate-300 rounded text-xs text-slate-900"
+                            />
                           </div>
                         </div>
                       );

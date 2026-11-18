@@ -78,6 +78,15 @@ async function createSchema(): Promise<void> {
       contact_person TEXT NOT NULL
     );
   `);
+  // 2b. Per-site forecourt configuration (pumps, nozzles, tanks, brands) as JSON
+  const siteCols = await db.execute('PRAGMA table_info(sites);');
+  if (!siteCols.rows.some((r) => String(r.name) === 'forecourt_config')) {
+    try {
+      await db.execute('ALTER TABLE sites ADD COLUMN forecourt_config TEXT;');
+    } catch {
+      // another instance added it concurrently
+    }
+  }
 
   // 3. Tickets Table
   await db.execute(`

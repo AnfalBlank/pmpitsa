@@ -65,6 +65,20 @@ export interface Site {
   location: string;
   regional: string;
   contact_person: string;
+  /** Equipment installed at this SPBU; pre-fills the Forecourt step of the form */
+  forecourt?: SiteForecourtConfig;
+}
+
+/** Per-SPBU forecourt setup configured by Admin (Konfigurasi > Data SPBU) */
+export interface SiteForecourtConfig {
+  /** Master dispenser brand id + name snapshot (name kept if the master is renamed/removed) */
+  dispenser_brand_id?: string;
+  dispenser_brand?: string;
+  atg_brand_id?: string;
+  atg_brand?: string;
+  pumps: { pump_number: number; nozzles: { nozzle_number: number; product_name: string }[] }[];
+  tanks: { tank_number: string; product_name: string; capacity_liters: number }[];
+  updated_at?: string;
 }
 
 export interface CorrectiveRepairDetails {
@@ -125,6 +139,8 @@ export interface TankItem {
   level_sensor_status: ChecklistStatus;
   water_sensor_status: ChecklistStatus;
   temp_sensor_status: ChecklistStatus;
+  /** Only filled when there is a finding */
+  notes?: string;
 }
 
 export interface NozzleItem {
@@ -134,12 +150,17 @@ export interface NozzleItem {
   product_name: string;
   status: ChecklistStatus;
   meter_reading: string;
+  /** Only filled when there is a finding */
+  notes?: string;
 }
 
 export interface ForecourtFMS {
   dispenser_count: number;
   total_nozzles: number;
   atg_brand: string;
+  dispenser_brand?: string;
+  /** Site id whose configuration filled this forecourt (to know when to re-apply) */
+  config_site_id?: number;
   atg_controller_status: ChecklistStatus;
   dispenser_interface_box: ChecklistStatus; // Interface converter loop RS485 / Current Loop
   metrology_seal_status: ChecklistStatus; // Segel Tera Metrologi Legal

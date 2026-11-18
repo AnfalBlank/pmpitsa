@@ -357,6 +357,23 @@ export async function deleteSiteApi(id: number): Promise<{ success: boolean; mes
   }
 }
 
+/** Save the pump / nozzle / tank / brand setup of one SPBU */
+export async function updateSiteForecourtApi(
+  siteId: number,
+  forecourt: Site['forecourt']
+): Promise<{ success: boolean; message?: string; code?: string; forecourt?: Site['forecourt'] }> {
+  try {
+    const res = await apiFetch('/api/sites', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: siteId, forecourt }),
+    });
+    return await res.json();
+  } catch (err: any) {
+    return { success: false, message: 'Gagal terhubung ke server: ' + err.message };
+  }
+}
+
 export async function fetchMasterConfigApi(): Promise<{
   success: boolean;
   products: any[];

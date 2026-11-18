@@ -1,7 +1,43 @@
 import { NextResponse } from 'next/server';
 import { requireSession } from '@/lib/session';
 import { getTursoClient, ensureSchema } from '@/lib/turso';
-import { Site } from '@/lib/types';
+import { Site, SiteForecourtConfig } from '@/lib/types';
+
+function parseForecourt(raw: unknown): SiteForecourtConfig | undefined {
+  if (!raw) return undefined;
+  try {
+    const f = JSON.parse(String(raw));
+    return f && Array.isArray(f.pumps) && Array.isArray(f.tanks) ? f : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Keep only the expected shape (numbers/strings), drop anything else */
+function sanitizeForecourt(input: any): SiteForecourtConfig {
+  const str = (v: unknown, max = 120) => String(v ?? '').trim().slice(0, max);
+  const pumps = (Array.isArray(input?.pumps) ? input.pumps : []).slice(0, 60).map((p: any, i: number) => ({
+    pump_number: Number(p?.pump_number) || i + 1,
+    nozzles: (Array.isArray(p?.nozzles) ? p.nozzles : []).slice(0, 12).map((n: any, j: number) => ({
+      nozzle_number: Number(n?.nozzle_number) || j + 1,
+      product_name: str(n?.product_name),
+    })),
+  }));
+  const tanks = (Array.isArray(input?.tanks) ? input.tanks : []).slice(0, 40).map((t: any, i: number) => ({
+    tank_number: str(t?.tank_number, 40) || `Tangki ${i + 1}`,
+    product_name: str(t?.product_name),
+    capacity_liters: Math.max(0, Number(t?.capacity_liters) || 0),
+  }));
+  return {
+    dispenser_brand_id: str(input?.dispenser_brand_id, 60) || undefined,
+    dispenser_brand: str(input?.dispenser_brand) || undefined,
+    atg_brand_id: str(input?.atg_brand_id, 60) || undefined,
+    atg_brand: str(input?.atg_brand) || undefined,
+    pumps,
+    tanks,
+    updated_at: new Date().toISOString(),
+  };
+}
 
 export async function GET() {
   try {
@@ -17,6 +53,7 @@ export async function GET() {
       location: String(row.location),
       regional: String(row.regional),
       contact_person: String(row.contact_person),
+      forecourt: parseForecourt(row.forecourt_config),
     }));
 
     return NextResponse.json({ success: true, sites });
@@ -81,6 +118,14 @@ export async function PUT(req: Request) {
     const id = Number(body.id);
     if (!id) {
       return NextResponse.json({ success: false, message: 'ID SPBU tidak valid.' }, { status: 400 });
+    }
+
+    // Forecourt configuration only (Konfigurasi > Data SPBU > Forecourt)
+    if (body.forecourt !== undefined && body.site_code === undefined) {
+      const forecourt = sanitizeForecourt(body.forecourt);
+      const res = await db.execute({ sql: 'UPDATE sites SET forecourt_config = ? WHERE id = ?', args: [JSON.stringify(forecourt), id] });
+      if (!res.rowsAffected) return NextResponse.json({ success: false, message: 'SPBU tidak ditemukan.' }, { status: 404 });
+      return NextResponse.json({ success: true, message: 'Konfigurasi forecourt SPBU tersimpan.', forecourt });
     }
 
     const siteCode = String(body.site_code || '').trim();

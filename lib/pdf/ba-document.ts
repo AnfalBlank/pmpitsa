@@ -285,7 +285,8 @@ function forecourtSection(r: PMReport, no: string): Content[] {
     sectionTitle(`${no}. FORECOURT, DISPENSER & ATG`),
     kvTable([
       ['Jumlah Pump', f.nozzles?.length ? new Set(f.nozzles.map((n) => n.pump_number)).size : f.dispenser_count, 'Total Nozzle', f.nozzles?.length ?? f.total_nozzles],
-      ['Merk ATG', f.atg_brand, 'Controller ATG', STATUS_TEXT[f.atg_controller_status] || f.atg_controller_status],
+      ['Merk ATG', f.atg_brand, 'Merk Dispenser', f.dispenser_brand],
+      ['Controller ATG', STATUS_TEXT[f.atg_controller_status] || f.atg_controller_status, '', ''],
       ['Interface Dispenser', STATUS_TEXT[f.dispenser_interface_box] || f.dispenser_interface_box, 'Segel Tera Metrologi', STATUS_TEXT[f.metrology_seal_status] || f.metrology_seal_status],
     ]),
   ];
@@ -296,7 +297,7 @@ function forecourtSection(r: PMReport, no: string): Content[] {
         ['Tangki', 'Produk', 'Kapasitas', 'Level', 'Water', 'Suhu'],
         ['14%', '*', '16%', '15%', '15%', '15%'],
         f.tanks.map((t) => [
-          t.tank_number,
+          t.notes ? { stack: [t.tank_number, { text: t.notes, fontSize: 7, color: '#B45309' }] } : t.tank_number,
           t.product_name,
           { text: `${Number(t.capacity_liters || 0).toLocaleString('id-ID')} L`, alignment: 'right' },
           st(t.level_sensor_status),
@@ -315,7 +316,7 @@ function forecourtSection(r: PMReport, no: string): Content[] {
         [...f.nozzles].sort((a, b) => a.pump_number - b.pump_number || a.nozzle_number - b.nozzle_number).map((nz) => [
           { text: String(nz.pump_number), alignment: 'center' },
           { text: String(nz.nozzle_number), alignment: 'center' },
-          nz.product_name,
+          nz.notes ? { stack: [nz.product_name, { text: nz.notes, fontSize: 7, color: '#B45309' }] } : nz.product_name,
           st(nz.status),
           { text: v(nz.meter_reading), alignment: 'right' },
         ])

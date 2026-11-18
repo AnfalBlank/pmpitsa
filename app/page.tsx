@@ -37,6 +37,7 @@ import { PMReport, Site, UserSession, SPBUTicket, MaintenancePlan, WorkType } fr
 import { SAMPLE_SITES, createDefaultPMReport, newReportId } from '@/lib/sample-data';
 import { awaitingApproval, isFinal, isLocked, missingForFinalize, reportStatus } from '@/lib/report-status';
 import { baNumber } from '@/lib/work-type';
+import { applySiteForecourt, hasForecourtConfig } from '@/lib/forecourt';
 import { 
   getCurrentReport, 
   saveCurrentReport, 
@@ -335,7 +336,8 @@ export default function Home() {
   // Auto-save on report change
   const storageErrorShownRef = React.useRef(false);
   const lockedNoticeRef = React.useRef(0);
-  const handleReportChange = (updated: PMReport) => {
+  const handleReportChange = (updatedIn: PMReport) => {
+    let updated = updatedIn;
     if (isLocked(updated) && !adminEditing) {
       // Finalised BA: technicians/supervisors can't change it any more
       if (Date.now() - lockedNoticeRef.current > 4000) {
@@ -347,6 +349,24 @@ export default function Home() {
         });
       }
       return;
+    }
+    // Pre-fill pumps / nozzles / tanks / brands from the SPBU configuration when a
+    // draft is started or moved to another SPBU (not on every keystroke)
+    if (
+      reportStatus(updated) === 'DRAFT' &&
+      updated.forecourt?.config_site_id !== updated.site_id &&
+      (updated.id !== report.id || updated.site_id !== report.site_id)
+    ) {
+      const site = sites.find((s) => s.id === updated.site_id);
+      if (hasForecourtConfig(site)) {
+        updated = applySiteForecourt(updated, site);
+      } else if (updated.forecourt?.config_site_id !== undefined) {
+        // Moved to an SPBU without configuration: don't carry over another SPBU's equipment
+        updated = {
+          ...updated,
+          forecourt: { ...updated.forecourt, nozzles: [], tanks: [], dispenser_count: 0, total_nozzles: 0, atg_brand: '', dispenser_brand: '', config_site_id: undefined },
+        };
+      }
     }
     setReport(updated);
     try {
@@ -857,6 +877,11 @@ export default function Home() {
 
   const handleProceedFromLanding = () => {
     if (!requirePM()) return;
+    // Starting the form: make sure the forecourt follows this SPBU's configuration
+    const site = sites.find((s) => s.id === report.site_id);
+    if (report.forecourt?.config_site_id !== report.site_id && hasForecourtConfig(site)) {
+      handleReportChange(applySiteForecourt(report, site));
+    }
     if (report.work_type === 'QUICK_CHECK') {
       setActiveTab('quick_check');
     } else if (report.work_type === 'CORRECTIVE_REPAIR') {
@@ -1207,7 +1232,7 @@ export default function Home() {
                   <HardwareSection report={report} onChange={handleReportChange} />
                 )}
                 {activeTab === 'forecourt' && (
-                  <ForecourtSection report={report} onChange={handleReportChange} />
+                  <ForecourtSection report={report} onChange={handleReportChange} site={sites.find((s) => s.id === report.site_id)} />
                 )}
                 {activeTab === 'edc' && (
                   <EdcSection report={report} onChange={handleReportChange} />

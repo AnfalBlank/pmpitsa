@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { SiteForecourtEditor } from '@/components/admin/SiteForecourtEditor';
+import { forecourtSummary, hasForecourtConfig } from '@/lib/forecourt';
 import { ModalPortal } from '@/components/ui/ModalPortal';
 import { 
   Building2, 
@@ -30,6 +32,7 @@ import {
 } from '@/lib/types';
 import { 
   getAllSites, 
+  saveAllSites,
   saveSite, 
   deleteSite,
   getAllProducts, 
@@ -68,6 +71,8 @@ export const MasterConfigSection: React.FC = () => {
 
   // Data states
   const [sites, setSites] = useState<Site[]>(() => getAllSites());
+  /** SPBU whose pump / nozzle / tank setup is being edited */
+  const [forecourtSite, setForecourtSite] = useState<Site | null>(null);
   const [products, setProducts] = useState<FuelProduct[]>(() => getAllProducts());
   const [atgBrands, setAtgBrands] = useState<AtgBrandConfig[]>(() => getAllAtgBrands());
   const [dispenserBrands, setDispenserBrands] = useState<DispenserBrandConfig[]>(() => getAllDispenserBrands());
@@ -773,10 +778,33 @@ export const MasterConfigSection: React.FC = () => {
                       <span className="text-slate-400 block text-[10px] uppercase font-bold">PIC / Pengawas (PWS):</span>
                       <p className="font-semibold text-slate-900">{site.contact_person}</p>
                     </div>
+                    <div>
+                      <span className="text-slate-400 block text-[10px] uppercase font-bold">Forecourt &amp; ATG:</span>
+                      {hasForecourtConfig(site) ? (
+                        <p className="font-semibold text-emerald-800">
+                          {forecourtSummary(site.forecourt)}
+                          {(site.forecourt?.dispenser_brand || site.forecourt?.atg_brand) && (
+                            <span className="block text-[11px] font-medium text-slate-600">
+                              {[site.forecourt?.dispenser_brand, site.forecourt?.atg_brand].filter(Boolean).join(' · ')}
+                            </span>
+                          )}
+                        </p>
+                      ) : (
+                        <p className="font-semibold text-amber-700">Belum dikonfigurasi — teknisi harus menambah pump/tangki manual</p>
+                      )}
+                    </div>
                   </div>
                 </div>
 
-                <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+                <div className="mt-4 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setForecourtSite(site)}
+                    className="min-h-[40px] px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors border border-emerald-200"
+                  >
+                    <Fuel className="w-3.5 h-3.5" />
+                    <span>Forecourt &amp; ATG</span>
+                  </button>
                   <button
                     type="button"
                     onClick={() => handleOpenEditSite(site)}
@@ -1972,6 +2000,18 @@ export const MasterConfigSection: React.FC = () => {
         </div></ModalPortal>
       )}
 
+      {forecourtSite && (
+        <SiteForecourtEditor
+          site={forecourtSite}
+          onClose={() => setForecourtSite(null)}
+          onSaved={(forecourt) => {
+            const next = sites.map((x) => (x.id === forecourtSite.id ? { ...x, forecourt } : x));
+            setSites(next);
+            saveAllSites(next);
+            setForecourtSite(null);
+          }}
+        />
+      )}
     </div>
   );
 };
