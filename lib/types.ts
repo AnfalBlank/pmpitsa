@@ -161,6 +161,8 @@ export interface ForecourtFMS {
   dispenser_brand?: string;
   /** Site id whose configuration filled this forecourt (to know when to re-apply) */
   config_site_id?: number;
+  /** updated_at of the SPBU configuration that was applied (re-apply when it changes) */
+  config_version?: string;
   atg_controller_status: ChecklistStatus;
   dispenser_interface_box: ChecklistStatus; // Interface converter loop RS485 / Current Loop
   metrology_seal_status: ChecklistStatus; // Segel Tera Metrologi Legal

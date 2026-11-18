@@ -24,7 +24,9 @@ export function applySiteForecourt(report: PMReport, site: Site): PMReport {
   if (!hasForecourtConfig(site)) return report;
   const cfg = site.forecourt;
   const prev = report.forecourt;
-  const sameSite = prev?.config_site_id === site.id;
+  // Keep what the technician already entered for the same pump/nozzle or tank,
+  // as long as it belongs to this SPBU (never carry values from another SPBU)
+  const sameSite = prev?.config_site_id === site.id || (prev?.config_site_id === undefined && report.site_id === site.id);
 
   const nozzles: NozzleItem[] = [];
   for (const p of cfg.pumps) {
@@ -67,6 +69,14 @@ export function applySiteForecourt(report: PMReport, site: Site): PMReport {
       dispenser_count: cfg.pumps.length,
       total_nozzles: nozzles.length,
       config_site_id: site.id,
+      config_version: cfg.updated_at || '',
     },
   };
+}
+
+/** True when this draft's forecourt is not (or no longer) the SPBU's current configuration. */
+export function needsSiteForecourt(report: PMReport, site?: Site | null): boolean {
+  if (!hasForecourtConfig(site)) return false;
+  const f = report.forecourt;
+  return f?.config_site_id !== site.id || (f?.config_version || '') !== (site.forecourt.updated_at || '');
 }
