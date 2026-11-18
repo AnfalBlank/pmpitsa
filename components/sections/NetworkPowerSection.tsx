@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { AutoTextarea } from '@/components/ui/AutoTextarea';
 import { PMReport, NetworkPower, ChecklistStatus } from '@/lib/types';
 import { StatusSelector } from '../StatusSelector';
 import { Network, Zap, Thermometer, Activity, Play, CheckCircle2, AlertTriangle, ShieldAlert, Flame } from 'lucide-react';
@@ -416,9 +417,8 @@ export const NetworkPowerSection: React.FC<NetworkPowerSectionProps> = ({
             >
               Catatan Kelistrikan & Jaringan
             </label>
-            <input
+            <AutoTextarea
               id="network-notes-input"
-              type="text"
               value={report.network_power.notes}
               onChange={(e) => updateNetwork('notes', e.target.value)}
               placeholder="Catatan kabel LAN kendor atau grounding panel..."

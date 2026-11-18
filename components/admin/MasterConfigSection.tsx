@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { ModalPortal } from '@/components/ui/ModalPortal';
 import { 
   Building2, 
   Fuel, 
@@ -1362,7 +1363,7 @@ export const MasterConfigSection: React.FC = () => {
       {/* MODAL 1: ADD / EDIT SITE */}
       {/* ==================================================== */}
       {isSiteModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-start sm:items-center justify-center p-3 sm:p-4 overflow-y-auto">
+        <ModalPortal><div className="fixed inset-0 z-[60] bg-slate-950/60 backdrop-blur-xs flex items-start sm:items-center justify-center p-3 sm:p-4 overflow-y-auto">
           <div className="bg-white rounded-2xl max-w-lg w-full border border-slate-200 shadow-2xl overflow-hidden animate-in fade-in-50 zoom-in-95">
             <div className="bg-[#0B2545] p-4 text-white flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -1468,14 +1469,14 @@ export const MasterConfigSection: React.FC = () => {
               </div>
             </form>
           </div>
-        </div>
+        </div></ModalPortal>
       )}
 
       {/* ==================================================== */}
       {/* MODAL 2: ADD / EDIT PRODUCT */}
       {/* ==================================================== */}
       {isProductModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-start sm:items-center justify-center p-3 sm:p-4 overflow-y-auto">
+        <ModalPortal><div className="fixed inset-0 z-[60] bg-slate-950/60 backdrop-blur-xs flex items-start sm:items-center justify-center p-3 sm:p-4 overflow-y-auto">
           <div className="bg-white rounded-2xl max-w-lg w-full border border-slate-200 shadow-2xl overflow-hidden animate-in fade-in-50 zoom-in-95">
             <div className="bg-[#0B2545] p-4 text-white flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -1615,14 +1616,14 @@ export const MasterConfigSection: React.FC = () => {
               </div>
             </form>
           </div>
-        </div>
+        </div></ModalPortal>
       )}
 
       {/* ==================================================== */}
       {/* MODAL 3: ADD / EDIT ATG */}
       {/* ==================================================== */}
       {isAtgModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-start sm:items-center justify-center p-3 sm:p-4 overflow-y-auto">
+        <ModalPortal><div className="fixed inset-0 z-[60] bg-slate-950/60 backdrop-blur-xs flex items-start sm:items-center justify-center p-3 sm:p-4 overflow-y-auto">
           <div className="bg-white rounded-2xl max-w-lg w-full border border-slate-200 shadow-2xl overflow-hidden animate-in fade-in-50 zoom-in-95">
             <div className="bg-[#0B2545] p-4 text-white flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -1751,14 +1752,14 @@ export const MasterConfigSection: React.FC = () => {
               </div>
             </form>
           </div>
-        </div>
+        </div></ModalPortal>
       )}
 
       {/* ==================================================== */}
       {/* MODAL 4: ADD / EDIT DISPENSER */}
       {/* ==================================================== */}
       {isDispenserModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-start sm:items-center justify-center p-3 sm:p-4 overflow-y-auto">
+        <ModalPortal><div className="fixed inset-0 z-[60] bg-slate-950/60 backdrop-blur-xs flex items-start sm:items-center justify-center p-3 sm:p-4 overflow-y-auto">
           <div className="bg-white rounded-2xl max-w-lg w-full border border-slate-200 shadow-2xl overflow-hidden animate-in fade-in-50 zoom-in-95">
             <div className="bg-[#0B2545] p-4 text-white flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -1866,14 +1867,14 @@ export const MasterConfigSection: React.FC = () => {
               </div>
             </form>
           </div>
-        </div>
+        </div></ModalPortal>
       )}
 
       {/* ==================================================== */}
       {/* MODAL 5: ADD / EDIT HARDWARE */}
       {/* ==================================================== */}
       {isHwModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-start sm:items-center justify-center p-3 sm:p-4 overflow-y-auto">
+        <ModalPortal><div className="fixed inset-0 z-[60] bg-slate-950/60 backdrop-blur-xs flex items-start sm:items-center justify-center p-3 sm:p-4 overflow-y-auto">
           <div className="bg-white rounded-2xl max-w-lg w-full border border-slate-200 shadow-2xl overflow-hidden animate-in fade-in-50 zoom-in-95">
             <div className="bg-[#0B2545] p-4 text-white flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -1968,7 +1969,7 @@ export const MasterConfigSection: React.FC = () => {
               </div>
             </form>
           </div>
-        </div>
+        </div></ModalPortal>
       )}
 
     </div>

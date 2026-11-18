@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { AutoTextarea } from '@/components/ui/AutoTextarea';
 import { PMReport, PeripheralsInventory, ChecklistStatus } from '@/lib/types';
 import { StatusSelector } from '../StatusSelector';
 import { Monitor, Printer, QrCode, DollarSign, Scissors, Flame } from 'lucide-react';
@@ -76,9 +77,8 @@ export const PeripheralsSection: React.FC<PeripheralsSectionProps> = ({
               >
                 Catatan Layar
               </label>
-              <input
+              <AutoTextarea
                 id="display-touchscreen-notes-input"
-                type="text"
                 value={report.peripherals.display_touchscreen.notes}
                 onChange={(e) =>
                   updatePeripherals('display_touchscreen', {
@@ -214,9 +214,8 @@ export const PeripheralsSection: React.FC<PeripheralsSectionProps> = ({
               >
                 Catatan Scanner
               </label>
-              <input
+              <AutoTextarea
                 id="barcode-scanner-notes-input"
-                type="text"
                 value={report.peripherals.barcode_scanner.notes}
                 onChange={(e) =>
                   updatePeripherals('barcode_scanner', {
@@ -262,9 +261,8 @@ export const PeripheralsSection: React.FC<PeripheralsSectionProps> = ({
               >
                 Catatan Cash Drawer
               </label>
-              <input
+              <AutoTextarea
                 id="cash-drawer-notes-input"
-                type="text"
                 value={report.peripherals.cash_drawer.notes}
                 onChange={(e) =>
                   updatePeripherals('cash_drawer', {

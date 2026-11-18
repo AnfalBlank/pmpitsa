@@ -99,3 +99,9 @@ button, a, [role="button"], label, select, input, textarea {
   }
 }
 
+
+/* Decorative icons positioned inside inputs (search, prefixes) must not
+   swallow taps meant for the field underneath */
+svg.absolute {
+  pointer-events: none;
+}

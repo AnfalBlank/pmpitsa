@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { AutoTextarea } from '@/components/ui/AutoTextarea';
 import { PMReport, EDCItem, ChecklistStatus } from '@/lib/types';
 import { StatusSelector } from '../StatusSelector';
 import { CreditCard, Plus, Trash2, ShieldCheck, AlertCircle, QrCode } from 'lucide-react';
@@ -181,8 +182,7 @@ export const EdcSection: React.FC<EdcSectionProps> = ({
                     <label className="block text-[11px] font-semibold text-slate-700 uppercase tracking-wider mb-1">
                       Catatan Unit EDC
                     </label>
-                    <input
-                      type="text"
+                    <AutoTextarea
                       value={edc.notes}
                       onChange={(e) => updateEdcItem(idx, { notes: e.target.value })}
                       placeholder="Keterangan kabel adapter, paper roll, atau kendala transaksi jika ada..."

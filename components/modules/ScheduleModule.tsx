@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { ModalPortal } from '@/components/ui/ModalPortal';
 import { 
   Calendar, 
   Search, 
@@ -450,10 +451,10 @@ export const ScheduleModule: React.FC<ScheduleModuleProps> = ({
 
       {/* MODAL: BUAT JADWAL BARU */}
       {isNewPlanModalOpen && (
-        <div 
+        <ModalPortal><div 
           role="dialog"
           aria-modal="true"
-          className="fixed inset-0 z-50 bg-black/70 flex items-start sm:items-center justify-center p-3 sm:p-4 backdrop-blur-xs overflow-y-auto"
+          className="fixed inset-0 z-[60] bg-black/70 flex items-start sm:items-center justify-center p-3 sm:p-4 backdrop-blur-xs overflow-y-auto"
         >
           <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full border border-slate-300 overflow-hidden my-8 animate-in fade-in-50 zoom-in-95 duration-150">
             <div className="p-4 bg-[#0B2545] text-white flex items-center justify-between">
@@ -597,7 +598,7 @@ export const ScheduleModule: React.FC<ScheduleModuleProps> = ({
               </div>
             </form>
           </div>
-        </div>
+        </div></ModalPortal>
       )}
 
     </div>

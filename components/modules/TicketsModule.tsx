@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { ModalPortal } from '@/components/ui/ModalPortal';
 import { 
   AlertTriangle, 
   Search, 
@@ -358,7 +359,7 @@ export const TicketsModule: React.FC<TicketsModuleProps> = ({
               aria-label="Filter Prioritas"
               className="w-full min-h-[44px] px-3 text-xs bg-slate-50 border border-slate-300 rounded-lg font-medium text-slate-800 focus:ring-2 focus:ring-red-500 focus:outline-none"
             >
-              <option value="ALL">Semua Tingkat Prioritas</option>
+              <option value="ALL">Semua Prioritas</option>
               <option value="Darurat">Darurat (Pompa Mati)</option>
               <option value="Tinggi">Tinggi</option>
               <option value="Sedang">Sedang</option>
@@ -561,10 +562,10 @@ export const TicketsModule: React.FC<TicketsModuleProps> = ({
 
       {/* MODAL: BUAT TIKET BARU */}
       {isNewTicketModalOpen && (
-        <div 
+        <ModalPortal><div 
           role="dialog"
           aria-modal="true"
-          className="fixed inset-0 z-50 bg-black/70 flex items-start sm:items-center justify-center p-3 sm:p-4 backdrop-blur-xs overflow-y-auto"
+          className="fixed inset-0 z-[60] bg-black/70 flex items-start sm:items-center justify-center p-3 sm:p-4 backdrop-blur-xs overflow-y-auto"
         >
           <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full border border-slate-300 overflow-hidden my-8 animate-in fade-in-50 zoom-in-95 duration-150">
             <div className="p-4 bg-[#0B2545] text-white flex items-center justify-between">
@@ -686,15 +687,15 @@ export const TicketsModule: React.FC<TicketsModuleProps> = ({
               </div>
             </form>
           </div>
-        </div>
+        </div></ModalPortal>
       )}
 
       {/* MODAL: UPDATE STATUS TIKET */}
       {selectedTicketForUpdate && (
-        <div 
+        <ModalPortal><div 
           role="dialog"
           aria-modal="true"
-          className="fixed inset-0 z-50 bg-black/70 flex items-start sm:items-center justify-center p-3 sm:p-4 backdrop-blur-xs overflow-y-auto"
+          className="fixed inset-0 z-[60] bg-black/70 flex items-start sm:items-center justify-center p-3 sm:p-4 backdrop-blur-xs overflow-y-auto"
         >
           <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full border border-slate-300 overflow-hidden my-8 animate-in fade-in-50 zoom-in-95 duration-150">
             <div className="p-4 bg-[#0B2545] text-white flex items-center justify-between">
@@ -768,7 +769,7 @@ export const TicketsModule: React.FC<TicketsModuleProps> = ({
               </div>
             </form>
           </div>
-        </div>
+        </div></ModalPortal>
       )}
 
     </div>

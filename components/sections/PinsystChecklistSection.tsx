@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { AutoTextarea } from '@/components/ui/AutoTextarea';
 import { PMReport, PinsystFeatureCheck, FeatureStatus } from '@/lib/types';
 import { CheckSquare, AlertCircle, CheckCircle2, XCircle, MinusCircle } from 'lucide-react';
 
@@ -91,7 +92,7 @@ export const PinsystChecklistSection: React.FC<PinsystChecklistSectionProps> = (
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 mb-3">
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="font-mono text-xs font-bold bg-[#0B2545] text-white px-2 py-0.5 rounded">
+                      <span className="font-mono text-xs font-bold bg-[#0B2545] text-white px-2 py-0.5 rounded whitespace-nowrap flex-shrink-0">
                         {feat.code}
                       </span>
                       <h3 className="text-sm font-bold text-slate-900">
@@ -143,9 +144,8 @@ export const PinsystChecklistSection: React.FC<PinsystChecklistSectionProps> = (
                     >
                       Hasil Temuan Pengujian
                     </label>
-                    <input
+                    <AutoTextarea
                       id={`findings-input-${feat.id}`}
-                      type="text"
                       value={feat.findings}
                       onChange={(e) => updateFeature(idx, { findings: e.target.value })}
                       placeholder="Tuliskan temuan teknis saat pengujian..."
@@ -160,9 +160,8 @@ export const PinsystChecklistSection: React.FC<PinsystChecklistSectionProps> = (
                     >
                       Tindakan Korektif / Rekomendasi
                     </label>
-                    <input
+                    <AutoTextarea
                       id={`corrective-action-input-${feat.id}`}
-                      type="text"
                       value={feat.corrective_action}
                       onChange={(e) => updateFeature(idx, { corrective_action: e.target.value })}
                       placeholder="Tindakan yang telah atau harus dilakukan..."

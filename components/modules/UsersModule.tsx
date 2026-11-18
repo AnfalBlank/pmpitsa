@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useState } from 'react';
+import { ModalPortal } from '@/components/ui/ModalPortal';
 import { 
   Users, 
   Search, 
@@ -225,7 +226,66 @@ export const UsersModule: React.FC<UsersModuleProps> = ({
         </button>
       </div>
 
-      <div className="bg-white rounded-xl shadow-xs border border-slate-200 overflow-hidden">
+      {/* Mobile: one card per user (a 5-column table doesn't fit a phone) */}
+      <div className="md:hidden space-y-2.5">
+        {filteredUsers.length === 0 && (
+          <div className="bg-white rounded-xl border border-slate-200 p-6 text-center text-xs text-slate-500">
+            {loadState === 'loading'
+              ? 'Memuat daftar pengguna...'
+              : usersList.length === 0
+              ? loadState === 'error'
+                ? 'Daftar pengguna belum dapat dimuat. Tekan "Muat Ulang".'
+                : 'Belum ada pengguna terdaftar.'
+              : 'Tidak ada pengguna yang cocok dengan pencarian / filter.'}
+          </div>
+        )}
+        {filteredUsers.map((u) => {
+          const assignedSite = activeSites.find((s) => s.id === u.assignedSiteId);
+          return (
+            <div key={u.id} className="bg-white rounded-xl border border-slate-200 p-4 shadow-2xs text-xs">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="font-extrabold text-slate-900 text-sm break-words">{u.name}</div>
+                  <div className="font-mono text-slate-500 text-[11px]">
+                    {u.employeeId} · <span className="font-bold text-slate-700">{u.username}</span>
+                  </div>
+                </div>
+                <span
+                  className={`flex-shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                    u.role === 'ADMIN'
+                      ? 'bg-slate-100 text-[#0B2545] border-slate-300'
+                      : u.role === 'SUPERVISOR'
+                      ? 'bg-blue-50 text-blue-900 border-blue-200'
+                      : 'bg-emerald-50 text-emerald-900 border-emerald-200'
+                  }`}
+                >
+                  {u.role === 'ADMIN' ? 'Admin' : u.role === 'SUPERVISOR' ? 'Pengawas' : 'Teknisi'}
+                </span>
+              </div>
+              <div className="mt-2.5 pt-2.5 border-t border-slate-100 grid grid-cols-1 gap-1.5 text-slate-700">
+                <div className="flex items-center gap-1.5">
+                  <Building2 className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />
+                  <span className="break-words">
+                    {u.role === 'SUPERVISOR'
+                      ? assignedSite
+                        ? `${assignedSite.site_code} · ${assignedSite.site_name}`
+                        : `Site #${u.assignedSiteId}`
+                      : u.role === 'TECHNICIAN'
+                      ? 'Lintas seluruh SPBU'
+                      : 'Pusat (seluruh SPBU)'}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5 font-mono">
+                  <Phone className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />
+                  <span>{u.phone || '-'}</span>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="hidden md:block bg-white rounded-xl shadow-xs border border-slate-200 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead>
@@ -240,7 +300,7 @@ export const UsersModule: React.FC<UsersModuleProps> = ({
             <tbody className="divide-y divide-slate-100">
               {filteredUsers.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="p-8 text-center text-slate-500">
+                  <td colSpan={5} className="p-8 text-center text-slate-500">
                     {loadState === 'loading' ? (
                       <span className="inline-flex items-center gap-2">
                         <Loader2 className="w-4 h-4 animate-spin" /> Memuat daftar pengguna...
@@ -309,10 +369,10 @@ export const UsersModule: React.FC<UsersModuleProps> = ({
 
       {/* MODAL: TAMBAH USER BARU */}
       {isNewUserModalOpen && (
-        <div 
+        <ModalPortal><div 
           role="dialog"
           aria-modal="true"
-          className="fixed inset-0 z-50 bg-black/70 flex items-start sm:items-center justify-center p-3 sm:p-4 backdrop-blur-xs overflow-y-auto"
+          className="fixed inset-0 z-[60] bg-black/70 flex items-start sm:items-center justify-center p-3 sm:p-4 backdrop-blur-xs overflow-y-auto"
         >
           <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full border border-slate-300 overflow-hidden my-8 animate-in fade-in-50 zoom-in-95 duration-150">
             <div className="p-4 bg-[#0B2545] text-white flex items-center justify-between">
@@ -434,7 +494,7 @@ export const UsersModule: React.FC<UsersModuleProps> = ({
               </div>
             </form>
           </div>
-        </div>
+        </div></ModalPortal>
       )}
 
     </div>

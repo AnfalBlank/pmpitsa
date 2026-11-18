@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { AutoTextarea } from '@/components/ui/AutoTextarea';
 import { compressImageFile } from '@/lib/image-compress';
 import { PMReport, PMAttachment } from '@/lib/types';
 import { useFeedback } from '@/components/feedback/FeedbackProvider';
@@ -269,9 +270,8 @@ export const FindingsActionPlanSection: React.FC<FindingsActionPlanSectionProps>
               >
                 Keterangan Foto / Caption
               </label>
-              <input
+              <AutoTextarea
                 id="photo-caption-input"
-                type="text"
                 value={captionInput}
                 onChange={(e) => setCaptionInput(e.target.value)}
                 placeholder="Contoh: Kondisi sirkulasi kipas atau serial number EDC"

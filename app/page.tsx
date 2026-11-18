@@ -708,6 +708,11 @@ export default function Home() {
   };
 
   const [loadingFullReport, setLoadingFullReport] = useState(false);
+  /** BA currently open in the preview (used to drop stale load errors) */
+  const openReportIdRef = React.useRef<string | null>(null);
+  useEffect(() => {
+    if (currentModule !== 'preview') openReportIdRef.current = null;
+  }, [currentModule]);
 
   /** List items are summaries: fetch the full BA (photos, signatures) from the server. */
   const loadFullReport = async (r: PMReport): Promise<PMReport | null> => {
@@ -724,6 +729,7 @@ export default function Home() {
   };
 
   const handleSelectPastReport = async (pastReport: PMReport) => {
+    openReportIdRef.current = pastReport.id;
     setReport(pastReport);
     setCurrentModule('preview');
     window.history.pushState(null, '', '/preview');
@@ -733,7 +739,8 @@ export default function Home() {
     setLoadingFullReport(false);
     if (full) {
       setReport((prev) => (prev.id === full.id ? full : prev));
-    } else {
+    } else if (openReportIdRef.current === pastReport.id) {
+      // Only tell the user if they are still looking at this BA
       feedback.notify({
         variant: 'error',
         title: 'Gagal Memuat Berita Acara',

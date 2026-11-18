@@ -114,7 +114,7 @@ export const HardwareSection: React.FC<HardwareSectionProps> = ({
               onChange={(e) => updateHardware('storage_type', e.target.value as 'SSD' | 'HDD')}
               className="w-full min-h-[44px] px-3 py-2 bg-white border border-slate-300 rounded-md text-sm text-slate-900 focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
             >
-              <option value="SSD">SSD (Solid State Drive) - Direkomendasikan</option>
+              <option value="SSD">SSD (direkomendasikan)</option>
               <option value="HDD">HDD (Hard Disk Drive)</option>
             </select>
           </div>

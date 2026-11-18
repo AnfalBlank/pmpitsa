@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { ModalPortal } from '@/components/ui/ModalPortal';
 import { TabKey, tabOrderFor } from './SectionTabs';
 import { PMReport } from '@/lib/types';
 import { Save, ChevronLeft, ChevronRight, CheckCircle, FileText, AlertCircle, Home } from 'lucide-react';
@@ -126,10 +127,10 @@ export const BottomBar: React.FC<BottomBarProps> = ({
 
       {/* Confirmation Submit Modal */}
       {showSubmitModal && (
-        <div
+        <ModalPortal><div
           role="dialog"
           aria-modal="true"
-          className="fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center p-3 sm:p-4 backdrop-blur-xs overflow-y-auto"
+          className="fixed inset-0 z-[60] bg-black/70 flex items-end sm:items-center justify-center p-3 sm:p-4 backdrop-blur-xs overflow-y-auto"
         >
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full border border-slate-300 overflow-hidden">
             <div className="p-4 bg-[#0B2545] text-white">
@@ -216,7 +217,7 @@ export const BottomBar: React.FC<BottomBarProps> = ({
               </button>
             </div>
           </div>
-        </div>
+        </div></ModalPortal>
       )}
     </>
   );
