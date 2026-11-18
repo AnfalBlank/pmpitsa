@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
+import { MasterSelect } from '@/components/ui/MasterSelect';
+import { hardwareOptions, useMasterData } from '@/lib/use-master-config';
 import { AutoTextarea } from '@/components/ui/AutoTextarea';
 import { PMReport, NetworkPower, ChecklistStatus } from '@/lib/types';
 import { StatusSelector } from '../StatusSelector';
@@ -15,6 +17,7 @@ export const NetworkPowerSection: React.FC<NetworkPowerSectionProps> = ({
   report,
   onChange,
 }) => {
+  const master = useMasterData();
   const [isPinging, setIsPinging] = useState(false);
   const [pingResult, setPingResult] = useState<string | null>(null);
 
@@ -226,14 +229,14 @@ export const NetworkPowerSection: React.FC<NetworkPowerSectionProps> = ({
             >
               Merek & Model UPS
             </label>
-            <input
-              id="ups-model-input"
-              type="text"
-              value={report.network_power.ups_model}
-              onChange={(e) => updateNetwork('ups_model', e.target.value)}
-              placeholder="Contoh: APC Smart-UPS 1500VA"
-              className="w-full min-h-[44px] px-3 py-2 bg-white border border-slate-300 rounded-md text-sm text-slate-900"
-            />
+            <MasterSelect
+                id="ups-model-input"
+                value={report.network_power.ups_model}
+                onChange={(v) => updateNetwork('ups_model', v)}
+                options={hardwareOptions(master.hardwareConfigs, 'UPS')}
+                placeholder="— Pilih model UPS —"
+                customPlaceholder="Merek & model UPS"
+              />
           </div>
 
           <div>

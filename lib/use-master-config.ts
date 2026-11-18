@@ -6,14 +6,15 @@
  * /api/config once per page load.
  */
 import { useEffect, useState } from 'react';
-import type { AtgBrandConfig, DispenserBrandConfig, FuelProduct } from './types';
+import type { AtgBrandConfig, DispenserBrandConfig, FuelProduct, HardwareMasterConfig } from './types';
 import { fetchMasterConfigApi } from './api-client';
-import { DEFAULT_ATG_BRANDS, DEFAULT_DISPENSER_BRANDS, DEFAULT_FUEL_PRODUCTS } from './sample-data';
+import { DEFAULT_ATG_BRANDS, DEFAULT_DISPENSER_BRANDS, DEFAULT_FUEL_PRODUCTS, DEFAULT_HARDWARE_CONFIGS } from './sample-data';
 
 export interface MasterData {
   products: FuelProduct[];
   atgBrands: AtgBrandConfig[];
   dispenserBrands: DispenserBrandConfig[];
+  hardwareConfigs: HardwareMasterConfig[];
 }
 
 const KEY = 'pertamina_pm_master_v1';
@@ -26,10 +27,18 @@ function initial(): MasterData {
   if (typeof window !== 'undefined') {
     try {
       const raw = localStorage.getItem(KEY);
-      if (raw) return (memory = JSON.parse(raw));
+      if (raw) {
+        const m = JSON.parse(raw);
+        if (m && Array.isArray(m.hardwareConfigs)) return (memory = m);
+      }
     } catch {}
   }
-  return { products: DEFAULT_FUEL_PRODUCTS, atgBrands: DEFAULT_ATG_BRANDS, dispenserBrands: DEFAULT_DISPENSER_BRANDS };
+  return {
+    products: DEFAULT_FUEL_PRODUCTS,
+    atgBrands: DEFAULT_ATG_BRANDS,
+    dispenserBrands: DEFAULT_DISPENSER_BRANDS,
+    hardwareConfigs: DEFAULT_HARDWARE_CONFIGS,
+  };
 }
 
 export function refreshMasterData(): Promise<MasterData | null> {
@@ -41,6 +50,7 @@ export function refreshMasterData(): Promise<MasterData | null> {
           products: res.products?.length ? res.products : DEFAULT_FUEL_PRODUCTS,
           atgBrands: res.atgBrands?.length ? res.atgBrands : DEFAULT_ATG_BRANDS,
           dispenserBrands: res.dispenserBrands?.length ? res.dispenserBrands : DEFAULT_DISPENSER_BRANDS,
+          hardwareConfigs: res.hardwareConfigs?.length ? res.hardwareConfigs : DEFAULT_HARDWARE_CONFIGS,
         };
         memory = m;
         try {
@@ -72,3 +82,10 @@ export const activeOnly = <T extends { status: string }>(list: T[]) => list.filt
 export const productLabel = (p: FuelProduct) => p.name;
 export const atgLabel = (b: AtgBrandConfig) => [b.brand_name, b.model_series].filter(Boolean).join(' ');
 export const dispenserLabel = (b: DispenserBrandConfig) => [b.brand_name, b.series_model].filter(Boolean).join(' ');
+
+/** Active hardware of one master category, as dropdown options (value = brand/model). */
+export function hardwareOptions(list: HardwareMasterConfig[], category: HardwareMasterConfig['category']) {
+  return activeOnly(list)
+    .filter((h) => h.category === category)
+    .map((h) => ({ value: h.brand_model }));
+}

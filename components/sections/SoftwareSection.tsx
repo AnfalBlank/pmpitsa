@@ -1,6 +1,8 @@
 'use client';
 
 import React from 'react';
+import { MasterSelect } from '@/components/ui/MasterSelect';
+import { useMasterData } from '@/lib/use-master-config';
 import { PMReport, SoftwareInventory } from '@/lib/types';
 import { StatusSelector } from '../StatusSelector';
 import { Terminal, Shield, Info, CheckCircle2, Database } from 'lucide-react';
@@ -14,6 +16,11 @@ export const SoftwareSection: React.FC<SoftwareSectionProps> = ({
   report,
   onChange,
 }) => {
+  const master = useMasterData();
+  // OS of POS PCs registered in Konfigurasi › Hardware & POS (category POS)
+  const osOptions = Array.from(
+    new Set(master.hardwareConfigs.filter((h) => h.status === 'Aktif' && h.category === 'POS' && h.default_os_firmware).map((h) => h.default_os_firmware as string))
+  ).map((v) => ({ value: v }));
   const updateSoftware = <K extends keyof SoftwareInventory>(
     key: K,
     val: SoftwareInventory[K]
@@ -138,13 +145,13 @@ export const SoftwareSection: React.FC<SoftwareSectionProps> = ({
             >
               5. Sistem Operasi (OS) & Versi Build
             </label>
-            <input
+            <MasterSelect
               id="operating-system-input"
-              type="text"
               value={report.software.operating_system}
-              onChange={(e) => updateSoftware('operating_system', e.target.value)}
-              placeholder="Contoh: Windows 10 IoT Enterprise LTSC / Ubuntu Linux"
-              className="w-full min-h-[44px] px-3 py-2 bg-white border border-slate-300 rounded-md text-sm font-mono text-slate-900 focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
+              onChange={(v) => updateSoftware('operating_system', v)}
+              options={osOptions}
+              placeholder="— Pilih sistem operasi —"
+              customPlaceholder="Contoh: Windows 10 IoT Enterprise LTSC"
             />
           </div>
 

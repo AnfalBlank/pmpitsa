@@ -1,6 +1,8 @@
 'use client';
 
 import React from 'react';
+import { MasterSelect } from '@/components/ui/MasterSelect';
+import { hardwareOptions, useMasterData } from '@/lib/use-master-config';
 import { PMReport, HardwareSpecs, ChecklistStatus } from '@/lib/types';
 import { StatusSelector } from '../StatusSelector';
 import { Cpu, HardDrive, Fan, Wind, AlertTriangle } from 'lucide-react';
@@ -14,6 +16,7 @@ export const HardwareSection: React.FC<HardwareSectionProps> = ({
   report,
   onChange,
 }) => {
+  const master = useMasterData();
   const updateHardware = <K extends keyof HardwareSpecs>(
     key: K,
     val: HardwareSpecs[K]
@@ -55,14 +58,14 @@ export const HardwareSection: React.FC<HardwareSectionProps> = ({
             >
               Merek & Model PC / Terminal POS <span className="text-red-500">*</span>
             </label>
-            <input
+            <MasterSelect
               id="pc-brand-model-input"
-              type="text"
-              required
               value={report.hardware.pc_brand_model}
-              onChange={(e) => updateHardware('pc_brand_model', e.target.value)}
-              placeholder="Contoh: Advantech UTC-520 Touch POS"
-              className="w-full min-h-[44px] px-3 py-2 bg-white border border-slate-300 rounded-md text-sm text-slate-900 focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
+              onChange={(v) => updateHardware('pc_brand_model', v)}
+              options={hardwareOptions(master.hardwareConfigs, 'POS')}
+              placeholder="— Pilih model PC POS —"
+              customPlaceholder="Merek & model PC POS"
+              hint="Daftar dari Konfigurasi › Hardware & POS"
             />
           </div>
 

@@ -1,6 +1,8 @@
 'use client';
 
 import React from 'react';
+import { MasterSelect } from '@/components/ui/MasterSelect';
+import { activeOnly, atgLabel, dispenserLabel, useMasterData } from '@/lib/use-master-config';
 import { PMReport, CorrectiveRepairDetails } from '@/lib/types';
 import { StatusSelector } from '../StatusSelector';
 import { Search, Wrench, ClipboardCheck, Package, Clock, Ticket } from 'lucide-react';
@@ -47,6 +49,14 @@ const Card: React.FC<{ icon: React.ElementType; title: string; subtitle: string;
 );
 
 export const CorrectiveRepairSection: React.FC<CorrectiveRepairSectionProps> = ({ report, onChange, step }) => {
+  const master = useMasterData();
+  // Units registered in master data, grouped by type
+  const CAT_LABEL: Record<string, string> = { POS: 'PC / Terminal POS', PRINTER: 'Printer', EDC: 'Mesin EDC', UPS: 'UPS', NETWORK: 'Jaringan' };
+  const unitOptions = [
+    ...activeOnly(master.hardwareConfigs).map((h) => ({ value: h.brand_model, group: CAT_LABEL[h.category] || h.category })),
+    ...activeOnly(master.dispenserBrands).map((b) => ({ value: dispenserLabel(b), group: 'Dispenser' })),
+    ...activeOnly(master.atgBrands).map((b) => ({ value: atgLabel(b), group: 'ATG' })),
+  ];
   const details: CorrectiveRepairDetails = { ...EMPTY_REPAIR_DETAILS, ...(report.repair_details || {}) };
 
   const update = <K extends keyof CorrectiveRepairDetails>(key: K, val: CorrectiveRepairDetails[K]) => {
@@ -83,13 +93,13 @@ export const CorrectiveRepairSection: React.FC<CorrectiveRepairSectionProps> = (
               <label htmlFor="cm-unit" className={labelCls}>
                 Unit / Perangkat yang Rusak
               </label>
-              <input
+              <MasterSelect
                 id="cm-unit"
-                type="text"
                 value={details.affected_unit || ''}
-                onChange={(e) => update('affected_unit', e.target.value)}
-                placeholder="Contoh: Printer Epson TM-T82 kasir 1"
-                className={inputCls}
+                onChange={(v) => update('affected_unit', v)}
+                options={unitOptions}
+                placeholder="— Pilih unit / perangkat —"
+                customPlaceholder="Contoh: Printer Epson TM-T82 kasir 1"
               />
             </div>
           </div>

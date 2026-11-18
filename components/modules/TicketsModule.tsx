@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { MasterSelect } from '@/components/ui/MasterSelect';
 import { ModalPortal } from '@/components/ui/ModalPortal';
 import { 
   AlertTriangle, 
@@ -531,7 +532,11 @@ export const TicketsModule: React.FC<TicketsModuleProps> = ({
                         setSelectedTicketForUpdate(t);
                         setUpdateStatus(t.status);
                         setUpdateNotes(t.resolution_notes || '');
-                        setUpdateAssigned(t.assigned_to || 'Rizky Ramadhan (Teknisi)');
+                        {
+                          // Match the stored name to a registered technician (older tickets use other formats)
+                          const match = technicians.find((u: any) => t.assigned_to && t.assigned_to.toLowerCase().includes(String(u.name).toLowerCase()));
+                          setUpdateAssigned(match ? `${match.name} (Teknisi)` : t.assigned_to || '');
+                        }
                       }}
                       className="min-h-[40px] px-3.5 py-1.5 bg-[#0B2545] hover:bg-slate-800 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-2xs transition-colors"
                     >
@@ -730,13 +735,14 @@ export const TicketsModule: React.FC<TicketsModuleProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Teknisi Bertugas</label>
-                  <input
-                    type="text"
+                  <label htmlFor="ticket-assignee" className="block text-xs font-bold text-slate-700 uppercase mb-1">Teknisi Bertugas</label>
+                  <MasterSelect
+                    id="ticket-assignee"
                     value={updateAssigned}
-                    onChange={(e) => setUpdateAssigned(e.target.value)}
-                    placeholder="Nama Teknisi"
-                    className="w-full min-h-[44px] px-3 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:outline-none"
+                    onChange={setUpdateAssigned}
+                    options={technicians.map((t: any) => ({ value: `${t.name} (Teknisi)`, label: `${t.name}${t.employeeId ? ` (${t.employeeId})` : ''}` }))}
+                    placeholder="— Pilih teknisi —"
+                    customPlaceholder="Nama teknisi"
                   />
                 </div>
               </div>

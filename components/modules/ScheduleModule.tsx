@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { MasterSelect } from '@/components/ui/MasterSelect';
 import { ModalPortal } from '@/components/ui/ModalPortal';
 import { 
   Calendar, 
@@ -558,14 +559,22 @@ export const ScheduleModule: React.FC<ScheduleModuleProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Pengawas (PWS) Site</label>
-                  <input
-                    type="text"
-                    required
+                  <label htmlFor="plan-supervisor" className="block text-xs font-bold text-slate-700 uppercase mb-1">Pengawas (PWS) Site</label>
+                  <MasterSelect
+                    id="plan-supervisor"
                     value={newPlanSpv}
-                    onChange={(e) => setNewPlanSpv(e.target.value)}
-                    placeholder="Nama PWS"
-                    className="w-full min-h-[44px] px-3 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:outline-none"
+                    onChange={setNewPlanSpv}
+                    options={(() => {
+                      const site = activeSites.find((s) => s.id === Number(newPlanSiteId));
+                      const pic = site?.contact_person ? site.contact_person.split(' (')[0] : '';
+                      const spv = (usersList || [])
+                        .filter((u: any) => u.role === 'SUPERVISOR')
+                        .sort((a: any, b: any) => Number(b.assignedSiteId === site?.id) - Number(a.assignedSiteId === site?.id))
+                        .map((u: any) => ({ value: u.name, group: u.assignedSiteId === site?.id ? 'Pengawas SPBU ini' : 'Pengawas SPBU lain' }));
+                      return [...spv, ...(pic && !spv.some((o: any) => o.value === pic) ? [{ value: pic, group: 'PIC terdaftar di Data SPBU' }] : [])];
+                    })()}
+                    placeholder="— Pilih pengawas —"
+                    customPlaceholder="Nama PWS"
                   />
                 </div>
               </div>

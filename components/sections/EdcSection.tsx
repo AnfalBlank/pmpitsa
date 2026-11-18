@@ -1,6 +1,8 @@
 'use client';
 
 import React from 'react';
+import { MasterSelect } from '@/components/ui/MasterSelect';
+import { hardwareOptions, useMasterData } from '@/lib/use-master-config';
 import { AutoTextarea } from '@/components/ui/AutoTextarea';
 import { PMReport, EDCItem, ChecklistStatus } from '@/lib/types';
 import { StatusSelector } from '../StatusSelector';
@@ -15,6 +17,7 @@ export const EdcSection: React.FC<EdcSectionProps> = ({
   report,
   onChange,
 }) => {
+  const master = useMasterData();
   const updateEdcList = (list: EDCItem[]) => {
     onChange({
       ...report,
@@ -129,13 +132,13 @@ export const EdcSection: React.FC<EdcSectionProps> = ({
                     <label className="block text-[11px] font-semibold text-slate-700 uppercase tracking-wider mb-1">
                       Merek & Tipe EDC / Bank <span className="text-red-500">*</span>
                     </label>
-                    <input
-                      type="text"
-                      required
+                    <MasterSelect
+                      id={`edc-brand-${edc.id}`}
                       value={edc.brand_type}
-                      onChange={(e) => updateEdcItem(idx, { brand_type: e.target.value })}
-                      placeholder="Contoh: Ingenico Move 2500 Mandiri"
-                      className="w-full min-h-[44px] px-2.5 py-1.5 bg-white border border-slate-300 rounded text-xs text-slate-900 focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
+                      onChange={(v) => updateEdcItem(idx, { brand_type: v })}
+                      options={hardwareOptions(master.hardwareConfigs, 'EDC')}
+                      placeholder="— Pilih tipe EDC —"
+                      customPlaceholder="Contoh: Ingenico Move 2500 Mandiri"
                     />
                   </div>
 

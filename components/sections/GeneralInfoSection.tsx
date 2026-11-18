@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { MasterSelect } from '@/components/ui/MasterSelect';
 import { PMReport, PMOverallStatus, Site } from '@/lib/types';
 import { SAMPLE_SITES } from '@/lib/sample-data';
 import { Building2, Calendar, Clock, User, Phone, ShieldCheck, AlertCircle } from 'lucide-react';
@@ -9,13 +10,28 @@ interface GeneralInfoSectionProps {
   report: PMReport;
   onChange: (updated: PMReport) => void;
   sites?: Site[];
+  /** Users from Manajemen User (for technician / supervisor dropdowns) */
+  users?: { name: string; role: string; employeeId?: string; phone?: string; assignedSiteId?: number }[];
 }
 
 export const GeneralInfoSection: React.FC<GeneralInfoSectionProps> = ({
   report,
   onChange,
   sites,
+  users = [],
 }) => {
+  const technicians = users
+    .filter((u) => u.role === 'TECHNICIAN')
+    .map((u) => ({ value: u.employeeId ? `${u.name} (${u.employeeId})` : u.name, phone: u.phone }));
+  const currentSiteObj = (sites || []).find((s) => s.id === report.site_id);
+  const pic = currentSiteObj?.contact_person ? currentSiteObj.contact_person.split(' (')[0] : '';
+  const supervisors = [
+    ...users
+      .filter((u) => u.role === 'SUPERVISOR')
+      .sort((a, b) => Number(b.assignedSiteId === report.site_id) - Number(a.assignedSiteId === report.site_id))
+      .map((u) => ({ value: u.name, group: u.assignedSiteId === report.site_id ? 'Pengawas SPBU ini' : 'Pengawas SPBU lain' })),
+    ...(pic && !users.some((u) => u.name === pic) ? [{ value: pic, group: 'PIC terdaftar di Data SPBU' }] : []),
+  ];
   const activeSites = sites && sites.length > 0 ? sites : SAMPLE_SITES;
 
   const updateField = <K extends keyof PMReport>(key: K, val: PMReport[K]) => {
@@ -173,14 +189,17 @@ export const GeneralInfoSection: React.FC<GeneralInfoSectionProps> = ({
             >
               Nama Teknisi Pelaksana <span className="text-red-500">*</span>
             </label>
-            <input
+            <MasterSelect
               id="technician-name-input"
-              type="text"
-              required
               value={report.technician_name}
-              onChange={(e) => updateField('technician_name', e.target.value)}
-              placeholder="Nama lengkap dan ID teknisi"
-              className="w-full min-h-[44px] px-3 py-2 bg-white border border-slate-300 rounded-md text-sm text-slate-900 focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
+              onChange={(v) => {
+                const u = technicians.find((t) => t.value === v);
+                onChange({ ...report, technician_name: v, technician_phone: u?.phone || report.technician_phone });
+              }}
+              options={technicians}
+              placeholder="— Pilih teknisi —"
+              customPlaceholder="Nama lengkap dan ID teknisi"
+              hint="Daftar dari Manajemen User (peran Teknisi)"
             />
           </div>
 
@@ -208,14 +227,14 @@ export const GeneralInfoSection: React.FC<GeneralInfoSectionProps> = ({
             >
               Nama Supervisor / Pengawas Site <span className="text-red-500">*</span>
             </label>
-            <input
+            <MasterSelect
               id="supervisor-name-input"
-              type="text"
-              required
               value={report.supervisor_name}
-              onChange={(e) => updateField('supervisor_name', e.target.value)}
-              placeholder="Nama pengawas SPBU"
-              className="w-full min-h-[44px] px-3 py-2 bg-white border border-slate-300 rounded-md text-sm text-slate-900 focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
+              onChange={(v) => updateField('supervisor_name', v)}
+              options={supervisors}
+              placeholder="— Pilih pengawas —"
+              customPlaceholder="Nama pengawas SPBU"
+              hint="Pengawas SPBU ini ditampilkan paling atas"
             />
           </div>
         </div>

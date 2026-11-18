@@ -1,6 +1,8 @@
 'use client';
 
 import React from 'react';
+import { MasterSelect } from '@/components/ui/MasterSelect';
+import { supervisorOptions, technicianOptions, UserLite } from '@/lib/user-options';
 import { PMReport, WorkType, Site, UserSession } from '@/lib/types';
 import { SAMPLE_SITES } from '@/lib/sample-data';
 import { 
@@ -27,6 +29,8 @@ interface InitiationLandingProps {
   currentUser: UserSession;
   onOpenAdminPortal?: () => void;
   onOpenTicketModal?: () => void;
+  /** Users from Manajemen User (technician / supervisor dropdowns) */
+  users?: UserLite[];
 }
 
 export const InitiationLanding: React.FC<InitiationLandingProps> = ({
@@ -37,8 +41,11 @@ export const InitiationLanding: React.FC<InitiationLandingProps> = ({
   currentUser,
   onOpenAdminPortal,
   onOpenTicketModal,
+  users = [],
 }) => {
+  const techOptions = technicianOptions(users);
   const activeSites = sites && sites.length > 0 ? sites : SAMPLE_SITES;
+  const spvOptions = supervisorOptions(users, activeSites.find((x) => x.id === report.site_id));
 
   const updateField = <K extends keyof PMReport>(key: K, val: PMReport[K]) => {
     onChange({
@@ -302,14 +309,16 @@ export const InitiationLanding: React.FC<InitiationLandingProps> = ({
             >
               Nama Petugas Pelaksana (Teknisi) <span className="text-red-500">*</span>
             </label>
-            <input
+            <MasterSelect
               id="landing-technician-name"
-              type="text"
-              required
               value={report.technician_name}
-              onChange={(e) => updateField('technician_name', e.target.value)}
-              placeholder="Nama lengkap & ID teknisi"
-              className="w-full min-h-[44px] px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm font-semibold text-slate-900 focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
+              onChange={(v) => {
+                const t = techOptions.find((o) => o.value === v);
+                onChange({ ...report, technician_name: v, technician_phone: t?.phone || report.technician_phone });
+              }}
+              options={techOptions}
+              placeholder="— Pilih teknisi —"
+              customPlaceholder="Nama lengkap & ID teknisi"
             />
           </div>
 
@@ -340,14 +349,13 @@ export const InitiationLanding: React.FC<InitiationLandingProps> = ({
             >
               Nama PWS / Pengawas yang Sedang Bertugas <span className="text-red-500">*</span>
             </label>
-            <input
+            <MasterSelect
               id="landing-pws-name"
-              type="text"
-              required
               value={report.supervisor_name}
-              onChange={(e) => updateField('supervisor_name', e.target.value)}
-              placeholder="Contoh: Armando Da Costa"
-              className="w-full min-h-[44px] px-3 py-2 bg-white border-2 border-red-300 rounded-lg text-sm font-bold text-slate-900 focus:border-red-600 focus:ring-1 focus:ring-red-600"
+              onChange={(v) => updateField('supervisor_name', v)}
+              options={spvOptions}
+              placeholder="— Pilih pengawas —"
+              customPlaceholder="Contoh: Armando Da Costa"
             />
             <span className="text-[11px] text-slate-500 mt-1 block">
               Pengawas SPBU yang bertugas saat kegiatan berlangsung

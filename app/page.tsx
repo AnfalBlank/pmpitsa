@@ -37,7 +37,7 @@ import { PMReport, Site, UserSession, SPBUTicket, MaintenancePlan, WorkType } fr
 import { SAMPLE_SITES, createDefaultPMReport, newReportId } from '@/lib/sample-data';
 import { awaitingApproval, isFinal, isLocked, missingForFinalize, reportStatus } from '@/lib/report-status';
 import { baNumber } from '@/lib/work-type';
-import { applySiteForecourt, hasForecourtConfig } from '@/lib/forecourt';
+import { applySiteForecourt, hasForecourtConfig, needsSiteForecourt } from '@/lib/forecourt';
 import { LoadingBlock, LoadingScreen, LoadStepState } from '@/components/ui/Loading';
 import { refreshMasterData } from '@/lib/use-master-config';
 import { 
@@ -397,6 +397,28 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser, currentModule, report]);
 
+  // Drafts always follow the SPBU's *current* forecourt configuration: also when
+  // the draft existed before Admin saved/changed the configuration
+  useEffect(() => {
+    if (reportStatus(report) !== 'DRAFT' || adminEditing) return;
+    const site = sites.find((s) => s.id === report.site_id);
+    if (!needsSiteForecourt(report, site)) return;
+    const next = applySiteForecourt(report, site!);
+    setReport(next);
+    try {
+      saveCurrentReport(next);
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sites, report.id, report.site_id, report.status, report.forecourt?.config_site_id, report.forecourt?.config_version, adminEditing]);
+
+  // Fetch the latest SPBU configuration when a technician opens the landing / form
+  useEffect(() => {
+    if (currentUser && can(currentUser.role, 'pm.perform') && (currentModule === 'landing' || currentModule === 'form')) {
+      refreshFromServer();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentModule]);
+
   // A step from another work type must never stay open (e.g. after switching PM -> CM)
   useEffect(() => {
     if (!tabOrderFor(report.work_type).includes(activeTab)) setActiveTab(firstStepFor(report.work_type));
@@ -427,14 +449,10 @@ export default function Home() {
     }
     // Pre-fill pumps / nozzles / tanks / brands from the SPBU configuration when a
     // draft is started or moved to another SPBU (not on every keystroke)
-    if (
-      reportStatus(updated) === 'DRAFT' &&
-      updated.forecourt?.config_site_id !== updated.site_id &&
-      (updated.id !== report.id || updated.site_id !== report.site_id)
-    ) {
+    if (reportStatus(updated) === 'DRAFT' && (updated.id !== report.id || updated.site_id !== report.site_id)) {
       const site = sites.find((s) => s.id === updated.site_id);
       if (hasForecourtConfig(site)) {
-        updated = applySiteForecourt(updated, site);
+        if (needsSiteForecourt(updated, site)) updated = applySiteForecourt(updated, site);
       } else if (updated.forecourt?.config_site_id !== undefined) {
         // Moved to an SPBU without configuration: don't carry over another SPBU's equipment
         updated = {
@@ -954,7 +972,7 @@ export default function Home() {
     if (!requirePM()) return;
     // Starting the form: make sure the forecourt follows this SPBU's configuration
     const site = sites.find((s) => s.id === report.site_id);
-    if (report.forecourt?.config_site_id !== report.site_id && hasForecourtConfig(site)) {
+    if (site && needsSiteForecourt(report, site)) {
       handleReportChange(applySiteForecourt(report, site));
     }
     if (report.work_type === 'QUICK_CHECK') {
@@ -1186,6 +1204,7 @@ export default function Home() {
             <InitiationLanding
               report={report}
               sites={sites}
+              users={usersList}
               onChange={handleReportChange}
               onProceedToForm={handleProceedFromLanding}
               currentUser={currentUser}
@@ -1288,7 +1307,7 @@ export default function Home() {
               {/* Form Step Workspace */}
               <div className="mt-4">
                 {activeTab === 'info' && (
-                  <GeneralInfoSection report={report} onChange={handleReportChange} sites={sites} />
+                  <GeneralInfoSection report={report} onChange={handleReportChange} sites={sites} users={usersList} />
                 )}
                 {activeTab === 'quick_check' && (
                   <QuickCheckSection report={report} onChange={handleReportChange} />
