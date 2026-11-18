@@ -38,7 +38,7 @@ import { SAMPLE_SITES, createDefaultPMReport, newReportId } from '@/lib/sample-d
 import { awaitingApproval, isFinal, isLocked, missingForFinalize, reportStatus } from '@/lib/report-status';
 import { baNumber } from '@/lib/work-type';
 import { applySiteForecourt, hasForecourtConfig } from '@/lib/forecourt';
-import { LoadingScreen, LoadStepState } from '@/components/ui/Loading';
+import { LoadingBlock, LoadingScreen, LoadStepState } from '@/components/ui/Loading';
 import { refreshMasterData } from '@/lib/use-master-config';
 import { 
   getCurrentReport, 
@@ -88,6 +88,21 @@ const ROLE_ALLOWED_MODULES: Record<UserSession['role'], AppModule[]> = {
 
 const USERS_CACHE_KEY = 'pertamina_pm_users_v1';
 
+/** Minimum time the loader stays visible when switching pages */
+const PAGE_TRANSITION_MS = 2000;
+
+const PAGE_TITLES: Partial<Record<AppModule, string>> = {
+  overview: 'Ikhtisar',
+  tickets: 'Tiket Kendala',
+  schedule: 'Jadwal PM',
+  reports: 'Arsip Berita Acara',
+  preview: 'Berita Acara',
+  form: 'Formulir Pemeriksaan',
+  landing: 'Pemilihan Kegiatan',
+  config: 'Konfigurasi & Master Data',
+  users: 'Manajemen Pengguna',
+};
+
 const MODULE_NAMES: Partial<Record<AppModule, string>> = {
   form: 'Formulir Pemeriksaan PM',
   landing: 'Pemilihan Kegiatan Lapangan',
@@ -101,6 +116,18 @@ export default function Home() {
   const [currentModule, setCurrentModule] = useState<AppModule>('overview');
   const [report, setReport] = useState<PMReport>(() => getCurrentReport());
   const [activeTab, setActiveTab] = useState<TabKey>('info');
+  /** Page-switch loader (shown for at least PAGE_TRANSITION_MS) */
+  const [pageLoading, setPageLoading] = useState(false);
+  const firstModuleRef = React.useRef(true);
+  useEffect(() => {
+    if (firstModuleRef.current) {
+      firstModuleRef.current = false; // the initial page is covered by the startup loader
+      return;
+    }
+    setPageLoading(true);
+    const t = setTimeout(() => setPageLoading(false), PAGE_TRANSITION_MS);
+    return () => clearTimeout(t);
+  }, [currentModule]);
   /** Admin is revising a finalised BA in the form */
   const [adminEditing, setAdminEditing] = useState(false);
   const feedback = useFeedback();
@@ -1039,6 +1066,12 @@ export default function Home() {
         {/* PURE SINGLE MODULE VIEW ROUTER (NO NESTED DUPLICATE TABS) */}
         {/* ========================================================= */}
         <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 w-full flex-1">
+          {pageLoading ? (
+            <div className="bg-white rounded-xl border border-slate-200 shadow-2xs pm-fade-in">
+              <LoadingBlock title={`Memuat ${PAGE_TITLES[currentModule] || 'halaman'}...`} message="Menyiapkan data terbaru untuk ditampilkan." />
+            </div>
+          ) : (
+          <div className="pm-fade-in" key={currentModule}>
 
           {scope !== null && ['overview', 'tickets', 'schedule', 'reports'].includes(currentModule) && (
             <div className="mb-4 flex items-start gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3.5 py-2.5 text-xs text-blue-950">
@@ -1317,6 +1350,8 @@ export default function Home() {
             </div>
           )}
 
+                  </div>
+          )}
         </main>
       </div>
 
