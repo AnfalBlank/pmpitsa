@@ -38,6 +38,8 @@ import { SAMPLE_SITES, createDefaultPMReport, newReportId } from '@/lib/sample-d
 import { awaitingApproval, isFinal, isLocked, missingForFinalize, reportStatus } from '@/lib/report-status';
 import { baNumber } from '@/lib/work-type';
 import { applySiteForecourt, hasForecourtConfig } from '@/lib/forecourt';
+import { LoadingScreen, LoadStepState } from '@/components/ui/Loading';
+import { refreshMasterData } from '@/lib/use-master-config';
 import { 
   getCurrentReport, 
   saveCurrentReport, 
@@ -181,19 +183,31 @@ export default function Home() {
   // foreground, when the connection returns, and every minute. A failed
   // request never replaces the lists (no more "only 1 BA" after an error).
   const syncingRef = React.useRef(false);
-  const refreshFromServer = React.useCallback(async () => {
+  const refreshFromServer = React.useCallback(async (track?: (key: string, ok: boolean) => void) => {
     if (syncingRef.current || (typeof navigator !== 'undefined' && !navigator.onLine)) return;
     syncingRef.current = true;
+    const step = <T,>(key: string, p: Promise<T>) =>
+      p.then(
+        (v) => {
+          track?.(key, v !== null);
+          return v;
+        },
+        (e) => {
+          track?.(key, false);
+          throw e;
+        }
+      );
     try {
       // Users load in parallel (they used to wait for every other request)
       fetchUsersApi()
         .then((users) => users && setUsersList(users))
         .catch(() => {});
       const [cloudTickets, cloudPlans, cloudReports, cloudSites] = await Promise.all([
-        fetchTicketsApi(),
-        fetchPlansApi(),
-        fetchReportsApi(),
-        fetchSitesApi(),
+        step('tickets', fetchTicketsApi()),
+        step('plans', fetchPlansApi()),
+        step('reports', fetchReportsApi()),
+        step('sites', fetchSitesApi()),
+        step('master', refreshMasterData()),
       ]);
       if (cloudTickets) {
         setTickets(cloudTickets);
@@ -236,16 +250,50 @@ export default function Home() {
     }
   }, []);
 
+  // ---- First load after login: show the loading screen until everything is in ----
+  const BOOT_STEPS: { key: string; label: string }[] = [
+    { key: 'sites', label: 'Data SPBU' },
+    { key: 'master', label: 'Master data (BBM, ATG, dispenser)' },
+    { key: 'tickets', label: 'Tiket kendala' },
+    { key: 'plans', label: 'Jadwal PM' },
+    { key: 'reports', label: 'Arsip Berita Acara' },
+  ];
+  const [boot, setBoot] = useState<{ active: boolean; steps: Record<string, LoadStepState> }>({ active: false, steps: {} });
+  const bootedForRef = React.useRef<string | null>(null);
+  useEffect(() => {
+    if (!currentUser || bootedForRef.current === currentUser.id) return;
+    bootedForRef.current = currentUser.id;
+    const initial = Object.fromEntries(BOOT_STEPS.map((b) => [b.key, 'pending' as LoadStepState]));
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      // Offline: show what is stored on the device straight away
+      setBoot({ active: false, steps: initial });
+      return;
+    }
+    setBoot({ active: true, steps: initial });
+    let finished = false;
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      setTimeout(() => setBoot((b) => ({ ...b, active: false })), 350); // let the last check mark show
+    };
+    const safety = setTimeout(finish, 25_000); // never block the app on a slow network
+    refreshFromServer((key, ok) => setBoot((b) => ({ ...b, steps: { ...b.steps, [key]: ok ? 'done' : 'error' } }))).finally(() => {
+      clearTimeout(safety);
+      finish();
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser?.id]);
+
   useEffect(() => {
     if (!currentUser) return;
-    refreshFromServer();
     const onVisible = () => document.visibilityState === 'visible' && refreshFromServer();
     document.addEventListener('visibilitychange', onVisible);
-    window.addEventListener('online', refreshFromServer);
+    const onOnline = () => refreshFromServer();
+    window.addEventListener('online', onOnline);
     const timer = setInterval(() => document.visibilityState === 'visible' && refreshFromServer(), 60_000);
     return () => {
       document.removeEventListener('visibilitychange', onVisible);
-      window.removeEventListener('online', refreshFromServer);
+      window.removeEventListener('online', onOnline);
       clearInterval(timer);
     };
   }, [currentUser?.id, refreshFromServer]);
@@ -939,25 +987,21 @@ export default function Home() {
   };
 
   if (!isClientLoaded) {
-    return (
-      <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4">
-        <div className="w-16 h-16 bg-white rounded-xl p-2 shadow-lg mb-3 flex items-center justify-center animate-pulse">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/logo-pertamina-timor.png"
-            alt="Pertamina International Timor"
-            className="max-w-full max-h-full object-contain"
-          />
-        </div>
-        <p className="text-white text-xs font-semibold tracking-wider">
-          Memuat Portal Pertamina International Timor, S.A...
-        </p>
-      </div>
-    );
+    return <LoadingScreen title="Memuat Portal PM" />;
   }
 
   if (!currentUser) {
     return <LoginPage onLoginSuccess={handleLoginSuccess} />;
+  }
+
+  if (boot.active) {
+    return (
+      <LoadingScreen
+        title={`Selamat datang, ${currentUser.name.split(' ')[0]}`}
+        subtitle="Menyinkronkan data dari server..."
+        steps={BOOT_STEPS.map((b) => ({ ...b, state: boot.steps[b.key] || 'pending' }))}
+      />
+    );
   }
 
   return (

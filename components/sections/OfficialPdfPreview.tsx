@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { PMReport, ChecklistStatus } from '@/lib/types';
 import { reportStatus } from '@/lib/report-status';
+import { LoadingBlock } from '@/components/ui/Loading';
 import { WORK_TYPE_TITLE, baNumber } from '@/lib/work-type';
 import { useFeedback } from '@/components/feedback/FeedbackProvider';
 import { Printer, Cloud, Download, ExternalLink, ArrowLeft, FileDown, FolderOpen, HardDriveUpload, Lock, PencilLine, Clock, BadgeCheck, Loader2 } from 'lucide-react';
@@ -118,8 +119,31 @@ export const OfficialPdfPreview: React.FC<OfficialPdfPreviewProps> = ({
   const docPrefix = report.work_type === 'QUICK_CHECK' ? 'BA-QC' : report.work_type === 'CORRECTIVE_REPAIR' ? 'BA-CR' : 'BA-PM';
   const docNumber = `${docPrefix}/PITL-PINSYST-FMS/${new Date(report.execution_date).getFullYear() || 2026}/${baNumber(report)}`;
 
+  if (loadingFull) {
+    return (
+      <div className="space-y-4 pb-20 max-w-4xl mx-auto">
+        {onBackToList && (
+          <button
+            type="button"
+            onClick={onBackToList}
+            className="min-h-[44px] px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-800 rounded-lg text-xs font-bold flex items-center gap-1.5 border border-slate-300"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span>Daftar Berita Acara</span>
+          </button>
+        )}
+        <div className="bg-white rounded-xl border border-slate-200 pm-fade-in">
+          <LoadingBlock
+            title={`Membuka Berita Acara ${baNumber(report)}`}
+            message="Memuat isi lengkap, foto dokumentasi dan tanda tangan dari server."
+          />
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-6 pb-20">
+    <div className="space-y-6 pb-20 pm-fade-in">
       
       {/* Control Banner (Hidden in Print) */}
       <div className="no-print bg-[#0B2545] text-white p-4 rounded-lg shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -224,12 +248,6 @@ export const OfficialPdfPreview: React.FC<OfficialPdfPreviewProps> = ({
       </div>
 
 
-      {loadingFull && (
-        <div className="no-print max-w-4xl mx-auto rounded-lg px-4 py-3 flex items-center gap-2.5 text-xs border bg-blue-50 border-blue-200 text-blue-900">
-          <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" />
-          Memuat dokumen lengkap (foto &amp; tanda tangan) dari server...
-        </div>
-      )}
 
       {status === 'FINAL' && (
         <div

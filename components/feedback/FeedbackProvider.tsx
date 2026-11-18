@@ -1,7 +1,8 @@
 'use client';
 
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { CheckCircle2, XCircle, AlertTriangle, Info, Loader2, ShieldAlert } from 'lucide-react';
+import { CheckCircle2, XCircle, AlertTriangle, Info, ShieldAlert } from 'lucide-react';
+import { Spinner } from '@/components/ui/Loading';
 
 export type FeedbackVariant = 'success' | 'error' | 'warning' | 'info' | 'forbidden';
 
@@ -146,7 +147,7 @@ const FeedbackDialog: React.FC<{ state: DialogState; onDone: () => void }> = ({ 
     return (
       <div className="fixed inset-0 z-[70] bg-black/50 backdrop-blur-xs flex items-center justify-center p-6" role="alertdialog" aria-modal="true" aria-busy="true" aria-label={state.text}>
         <div className="bg-white rounded-2xl shadow-2xl px-6 py-5 flex items-center gap-3 max-w-xs w-full">
-          <Loader2 className="w-6 h-6 text-[#0B2545] animate-spin flex-shrink-0" />
+          <Spinner size={28} label={state.text} />
           <span className="text-sm font-semibold text-slate-800">{state.text}</span>
         </div>
       </div>

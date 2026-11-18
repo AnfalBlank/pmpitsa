@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useState } from 'react';
+import { LoadingBlock } from '@/components/ui/Loading';
 import { ModalPortal } from '@/components/ui/ModalPortal';
 import { 
   Users, 
@@ -67,7 +68,8 @@ export const UsersModule: React.FC<UsersModuleProps> = ({
   const feedback = useFeedback();
 
   // Load the list as soon as the page opens (don't wait for the global sync)
-  const [loadState, setLoadState] = useState<'idle' | 'loading' | 'error'>('idle');
+  const [loadState, setLoadState] = useState<'idle' | 'loading' | 'error'>('loading');
+  const [firstLoadDone, setFirstLoadDone] = useState(false);
   const loadUsers = useCallback(async () => {
     setLoadState('loading');
     const users = await fetchUsersApi();
@@ -77,6 +79,7 @@ export const UsersModule: React.FC<UsersModuleProps> = ({
     } else {
       setLoadState('error');
     }
+    setFirstLoadDone(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useEffect(() => {
@@ -118,8 +121,16 @@ export const UsersModule: React.FC<UsersModuleProps> = ({
     if (users) onUsersUpdated(users);
   };
 
+  if (!firstLoadDone) {
+    return (
+      <div className="bg-white rounded-xl border border-slate-200 pm-fade-in">
+        <LoadingBlock title="Memuat daftar pengguna..." message="Mengambil akun Admin, Pengawas SPBU dan Teknisi dari server." />
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pm-fade-in">
 
       {/* Top Action & Subtitle Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1">

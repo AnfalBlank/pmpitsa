@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { LoadingBlock } from '@/components/ui/Loading';
 import { SiteForecourtEditor } from '@/components/admin/SiteForecourtEditor';
 import { forecourtSummary, hasForecourtConfig } from '@/lib/forecourt';
 import { ModalPortal } from '@/components/ui/ModalPortal';
@@ -66,7 +67,7 @@ type ConfigSubTab = 'sites' | 'products' | 'atg' | 'dispensers' | 'hardware' | '
 
 export const MasterConfigSection: React.FC = () => {
   const [subTab, setSubTab] = useState<ConfigSubTab>('sites');
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [feedbackMsg, setFeedbackMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // Data states
@@ -632,8 +633,16 @@ export const MasterConfigSection: React.FC = () => {
     saveSystemSettings(systemSettings);
   };
 
+  if (isLoading) {
+    return (
+      <div className="bg-white rounded-xl border border-slate-200 pm-fade-in">
+        <LoadingBlock title="Memuat konfigurasi & master data..." message="Data SPBU, produk BBM, brand ATG dan dispenser sedang diambil dari server." />
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pm-fade-in">
       
       {/* Feedback Alert */}
       {feedbackMsg && (

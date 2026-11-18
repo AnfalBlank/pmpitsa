@@ -258,7 +258,7 @@ export const OverviewModule: React.FC<OverviewModuleProps> = ({
           <div className="p-4 sm:p-5 bg-slate-50 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <h3 className="text-sm font-extrabold text-[#0B2545]">
-                Status Kesiapan Operasional SPBU (5 Site)
+                Status Kesiapan Operasional SPBU ({activeSites.length} Site)
               </h3>
               <p className="text-xs text-slate-500 mt-0.5">
                 Pengawas bertugas, kondisi dispenser, konsol ATG tangki, dan agenda PM terdekat
