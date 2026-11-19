@@ -28,6 +28,8 @@ export type Permission =
   | 'config.manage'
   | 'user.manage'
   | 'audit.view' // full audit log
+  | 'daily.submit' // Pengawas daily readiness checklist
+  | 'report.export' // management reports (PM / CM / Pengecekan)
   | 'data.allSites'; // may see data of every SPBU (otherwise only own site)
 
 const MATRIX: Record<UserRole, Permission[]> = {
@@ -43,9 +45,10 @@ const MATRIX: Record<UserRole, Permission[]> = {
     'config.manage',
     'user.manage',
     'audit.view',
+    'report.export',
     'data.allSites',
   ],
-  SUPERVISOR: ['ticket.create', 'report.approve'],
+  SUPERVISOR: ['ticket.create', 'report.approve', 'daily.submit'],
   TECHNICIAN: ['pm.perform', 'report.sync', 'ticket.create', 'ticket.update', 'data.allSites'],
 };
 

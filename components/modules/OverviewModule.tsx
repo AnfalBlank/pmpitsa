@@ -21,6 +21,8 @@ import {
 import { UserSession, Site, WorkType, SPBUTicket, MaintenancePlan, PMReport } from '@/lib/types';
 import { SAMPLE_SITES } from '@/lib/sample-data';
 import { awaitingApproval } from '@/lib/report-status';
+import { DailyChecklistCard } from '@/components/daily/DailyChecklistCard';
+import { DailyChecklistAdminPanel } from '@/components/daily/DailyChecklistAdminPanel';
 import { formatHours, latestSiteReport, STATUS_WORD, tankWaterStatus, ticketSla } from '@/lib/dashboard-metrics';
 import { baNumber } from '@/lib/work-type';
 
@@ -36,6 +38,8 @@ interface OverviewModuleProps {
   onOpenCreatePlan: (siteId?: number) => void;
   onOpenReportPdf: (report: PMReport) => void;
   onNavigateToModule: (module: 'tickets' | 'schedule' | 'reports' | 'config' | 'form') => void;
+  /** Called after something was saved here (e.g. the daily checklist created tickets) */
+  onDataChanged?: () => void;
 }
 
 export const OverviewModule: React.FC<OverviewModuleProps> = ({
@@ -50,6 +54,7 @@ export const OverviewModule: React.FC<OverviewModuleProps> = ({
   onOpenCreatePlan,
   onOpenReportPdf,
   onNavigateToModule,
+  onDataChanged,
 }) => {
   const activeSites = sites && sites.length > 0 ? sites : SAMPLE_SITES;
   const openTickets = tickets.filter(t => t.status !== 'Selesai (Resolved)');
@@ -284,6 +289,8 @@ export const OverviewModule: React.FC<OverviewModuleProps> = ({
       )}
 
       {/* ADMIN: 5 SPBU Fleet Grid */}
+      {currentUser.role === 'ADMIN' && <DailyChecklistAdminPanel sites={activeSites} refreshKey={tickets.length} />}
+
       {currentUser.role === 'ADMIN' && (
         <div className="bg-white rounded-xl shadow-xs border border-slate-200 overflow-hidden">
           <div className="p-4 sm:p-5 bg-slate-50 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -509,37 +516,8 @@ export const OverviewModule: React.FC<OverviewModuleProps> = ({
             )}
           </div>
 
-          {/* Daily Shift Checklist */}
-          <div className="bg-white rounded-xl shadow-xs border border-slate-200 p-5 space-y-3">
-            <h3 className="text-sm font-extrabold text-[#0B2545]">
-              Checklist Kesiapan Operasional Harian Pengawas (PWS)
-            </h3>
-            <p className="text-xs text-slate-500">
-              Verifikasi fisik sebelum buka shift kasir SPBU untuk mencegah gangguan transaksi
-            </p>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 text-xs text-slate-700">
-              <label className="flex items-center gap-2 p-2.5 rounded-lg border border-slate-200 hover:bg-slate-50 cursor-pointer">
-                <input type="checkbox" defaultChecked className="w-4 h-4 text-emerald-600 rounded" />
-                <span>Pemeriksaan visual display dispenser & nozzle bebas tetesan BBM</span>
-              </label>
-
-              <label className="flex items-center gap-2 p-2.5 rounded-lg border border-slate-200 hover:bg-slate-50 cursor-pointer">
-                <input type="checkbox" defaultChecked className="w-4 h-4 text-emerald-600 rounded" />
-                <span>Kertas struk printer thermal terisi cukup pada POS-01 dan POS-02</span>
-              </label>
-
-              <label className="flex items-center gap-2 p-2.5 rounded-lg border border-slate-200 hover:bg-slate-50 cursor-pointer">
-                <input type="checkbox" defaultChecked className="w-4 h-4 text-emerald-600 rounded" />
-                <span>Konektivitas EDC dan jaringan switch forecourt beroperasi normal</span>
-              </label>
-
-              <label className="flex items-center gap-2.5 p-2.5 rounded-lg border border-slate-200 hover:bg-slate-50 cursor-pointer">
-                <input type="checkbox" defaultChecked className="w-4 h-4 text-emerald-600 rounded" />
-                <span>Uji pompa emergency stop dan APAR pemadam api dalam radius siap pakai</span>
-              </label>
-            </div>
-          </div>
+          {/* Daily Shift Checklist (submitted to the server, visible to Admin) */}
+          <DailyChecklistCard siteName={currentSite.site_name} onSubmitted={onDataChanged} />
         </div>
       )}
 

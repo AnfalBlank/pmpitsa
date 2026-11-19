@@ -13,7 +13,8 @@ export type NotificationType =
   | 'plan.new'
   | 'ba.final'
   | 'ba.approved'
-  | 'ba.revised';
+  | 'ba.revised'
+  | 'daily.issue';
 
 export type NotifyTarget = { userId: string } | { role: UserRole; siteId?: number };
 
@@ -21,7 +22,7 @@ export interface NotifyInput {
   type: NotificationType;
   title: string;
   message: string;
-  link_module?: 'tickets' | 'schedule' | 'reports' | 'preview';
+  link_module?: 'tickets' | 'schedule' | 'reports' | 'preview' | 'overview';
   link_id?: string;
   actor_id?: string;
 }

@@ -17,6 +17,7 @@ const nextConfig = {
       { source: '/config', destination: '/' },
       { source: '/users', destination: '/' },
       { source: '/audit', destination: '/' },
+      { source: '/laporan', destination: '/' },
       { source: '/form', destination: '/' },
       { source: '/preview', destination: '/' },
       { source: '/landing', destination: '/' },

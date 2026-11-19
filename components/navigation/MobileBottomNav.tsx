@@ -10,7 +10,7 @@ import {
   Wrench, 
   Building2, 
   Users,
-  ClipboardCheck, History } from 'lucide-react';
+  ClipboardCheck, History, BarChart3 } from 'lucide-react';
 import { UserSession } from '@/lib/types';
 import { getAllTickets } from '@/lib/storage';
 import { AppModule } from './AppSidebar';
@@ -67,6 +67,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
             {([
               { mod: 'config' as AppModule, label: 'Konfigurasi & Master Data', Icon: Settings },
               { mod: 'users' as AppModule, label: 'Manajemen User & Akses', Icon: Users },
+              { mod: 'laporan' as AppModule, label: 'Laporan PM / CM', Icon: BarChart3 },
               { mod: 'audit' as AppModule, label: 'Audit Log', Icon: History },
             ]).map(({ mod, label, Icon }) => (
               <button
@@ -160,7 +161,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
               aria-expanded={adminMenuOpen}
               aria-haspopup="menu"
               className={`min-h-[48px] py-1 px-1 rounded-lg flex flex-col items-center justify-center gap-0.5 transition-colors ${
-                currentModule === 'config' || currentModule === 'users' || currentModule === 'audit' || adminMenuOpen
+                currentModule === 'config' || currentModule === 'users' || currentModule === 'audit' || currentModule === 'laporan' || adminMenuOpen
                   ? 'bg-[#ED1C24] text-white shadow-xs font-bold'
                   : 'text-slate-300 hover:text-white hover:bg-slate-800'
               }`}

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
-import { Bell, Ticket, CalendarPlus, FileCheck2, BadgeCheck, PencilLine, UserCheck, X, BellRing, CheckCheck } from 'lucide-react';
+import { Bell, ClipboardList, Ticket, CalendarPlus, FileCheck2, BadgeCheck, PencilLine, UserCheck, X, BellRing, CheckCheck } from 'lucide-react';
 import type { AppNotification } from '@/lib/api-client';
 
 const ICON: Record<string, { icon: React.ElementType; cls: string }> = {
@@ -12,6 +12,7 @@ const ICON: Record<string, { icon: React.ElementType; cls: string }> = {
   'ba.final': { icon: FileCheck2, cls: 'bg-amber-100 text-amber-800' },
   'ba.approved': { icon: BadgeCheck, cls: 'bg-emerald-100 text-emerald-700' },
   'ba.revised': { icon: PencilLine, cls: 'bg-slate-200 text-slate-700' },
+  'daily.issue': { icon: ClipboardList, cls: 'bg-amber-100 text-amber-800' },
 };
 
 export function timeAgo(iso: string): string {

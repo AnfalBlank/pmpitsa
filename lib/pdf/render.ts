@@ -38,3 +38,19 @@ export function renderBaPdf(report: PMReport): Promise<Buffer> {
     }
   });
 }
+
+/** Render any pdfmake document definition (used by the management reports). */
+export function renderPdf(def: any): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    try {
+      const doc = getPrinter().createPdfKitDocument(def);
+      const chunks: Buffer[] = [];
+      doc.on('data', (c: Buffer) => chunks.push(c));
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('error', reject);
+      doc.end();
+    } catch (err) {
+      reject(err);
+    }
+  });
+}

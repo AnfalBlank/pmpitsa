@@ -16,6 +16,7 @@ import {
   Fuel,
   AlertTriangle,
   ChevronDown,
+  ClipboardCheck,
 } from 'lucide-react';
 import type { AuditItem } from '@/lib/api-client';
 
@@ -34,6 +35,7 @@ export const ACTION_META: Record<string, { label: string; icon: React.ElementTyp
   archive_drive: { label: 'Arsip Drive', icon: HardDriveUpload, cls: 'bg-cyan-100 text-cyan-800' },
   config_forecourt: { label: 'Konfigurasi forecourt', icon: Fuel, cls: 'bg-emerald-100 text-emerald-700' },
   reset_data: { label: 'Reset data', icon: AlertTriangle, cls: 'bg-red-100 text-red-700' },
+  submit_checklist: { label: 'Checklist harian', icon: ClipboardCheck, cls: 'bg-emerald-100 text-emerald-700' },
 };
 
 export const ENTITY_LABEL: Record<string, string> = {
@@ -45,6 +47,7 @@ export const ENTITY_LABEL: Record<string, string> = {
   user: 'Pengguna',
   auth: 'Akses akun',
   system: 'Sistem',
+  daily_check: 'Checklist harian',
 };
 
 const ROLE_SHORT: Record<string, string> = { ADMIN: 'Admin', SUPERVISOR: 'Pengawas', TECHNICIAN: 'Teknisi' };

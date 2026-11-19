@@ -6,7 +6,7 @@
 import type { Client } from '@libsql/client';
 import type { SessionPayload } from './session';
 
-export type AuditEntity = 'report' | 'ticket' | 'plan' | 'site' | 'config' | 'user' | 'auth' | 'system';
+export type AuditEntity = 'report' | 'ticket' | 'plan' | 'site' | 'config' | 'user' | 'auth' | 'system' | 'daily_check';
 
 export type AuditAction =
   | 'login'
@@ -22,7 +22,8 @@ export type AuditAction =
   | 'download_pdf'
   | 'archive_drive'
   | 'config_forecourt'
-  | 'reset_data';
+  | 'reset_data'
+  | 'submit_checklist';
 
 export interface AuditEntry {
   action: AuditAction;

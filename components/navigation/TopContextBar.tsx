@@ -16,7 +16,7 @@ import {
   FileText,
   Settings,
   Users,
-  ClipboardCheck, History } from 'lucide-react';
+  ClipboardCheck, History, BarChart3 } from 'lucide-react';
 import { Site, UserSession } from '@/lib/types';
 import { AppModule } from './AppSidebar';
 import { ProfileMenu } from './ProfileMenu';
@@ -81,6 +81,10 @@ export const TopContextBar: React.FC<TopContextBarProps> = ({
     users: {
       title: 'Manajemen Pengguna & Hak Akses (RBAC)',
       icon: <Users className="w-4 h-4 text-slate-600" />
+    },
+    laporan: {
+      title: 'Laporan PM, CM & Pengecekan',
+      icon: <BarChart3 className="w-4 h-4 text-slate-600" />
     },
     audit: {
       title: 'Audit Log Aktivitas',

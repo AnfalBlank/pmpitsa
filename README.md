@@ -112,6 +112,11 @@ Nomor BA: **PM** = Preventive Maintenance, **CM** = Corrective Maintenance (perb
 2. Buat folder di **Shared Drive**, tambahkan email service account sebagai *Content manager*.
 3. Isi `GOOGLE_SERVICE_ACCOUNT_EMAIL`, `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY` (isi `private_key`, `\n` boleh apa adanya) dan `GOOGLE_DRIVE_FOLDER_ID`.
 
+## 📊 Laporan Admin & Checklist Harian
+
+- **Laporan PM / CM / Pengecekan** (Admin › *Laporan PM / CM*): filter periode (bulan ini, bulan lalu, 3 bulan, tahun ini, semua, atau tanggal bebas) dan SPBU; ringkasan status, rekap per SPBU dan rincian setiap Berita Acara final. *Export Excel* (CSV) dan *Unduh PDF* (A4 landscape).
+- **Checklist Kesiapan Operasional Harian (PWS)**: Pengawas mengisi 5 item (Baik / Bermasalah + catatan), lalu *Submit*. Item bermasalah dapat langsung dibuatkan tiket. Hasilnya tampil di Ikhtisar Admin (status per SPBU per hari) dan Admin mendapat notifikasi bila ada temuan.
+
 ## 🧾 Audit Log
 
 Setiap aktivitas dicatat permanen di tabel `audit_logs` (tidak dapat diubah/dihapus dari aplikasi): login & login gagal, logout, buat/ubah/hapus tiket dan jadwal, finalisasi / revisi (lengkap dengan isian sebelum → sesudah) / persetujuan / hapus Berita Acara, unduh PDF, arsip Google Drive, perubahan Data SPBU, konfigurasi forecourt, master data, pembuatan akun, dan reset data. Setiap entri menyimpan pengguna, peran, waktu, IP dan perangkat.

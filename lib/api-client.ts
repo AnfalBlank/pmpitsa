@@ -380,7 +380,7 @@ export interface AppNotification {
   type: string;
   title: string;
   message: string;
-  link_module?: 'tickets' | 'schedule' | 'reports' | 'preview';
+  link_module?: 'tickets' | 'schedule' | 'reports' | 'preview' | 'overview';
   link_id?: string;
   read: boolean;
 }
@@ -433,6 +433,31 @@ export async function fetchAuditApi(params: Record<string, string | number | und
     if (data.success) return { items: data.items, total: data.total };
   } catch {}
   return null;
+}
+
+export async function fetchDailyChecksApi(date?: string): Promise<{ date: string; checks: import('./daily-checklist').DailyCheck[] } | null> {
+  try {
+    const res = await apiFetch(`/api/daily-checks${date ? `?date=${date}` : ''}`, { cache: 'no-store' });
+    const data = await res.json();
+    if (data.success) return { date: data.date, checks: data.checks };
+  } catch {}
+  return null;
+}
+
+export async function submitDailyCheckApi(payload: {
+  items: { key: string; ok: boolean; note?: string }[];
+  create_tickets: string[];
+}): Promise<{ success: boolean; message?: string; code?: string; check?: import('./daily-checklist').DailyCheck; ticket_numbers?: string[] }> {
+  try {
+    const res = await apiFetch('/api/daily-checks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    return await res.json();
+  } catch (err: any) {
+    return { success: false, message: 'Gagal terhubung ke server: ' + err.message };
+  }
 }
 
 export async function fetchMasterConfigApi(): Promise<{

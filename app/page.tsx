@@ -16,6 +16,7 @@ import { ScheduleModule } from '@/components/modules/ScheduleModule';
 import { ReportsModule } from '@/components/modules/ReportsModule';
 import { UsersModule } from '@/components/modules/UsersModule';
 import { AuditModule } from '@/components/modules/AuditModule';
+import { LaporanModule } from '@/components/modules/LaporanModule';
 import { MasterConfigSection } from '@/components/admin/MasterConfigSection';
 import { InitiationLanding } from '@/components/sections/InitiationLanding';
 import { OfficialPdfPreview } from '@/components/sections/OfficialPdfPreview';
@@ -86,7 +87,7 @@ import { CheckCircle2, ChevronLeft, Building2, UserCheck, ShieldAlert } from 'lu
 // Module access per role. Only technicians can open the PM form / activity landing.
 const ROLE_ALLOWED_MODULES: Record<UserSession['role'], AppModule[]> = {
   // ADMIN may open the form only to revise a finalised BA (see adminEditing)
-  ADMIN: ['overview', 'tickets', 'schedule', 'reports', 'config', 'users', 'audit', 'preview', 'form'],
+  ADMIN: ['overview', 'tickets', 'schedule', 'reports', 'config', 'users', 'audit', 'laporan', 'preview', 'form'],
   SUPERVISOR: ['overview', 'tickets', 'schedule', 'reports', 'preview'],
   TECHNICIAN: ['overview', 'tickets', 'schedule', 'reports', 'landing', 'preview', 'form'],
 };
@@ -107,6 +108,7 @@ const PAGE_TITLES: Partial<Record<AppModule, string>> = {
   config: 'Konfigurasi & Master Data',
   users: 'Manajemen Pengguna',
   audit: 'Audit Log',
+  laporan: 'Laporan PM / CM',
 };
 
 const MODULE_NAMES: Partial<Record<AppModule, string>> = {
@@ -115,6 +117,7 @@ const MODULE_NAMES: Partial<Record<AppModule, string>> = {
   config: 'Konfigurasi & Master Data',
   users: 'Manajemen Pengguna',
   audit: 'Audit Log',
+  laporan: 'Laporan PM / CM',
 };
 
 export default function Home() {
@@ -185,6 +188,8 @@ export default function Home() {
       setCurrentModule('users');
     } else if (rawPath === 'audit') {
       setCurrentModule('audit');
+    } else if (rawPath === 'laporan') {
+      setCurrentModule('laporan');
     } else if (rawPath === 'form') {
       setCurrentModule('form');
     } else if (rawPath === 'preview') {
@@ -203,6 +208,7 @@ export default function Home() {
       else if (p === 'setting' || p === 'settings' || p === 'config') setCurrentModule('config');
       else if (p === 'users') setCurrentModule('users');
       else if (p === 'audit') setCurrentModule('audit');
+      else if (p === 'laporan') setCurrentModule('laporan');
       else if (p === 'form') setCurrentModule('form');
       else if (p === 'preview') setCurrentModule('preview');
       else if (p === 'landing') setCurrentModule('landing');
@@ -1070,6 +1076,12 @@ export default function Home() {
     refreshFromServer();
   });
 
+  /** Open a BA by id (from reports, notifications …), loading it from the server if needed */
+  const openReportById = (id: string) => {
+    const r = reports.find((x) => x.id === id);
+    handleSelectPastReport(r || ({ id, _summary: true, status: 'FINAL', synced_to_server: true, work_type: 'PREVENTIVE_MAINTENANCE', site_id: 0 } as PMReport));
+  };
+
   const openNotification = (n: AppNotification) => {
     notif.markRead([n.id]);
     notif.dismissToast(n.id);
@@ -1083,7 +1095,7 @@ export default function Home() {
       handleSelectPastReport({ id: n.link_id, _summary: true, status: 'FINAL', synced_to_server: true, work_type: 'PREVENTIVE_MAINTENANCE', site_id: 0 } as PMReport);
       return;
     }
-    if (n.link_module === 'tickets' || n.link_module === 'schedule' || n.link_module === 'reports') {
+    if (n.link_module === 'tickets' || n.link_module === 'schedule' || n.link_module === 'reports' || n.link_module === 'overview') {
       handleSelectModule(n.link_module);
     }
   };
@@ -1187,6 +1199,7 @@ export default function Home() {
               onOpenCreatePlan={() => handleSelectModule('schedule')}
               onOpenReportPdf={handleSelectPastReport}
               onNavigateToModule={handleSelectModule}
+              onDataChanged={() => refreshFromServer()}
             />
           )}
 
@@ -1268,6 +1281,11 @@ export default function Home() {
               sites={sites}
               onUsersUpdated={(updated) => setUsersList(updated)}
             />
+          )}
+
+          {/* LAPORAN PM / CM / PENGECEKAN (ADMIN ONLY) */}
+          {currentModule === 'laporan' && can(currentUser.role, 'report.export') && (
+            <LaporanModule sites={sites} onOpenReport={openReportById} />
           )}
 
           {/* AUDIT LOG (ADMIN ONLY) */}

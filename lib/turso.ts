@@ -238,6 +238,24 @@ async function createSchema(): Promise<void> {
     );
   `);
   await db.execute('CREATE INDEX IF NOT EXISTS idx_notifications_created ON notifications(created_at);');
+  // Daily readiness checklist by the Pengawas (one per SPBU per day)
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS daily_checks (
+      id TEXT PRIMARY KEY,
+      site_id INTEGER NOT NULL,
+      site_code TEXT NOT NULL,
+      site_name TEXT NOT NULL,
+      check_date TEXT NOT NULL,
+      submitted_by_id TEXT NOT NULL,
+      submitted_by_name TEXT NOT NULL,
+      submitted_at TEXT NOT NULL,
+      status TEXT NOT NULL,
+      items TEXT NOT NULL,
+      ticket_numbers TEXT
+    );
+  `);
+  await db.execute('CREATE INDEX IF NOT EXISTS idx_daily_checks_date ON daily_checks(check_date);');
+
   // Audit trail (append-only: no API updates or deletes these rows)
   await db.execute(`
     CREATE TABLE IF NOT EXISTS audit_logs (
