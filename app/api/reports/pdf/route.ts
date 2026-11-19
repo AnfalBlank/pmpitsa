@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+import { audit } from '@/lib/audit';
+import { baNumber } from '@/lib/work-type';
 import { requireSession, forbidden } from '@/lib/session';
 import { siteScope } from '@/lib/rbac';
 import { getTursoClient, ensureSchema } from '@/lib/turso';
@@ -37,7 +39,16 @@ export async function GET(req: Request) {
       return forbidden('Akses ditolak: Berita Acara ini bukan milik SPBU Anda.');
     }
     const report: PMReport = JSON.parse(String(res.rows[0].report_data));
-    return pdfResponse(report, await renderBaPdf(report));
+    const pdf = await renderBaPdf(report);
+    await audit(getTursoClient(), req, auth.session, {
+      action: 'download_pdf',
+      entity_type: 'report',
+      entity_id: report.id,
+      entity_label: `BA ${baNumber(report)} · ${report.site_code}`,
+      site_id: Number(report.site_id),
+      summary: 'Mengunduh PDF Berita Acara',
+    });
+    return pdfResponse(report, pdf);
   } catch (err: any) {
     return NextResponse.json({ success: false, message: `Gagal membuat PDF: ${err.message}` }, { status: 500 });
   }

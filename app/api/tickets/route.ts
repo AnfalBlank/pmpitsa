@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { audit } from '@/lib/audit';
 import { notify, userIdsMentioned } from '@/lib/notify';
 import { requireSession, forbidden } from '@/lib/session';
 import { siteScope } from '@/lib/rbac';
@@ -161,6 +162,16 @@ export async function POST(req: Request) {
       assigned_to: assigned_to || undefined,
     };
 
+    await audit(db, req, session, {
+      action: 'create',
+      entity_type: 'ticket',
+      entity_id: id,
+      entity_label: `${ticket_number} · ${siteCode}`,
+      site_id: Number(site_id),
+      summary: `Membuat tiket "${title}" (${priority || 'Sedang'})`,
+      details: { category, priority, terminal_id, assigned_to: assigned_to || null, reported_by: reported_by || null },
+    });
+
     // Notify Admin, the assigned technician (or all technicians) and the SPBU's Pengawas
     const assignedIds = await userIdsMentioned(db, assigned_to, 'TECHNICIAN');
     await notify(
@@ -219,6 +230,20 @@ export async function PUT(req: Request) {
     });
 
     if (old) {
+      const changes: { field: string; from: unknown; to: unknown }[] = [];
+      if (status && status !== old.status) changes.push({ field: 'status', from: old.status, to: status });
+      if (assigned_to && assigned_to !== old.assigned_to) changes.push({ field: 'assigned_to', from: old.assigned_to, to: assigned_to });
+      if (resolution_notes) changes.push({ field: 'resolution_notes', from: null, to: String(resolution_notes).slice(0, 300) });
+      await audit(db, req, session, {
+        action: 'update',
+        entity_type: 'ticket',
+        entity_id: id,
+        entity_label: `${old.ticket_number} · ${old.site_code}`,
+        site_id: Number(old.site_id),
+        summary: changes.length ? changes.map((c) => (c.field === 'resolution_notes' ? 'catatan penanganan ditambah' : `${c.field}: ${c.from ?? '-'} → ${c.to}`)).join(' · ') : 'Tiket disimpan tanpa perubahan',
+        details: { changes },
+      });
+
       const newAssignee = assigned_to && assigned_to !== old.assigned_to ? String(assigned_to) : '';
       const statusChanged = status && status !== old.status;
       const base = { link_module: 'tickets' as const, link_id: String(id), actor_id: session.id };
@@ -261,10 +286,25 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ success: false, message: 'ID tiket wajib disertakan.' }, { status: 400 });
     }
 
+    const gone = await db.execute({ sql: 'SELECT ticket_number, title, site_id, site_code, status, priority FROM tickets WHERE id = ? LIMIT 1;', args: [id] });
+
     await db.execute({
       sql: 'DELETE FROM tickets WHERE id = ?;',
       args: [id],
     });
+
+    {
+      const g = gone.rows[0];
+      await audit(db, req, session, {
+        action: 'delete',
+        entity_type: 'ticket',
+        entity_id: id,
+        entity_label: g ? `${g.ticket_number} · ${g.site_code}` : id,
+        site_id: g ? Number(g.site_id) : null,
+        summary: g ? `Menghapus tiket "${g.title}" (${g.status})` : 'Menghapus tiket',
+        details: g ? { priority: g.priority, status: g.status } : undefined,
+      });
+    }
 
     return NextResponse.json({ success: true, message: `Tiket ${id} berhasil dihapus.` });
   } catch (err: any) {

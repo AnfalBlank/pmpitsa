@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { audit } from '@/lib/audit';
 import { requireSession } from '@/lib/session';
 import { getTursoClient, ensureSchema } from '@/lib/turso';
 import { hashPassword } from '@/lib/password';
@@ -68,6 +69,15 @@ export async function POST(req: Request) {
       ],
     });
 
+    await audit(db, req, session, {
+      action: 'create',
+      entity_type: 'user',
+      entity_id: id,
+      entity_label: `${name} (${username.trim()})`,
+      site_id: role === 'SUPERVISOR' ? Number(assigned_site_id) || null : null,
+      summary: `Membuat akun ${role} untuk ${name}`,
+      details: { username: username.trim(), role, role_title, employee_id, phone, assigned_site_id },
+    });
     return NextResponse.json({ success: true, message: 'User berhasil dibuat.', id });
   } catch (err: any) {
     return NextResponse.json({ success: false, message: err.message }, { status: 500 });

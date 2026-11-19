@@ -14,7 +14,8 @@ import {
   LogOut, 
   Clock, 
   ChevronRight,
-  ShieldCheck
+  ShieldCheck,
+  History
 } from 'lucide-react';
 import { UserSession, Site } from '@/lib/types';
 import { getAllTickets, getAllPlans } from '@/lib/storage';
@@ -26,6 +27,7 @@ export type AppModule =
   | 'reports' 
   | 'config' 
   | 'users' 
+  | 'audit' 
   | 'form' 
   | 'preview' 
   | 'landing';
@@ -231,6 +233,21 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                   <div className="flex items-center gap-2.5">
                     <Users className={`w-4 h-4 ${currentModule === 'users' ? 'text-white' : 'text-slate-300 group-hover:text-white'}`} />
                     <span>Manajemen User & RBAC</span>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => onSelectModule('audit')}
+                  className={`w-full min-h-[44px] px-3 py-2 rounded-lg text-left font-bold flex items-center justify-between transition-colors group ${
+                    currentModule === 'audit'
+                      ? 'bg-[#ED1C24] text-white shadow-xs'
+                      : 'text-slate-200 hover:bg-slate-800/90 hover:text-white'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <History className={`w-4 h-4 ${currentModule === 'audit' ? 'text-white' : 'text-slate-300 group-hover:text-white'}`} />
+                    <span>Audit Log</span>
                   </div>
                 </button>
               </div>

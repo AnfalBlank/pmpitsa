@@ -15,6 +15,7 @@ import { TicketsModule } from '@/components/modules/TicketsModule';
 import { ScheduleModule } from '@/components/modules/ScheduleModule';
 import { ReportsModule } from '@/components/modules/ReportsModule';
 import { UsersModule } from '@/components/modules/UsersModule';
+import { AuditModule } from '@/components/modules/AuditModule';
 import { MasterConfigSection } from '@/components/admin/MasterConfigSection';
 import { InitiationLanding } from '@/components/sections/InitiationLanding';
 import { OfficialPdfPreview } from '@/components/sections/OfficialPdfPreview';
@@ -85,7 +86,7 @@ import { CheckCircle2, ChevronLeft, Building2, UserCheck, ShieldAlert } from 'lu
 // Module access per role. Only technicians can open the PM form / activity landing.
 const ROLE_ALLOWED_MODULES: Record<UserSession['role'], AppModule[]> = {
   // ADMIN may open the form only to revise a finalised BA (see adminEditing)
-  ADMIN: ['overview', 'tickets', 'schedule', 'reports', 'config', 'users', 'preview', 'form'],
+  ADMIN: ['overview', 'tickets', 'schedule', 'reports', 'config', 'users', 'audit', 'preview', 'form'],
   SUPERVISOR: ['overview', 'tickets', 'schedule', 'reports', 'preview'],
   TECHNICIAN: ['overview', 'tickets', 'schedule', 'reports', 'landing', 'preview', 'form'],
 };
@@ -105,6 +106,7 @@ const PAGE_TITLES: Partial<Record<AppModule, string>> = {
   landing: 'Pemilihan Kegiatan',
   config: 'Konfigurasi & Master Data',
   users: 'Manajemen Pengguna',
+  audit: 'Audit Log',
 };
 
 const MODULE_NAMES: Partial<Record<AppModule, string>> = {
@@ -112,6 +114,7 @@ const MODULE_NAMES: Partial<Record<AppModule, string>> = {
   landing: 'Pemilihan Kegiatan Lapangan',
   config: 'Konfigurasi & Master Data',
   users: 'Manajemen Pengguna',
+  audit: 'Audit Log',
 };
 
 export default function Home() {
@@ -180,6 +183,8 @@ export default function Home() {
       setCurrentModule('config');
     } else if (rawPath === 'users') {
       setCurrentModule('users');
+    } else if (rawPath === 'audit') {
+      setCurrentModule('audit');
     } else if (rawPath === 'form') {
       setCurrentModule('form');
     } else if (rawPath === 'preview') {
@@ -197,6 +202,7 @@ export default function Home() {
       else if (p === 'reports') setCurrentModule('reports');
       else if (p === 'setting' || p === 'settings' || p === 'config') setCurrentModule('config');
       else if (p === 'users') setCurrentModule('users');
+      else if (p === 'audit') setCurrentModule('audit');
       else if (p === 'form') setCurrentModule('form');
       else if (p === 'preview') setCurrentModule('preview');
       else if (p === 'landing') setCurrentModule('landing');
@@ -1264,6 +1270,9 @@ export default function Home() {
             />
           )}
 
+          {/* AUDIT LOG (ADMIN ONLY) */}
+          {currentModule === 'audit' && can(currentUser.role, 'audit.view') && <AuditModule sites={sites} usersList={usersList} />}
+
           {/* MODUL 7: HALAMAN PEMILIHAN KEGIATAN BARU */}
           {currentModule === 'landing' && (
             <InitiationLanding
@@ -1291,6 +1300,7 @@ export default function Home() {
                   : undefined
               }
               loadingFull={loadingFullReport || !!report._summary}
+              showAuditNetwork={can(currentUser.role, 'audit.view')}
               onBackToList={() => {
                 setCurrentModule('reports');
                 window.history.pushState(null, '', '/reports');

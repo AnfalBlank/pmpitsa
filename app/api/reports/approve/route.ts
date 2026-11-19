@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { audit, diffFields } from '@/lib/audit';
 import { requireSession, forbidden } from '@/lib/session';
 import { siteScope } from '@/lib/rbac';
 import { getTursoClient, ensureSchema } from '@/lib/turso';
@@ -58,6 +59,18 @@ export async function POST(req: Request) {
       args: [JSON.stringify(approval), approval.at, id],
     });
 
+    {
+      const site = await db.execute({ sql: 'SELECT site_code, site_name, work_type FROM pm_reports WHERE id = ?;', args: [id] });
+      const sr = site.rows[0];
+      await audit(db, req, session, {
+        action: 'approve',
+        entity_type: 'report',
+        entity_id: id,
+        entity_label: `BA ${baNumber({ id, work_type: (sr?.work_type as any) || 'PREVENTIVE_MAINTENANCE' })} · ${sr?.site_code || ''}`,
+        site_id: Number(row.site_id),
+        summary: `Menyetujui (validasi) BA ${sr?.site_name || ''}`,
+      });
+    }
     {
       const info = await db.execute({
         sql: `SELECT json_extract(report_data, '$.technician_name') AS tech, json_extract(report_data, '$.work_type') AS wt, site_code FROM pm_reports WHERE id = ?;`,

@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { PMReport, ChecklistStatus } from '@/lib/types';
 import { reportStatus } from '@/lib/report-status';
 import { LoadingBlock } from '@/components/ui/Loading';
+import { DocumentHistory } from '@/components/audit/DocumentHistory';
 import { WORK_TYPE_TITLE, baNumber } from '@/lib/work-type';
 import { useFeedback } from '@/components/feedback/FeedbackProvider';
 import { Printer, Cloud, Download, ExternalLink, ArrowLeft, FileDown, FolderOpen, HardDriveUpload, Lock, PencilLine, Clock, BadgeCheck, Loader2 } from 'lucide-react';
@@ -25,6 +26,8 @@ interface OfficialPdfPreviewProps {
   onApprove?: () => void | Promise<void>;
   /** The full BA (photos, signatures) is still loading from the server */
   loadingFull?: boolean;
+  /** Admin sees IP / device of each history entry */
+  showAuditNetwork?: boolean;
 }
 
 /** Green "approved" stamp shown over the Pengawas signature */
@@ -53,6 +56,7 @@ export const OfficialPdfPreview: React.FC<OfficialPdfPreviewProps> = ({
   onAdminEdit,
   onApprove,
   loadingFull = false,
+  showAuditNetwork = false,
 }) => {
   const status = reportStatus(report);
   const isPM = report.work_type === 'PREVENTIVE_MAINTENANCE';
@@ -369,6 +373,8 @@ export const OfficialPdfPreview: React.FC<OfficialPdfPreviewProps> = ({
           )}
         </div>
       </div>
+
+      {status !== 'DRAFT' && <DocumentHistory reportId={report.id} showNetwork={showAuditNetwork} />}
 
       {/* Official A4-like Document Paper */}
       <div className="bg-white border border-slate-300 rounded-lg shadow-sm p-4 sm:p-10 max-w-4xl mx-auto text-slate-900 text-xs font-sans print:border-none print:shadow-none print:p-0">

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { audit } from '@/lib/audit';
 import { requireSession } from '@/lib/session';
 import { getTursoClient, ensureSchema } from '@/lib/turso';
 import { 
@@ -135,6 +136,7 @@ export async function POST(req: Request) {
           args: [key, String(val), `Setting for ${key}`],
         });
       }
+      await audit(db, req, session, { action: 'update', entity_type: 'config', entity_id: 'settings', entity_label: 'Parameter sistem', summary: `Mengubah parameter sistem (${Object.keys(settings).length} nilai)`, details: settings });
       return NextResponse.json({ success: true, message: 'Pengaturan sistem berhasil disimpan ke Turso.' });
     }
 
@@ -154,6 +156,14 @@ export async function POST(req: Request) {
                 status = excluded.status,
                 notes = excluded.notes`,
         args: [id, p.code, p.name, p.octane_cetane, p.badge_color, p.default_capacity_liters, p.price_usd_per_liter, p.status, p.notes || null],
+      });
+      await audit(db, req, session, {
+        action: item.id ? 'update' : 'create',
+        entity_type: 'config',
+        entity_id: id,
+        entity_label: `Produk BBM: ${(p.name) || id}`,
+        summary: `${item.id ? 'Mengubah' : 'Menambah'} Produk BBM "${(p.name) || id}"`,
+        details: item,
       });
       return NextResponse.json({ success: true, id, message: 'Master Produk BBM berhasil disimpan.' });
     }
@@ -176,6 +186,14 @@ export async function POST(req: Request) {
                 notes = excluded.notes`,
         args: [id, a.brand_name, a.model_series, a.protocol, a.default_port, a.baud_rate, a.support_water_detection ? 1 : 0, a.support_temperature_comp ? 1 : 0, a.status, a.notes || null],
       });
+      await audit(db, req, session, {
+        action: item.id ? 'update' : 'create',
+        entity_type: 'config',
+        entity_id: id,
+        entity_label: `Brand ATG: ${(a.brand_name) || id}`,
+        summary: `${item.id ? 'Mengubah' : 'Menambah'} Brand ATG "${(a.brand_name) || id}"`,
+        details: item,
+      });
       return NextResponse.json({ success: true, id, message: 'Konfigurasi Brand ATG berhasil disimpan.' });
     }
 
@@ -195,6 +213,14 @@ export async function POST(req: Request) {
                 notes = excluded.notes`,
         args: [id, d.brand_name, d.series_model, d.interface_protocol, d.max_nozzles, d.pulse_ratio, d.status, d.notes || null],
       });
+      await audit(db, req, session, {
+        action: item.id ? 'update' : 'create',
+        entity_type: 'config',
+        entity_id: id,
+        entity_label: `Brand Dispenser: ${(d.brand_name) || id}`,
+        summary: `${item.id ? 'Mengubah' : 'Menambah'} Brand Dispenser "${(d.brand_name) || id}"`,
+        details: item,
+      });
       return NextResponse.json({ success: true, id, message: 'Konfigurasi Brand Dispenser berhasil disimpan.' });
     }
 
@@ -211,6 +237,14 @@ export async function POST(req: Request) {
                 default_os_firmware = excluded.default_os_firmware,
                 status = excluded.status`,
         args: [id, h.category, h.brand_model, h.specs_description, h.default_os_firmware || null, h.status],
+      });
+      await audit(db, req, session, {
+        action: item.id ? 'update' : 'create',
+        entity_type: 'config',
+        entity_id: id,
+        entity_label: `Master Hardware: ${(h.brand_model) || id}`,
+        summary: `${item.id ? 'Mengubah' : 'Menambah'} Master Hardware "${(h.brand_model) || id}"`,
+        details: item,
       });
       return NextResponse.json({ success: true, id, message: 'Konfigurasi Hardware berhasil disimpan.' });
     }
@@ -251,6 +285,14 @@ export async function DELETE(req: Request) {
     await db.execute({
       sql: `DELETE FROM ${tableName} WHERE id = ?`,
       args: [id],
+    });
+
+    await audit(db, req, session, {
+      action: 'delete',
+      entity_type: 'config',
+      entity_id: id,
+      entity_label: `${({ product: 'Produk BBM', atg: 'Brand ATG', dispenser: 'Brand Dispenser', hardware: 'Master Hardware' } as Record<string, string>)[section] || section}: ${id}`,
+      summary: `Menghapus data master ${section} (${id})`,
     });
 
     return NextResponse.json({ success: true, message: `Data ${section} berhasil dihapus dari Turso.` });

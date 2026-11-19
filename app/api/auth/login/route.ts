@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { audit } from '@/lib/audit';
 import { getTursoClient, ensureSchema } from '@/lib/turso';
 import { createSessionToken, setSessionCookie } from '@/lib/session';
 import { can } from '@/lib/rbac';
@@ -58,6 +59,7 @@ export async function POST(req: Request) {
     if (res.rows.length === 0) {
       await dummyVerify(password);
       recordLoginFailure(ip, queryUsername);
+      await audit(db, req, null, { action: 'login_failed', entity_type: 'auth', entity_label: queryUsername, summary: `Login gagal: username "${queryUsername}" tidak dikenal` });
       return invalidCredentials();
     }
 
@@ -66,6 +68,13 @@ export async function POST(req: Request) {
 
     if (!ok) {
       recordLoginFailure(ip, queryUsername);
+      await audit(db, req, { id: String(row.id), name: String(row.name), role: String(row.role) }, {
+        action: 'login_failed',
+        entity_type: 'auth',
+        entity_id: String(row.id),
+        entity_label: String(row.username),
+        summary: 'Login gagal: password salah',
+      });
       return invalidCredentials();
     }
     recordLoginSuccess(ip, queryUsername);
@@ -107,6 +116,14 @@ export async function POST(req: Request) {
       canManageUsers: can(role, 'user.manage'),
       allSites: can(role, 'data.allSites'),
     };
+
+    await audit(db, req, { id: user.id, name: user.name, role }, {
+      action: 'login',
+      entity_type: 'auth',
+      entity_id: user.id,
+      entity_label: String(row.username),
+      summary: `Login berhasil (${role})`,
+    });
 
     const response = NextResponse.json({
       success: true,

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { audit } from '@/lib/audit';
 import { requireSession } from '@/lib/session';
 import { getTursoClient, ensureSchema } from '@/lib/turso';
 
@@ -20,6 +21,12 @@ export async function POST(req: Request) {
       sql: `INSERT OR REPLACE INTO system_settings (key, value, description) 
             VALUES ('dummy_data_cleared', 'true', 'Flags that dummy sample data has been permanently cleared')`,
       args: [],
+    });
+
+    await audit(db, req, session, {
+      action: 'reset_data',
+      entity_type: 'system',
+      summary: 'Membersihkan seluruh data tiket, jadwal PM dan Berita Acara (data dummy)',
     });
 
     const userCount = await db.execute('SELECT COUNT(*) as count FROM users;');

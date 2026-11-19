@@ -407,6 +407,34 @@ export async function markNotificationsReadApi(payload: { ids?: string[]; all?: 
   }
 }
 
+export interface AuditItem {
+  id: string;
+  at: string;
+  user_id: string | null;
+  user_name: string | null;
+  user_role: string | null;
+  action: string;
+  entity_type: string;
+  entity_id: string | null;
+  entity_label: string | null;
+  site_id: number | null;
+  summary: string;
+  details: any;
+  ip: string | null;
+  user_agent: string | null;
+}
+
+export async function fetchAuditApi(params: Record<string, string | number | undefined>): Promise<{ items: AuditItem[]; total: number } | null> {
+  try {
+    const q = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => v !== undefined && v !== '' && q.set(k, String(v)));
+    const res = await apiFetch(`/api/audit?${q.toString()}`, { cache: 'no-store' });
+    const data = await res.json();
+    if (data.success) return { items: data.items, total: data.total };
+  } catch {}
+  return null;
+}
+
 export async function fetchMasterConfigApi(): Promise<{
   success: boolean;
   products: any[];

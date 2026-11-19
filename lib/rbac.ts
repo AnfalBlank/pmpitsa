@@ -27,6 +27,7 @@ export type Permission =
   | 'site.manage'
   | 'config.manage'
   | 'user.manage'
+  | 'audit.view' // full audit log
   | 'data.allSites'; // may see data of every SPBU (otherwise only own site)
 
 const MATRIX: Record<UserRole, Permission[]> = {
@@ -41,6 +42,7 @@ const MATRIX: Record<UserRole, Permission[]> = {
     'site.manage',
     'config.manage',
     'user.manage',
+    'audit.view',
     'data.allSites',
   ],
   SUPERVISOR: ['ticket.create', 'report.approve'],

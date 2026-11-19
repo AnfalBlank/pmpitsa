@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { audit } from '@/lib/audit';
 import { requireSession } from '@/lib/session';
 import { getTursoClient, ensureSchema } from '@/lib/turso';
 import { Site, SiteForecourtConfig } from '@/lib/types';
@@ -100,6 +101,15 @@ export async function POST(req: Request) {
       contact_person: contactPerson,
     };
 
+    await audit(db, req, session, {
+      action: 'create',
+      entity_type: 'site',
+      entity_id: nextId,
+      entity_label: `${siteCode} · ${siteName}`,
+      site_id: nextId,
+      summary: `Mendaftarkan SPBU ${siteName}`,
+      details: { location, regional, contact_person: contactPerson },
+    });
     return NextResponse.json({ success: true, site: newSite, message: 'SPBU baru berhasil didaftarkan.' });
   } catch (err: any) {
     return NextResponse.json({ success: false, message: err.message }, { status: 500 });
@@ -121,10 +131,27 @@ export async function PUT(req: Request) {
     }
 
     // Forecourt configuration only (Konfigurasi > Data SPBU > Forecourt)
+    const prevSite = await db.execute({ sql: 'SELECT * FROM sites WHERE id = ? LIMIT 1;', args: [id] });
+    const prev = prevSite.rows[0];
+
     if (body.forecourt !== undefined && body.site_code === undefined) {
       const forecourt = sanitizeForecourt(body.forecourt);
       const res = await db.execute({ sql: 'UPDATE sites SET forecourt_config = ? WHERE id = ?', args: [JSON.stringify(forecourt), id] });
       if (!res.rowsAffected) return NextResponse.json({ success: false, message: 'SPBU tidak ditemukan.' }, { status: 404 });
+      const old = parseForecourt(prev?.forecourt_config);
+      const nz = (f?: SiteForecourtConfig) => (f ? f.pumps.reduce((n, p) => n + p.nozzles.length, 0) : 0);
+      await audit(db, req, session, {
+        action: 'config_forecourt',
+        entity_type: 'site',
+        entity_id: id,
+        entity_label: prev ? `${prev.site_code} · ${prev.site_name}` : String(id),
+        site_id: id,
+        summary: `Konfigurasi forecourt: ${old ? `${old.pumps.length} pump/${nz(old)} nozzle/${old.tanks.length} tangki` : 'belum ada'} → ${forecourt.pumps.length} pump/${nz(forecourt)} nozzle/${forecourt.tanks.length} tangki`,
+        details: {
+          dispenser_brand: { from: old?.dispenser_brand ?? null, to: forecourt.dispenser_brand ?? null },
+          atg_brand: { from: old?.atg_brand ?? null, to: forecourt.atg_brand ?? null },
+        },
+      });
       return NextResponse.json({ success: true, message: 'Konfigurasi forecourt SPBU tersimpan.', forecourt });
     }
 
@@ -141,6 +168,21 @@ export async function PUT(req: Request) {
       args: [siteCode, siteName, location, regional, contactPerson, id],
     });
 
+    {
+      const next: Record<string, unknown> = { site_code: siteCode, site_name: siteName, location, regional, contact_person: contactPerson };
+      const changes = Object.entries(next)
+        .filter(([k, v]) => prev && String(prev[k] ?? '') !== String(v ?? ''))
+        .map(([k, v]) => ({ field: k, from: prev?.[k] ?? null, to: v }));
+      await audit(db, req, session, {
+        action: 'update',
+        entity_type: 'site',
+        entity_id: id,
+        entity_label: `${siteCode} · ${siteName}`,
+        site_id: id,
+        summary: changes.length ? changes.map((c) => `${c.field}: ${c.from ?? '-'} → ${c.to}`).join(' · ') : 'Data SPBU disimpan tanpa perubahan',
+        details: { changes },
+      });
+    }
     return NextResponse.json({ success: true, message: 'Data SPBU berhasil diperbarui.' });
   } catch (err: any) {
     return NextResponse.json({ success: false, message: err.message }, { status: 500 });
@@ -161,9 +203,20 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ success: false, message: 'ID SPBU diperlukan.' }, { status: 400 });
     }
 
+    const gone = await db.execute({ sql: 'SELECT site_code, site_name, contact_person FROM sites WHERE id = ? LIMIT 1;', args: [id] });
+
     await db.execute({
       sql: 'DELETE FROM sites WHERE id = ?',
       args: [id],
+    });
+
+    await audit(db, req, session, {
+      action: 'delete',
+      entity_type: 'site',
+      entity_id: id,
+      entity_label: gone.rows[0] ? `${gone.rows[0].site_code} · ${gone.rows[0].site_name}` : String(id),
+      site_id: id,
+      summary: `Menghapus SPBU ${gone.rows[0]?.site_name ?? id}`,
     });
 
     return NextResponse.json({ success: true, message: 'SPBU berhasil dihapus dari sistem.' });

@@ -112,6 +112,13 @@ Nomor BA: **PM** = Preventive Maintenance, **CM** = Corrective Maintenance (perb
 2. Buat folder di **Shared Drive**, tambahkan email service account sebagai *Content manager*.
 3. Isi `GOOGLE_SERVICE_ACCOUNT_EMAIL`, `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY` (isi `private_key`, `\n` boleh apa adanya) dan `GOOGLE_DRIVE_FOLDER_ID`.
 
+## 🧾 Audit Log
+
+Setiap aktivitas dicatat permanen di tabel `audit_logs` (tidak dapat diubah/dihapus dari aplikasi): login & login gagal, logout, buat/ubah/hapus tiket dan jadwal, finalisasi / revisi (lengkap dengan isian sebelum → sesudah) / persetujuan / hapus Berita Acara, unduh PDF, arsip Google Drive, perubahan Data SPBU, konfigurasi forecourt, master data, pembuatan akun, dan reset data. Setiap entri menyimpan pengguna, peran, waktu, IP dan perangkat.
+
+- **Admin** › menu *Audit Log*: pencarian, filter pengguna / aksi / objek / SPBU / tanggal, dan *Export CSV*.
+- **Halaman Berita Acara** › panel *Riwayat Dokumen*: riwayat BA tersebut untuk semua pengguna yang berhak melihat BA (Pengawas hanya SPBU-nya). Riwayat tetap tersedia walaupun BA sudah dihapus.
+
 ## 👥 Akun Login Demo (RBAC)
 
 > Akun di bawah hanya dibuat oleh seeding database lokal (`/api/init-db`, tanpa login hanya di mode development; di production wajib sesi ADMIN). **Jangan gunakan password ini di production** — ganti segera. Password disimpan sebagai hash scrypt; password lama berbentuk teks biasa otomatis di-hash saat login berhasil pertama kali. Login dibatasi 5 percobaan gagal per username dan 20 per IP setiap 15 menit.

@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+import { audit } from '@/lib/audit';
+import { baNumber } from '@/lib/work-type';
 import { requireSession, forbidden } from '@/lib/session';
 import { can } from '@/lib/rbac';
 import { getTursoClient, ensureSchema } from '@/lib/turso';
@@ -51,6 +53,16 @@ export async function POST(req: Request) {
     await db.execute({
       sql: 'UPDATE pm_reports SET report_data = ?, gdrive_pdf_id = ?, updated_at = ? WHERE id = ?;',
       args: [JSON.stringify(updated), gdrive.pdf_file_id, new Date().toISOString(), id],
+    });
+
+    await audit(db, req, auth.session, {
+      action: 'archive_drive',
+      entity_type: 'report',
+      entity_id: id,
+      entity_label: `BA ${baNumber(report)} · ${report.site_code}`,
+      site_id: Number(report.site_id),
+      summary: `Mengarsipkan BA ke Google Drive (${gdrive.folder_path})`,
+      details: { pdf: gdrive.pdf_file_name, photos: Object.keys(gdrive.photos || {}).length, folder: gdrive.folder_url },
     });
 
     return NextResponse.json({

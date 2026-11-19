@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { audit } from '@/lib/audit';
 import { notify, userIdsMentioned } from '@/lib/notify';
 import { requireSession } from '@/lib/session';
 import { siteScope } from '@/lib/rbac';
@@ -132,6 +133,16 @@ export async function POST(req: Request) {
       notes: notes || '',
     };
 
+    await audit(db, req, session, {
+      action: 'create',
+      entity_type: 'plan',
+      entity_id: id,
+      entity_label: `Jadwal ${scheduled_date} · ${siteCode}`,
+      site_id: Number(site_id),
+      summary: `Membuat jadwal ${plan_type} tanggal ${scheduled_date} untuk ${siteName}`,
+      details: { technician: assigned_technician, supervisor: supervisor_pws, terminal_id },
+    });
+
     const techIds = await userIdsMentioned(db, assigned_technician, 'TECHNICIAN');
     await notify(
       db,
@@ -167,6 +178,9 @@ export async function PUT(req: Request) {
       return NextResponse.json({ success: false, message: 'ID rencana wajib disertakan.' }, { status: 400 });
     }
 
+    const before = await db.execute({ sql: 'SELECT site_id, site_code, scheduled_date, status, notes, assigned_technician FROM maintenance_plans WHERE id = ? LIMIT 1;', args: [id] });
+    const old = before.rows[0];
+
     await db.execute({
       sql: `UPDATE maintenance_plans 
             SET status = COALESCE(?, status),
@@ -176,6 +190,22 @@ export async function PUT(req: Request) {
             WHERE id = ?;`,
       args: [status || null, notes || null, assigned_technician || null, scheduled_date || null, id],
     });
+
+    if (old) {
+      const next: Record<string, unknown> = { status, notes, assigned_technician, scheduled_date };
+      const changes = Object.entries(next)
+        .filter(([k, v]) => v !== undefined && v !== null && v !== '' && v !== (old as any)[k])
+        .map(([k, v]) => ({ field: k, from: (old as any)[k], to: v }));
+      await audit(db, req, session, {
+        action: 'update',
+        entity_type: 'plan',
+        entity_id: id,
+        entity_label: `Jadwal ${old.scheduled_date} · ${old.site_code}`,
+        site_id: Number(old.site_id),
+        summary: changes.length ? changes.map((c) => `${c.field}: ${c.from ?? '-'} → ${c.to}`).join(' · ') : 'Jadwal disimpan tanpa perubahan',
+        details: { changes },
+      });
+    }
 
     return NextResponse.json({ success: true, message: 'Jadwal pemeliharaan berhasil diperbarui.' });
   } catch (err: any) {
@@ -198,10 +228,25 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ success: false, message: 'ID rencana wajib disertakan.' }, { status: 400 });
     }
 
+    const gone = await db.execute({ sql: 'SELECT site_id, site_code, scheduled_date, plan_type, assigned_technician, status FROM maintenance_plans WHERE id = ? LIMIT 1;', args: [id] });
+
     await db.execute({
       sql: 'DELETE FROM maintenance_plans WHERE id = ?;',
       args: [id],
     });
+
+    {
+      const g = gone.rows[0];
+      await audit(db, req, session, {
+        action: 'delete',
+        entity_type: 'plan',
+        entity_id: id,
+        entity_label: g ? `Jadwal ${g.scheduled_date} · ${g.site_code}` : id,
+        site_id: g ? Number(g.site_id) : null,
+        summary: g ? `Menghapus jadwal ${g.plan_type} (${g.status})` : 'Menghapus jadwal',
+        details: g ? { technician: g.assigned_technician } : undefined,
+      });
+    }
 
     return NextResponse.json({ success: true, message: `Rencana jadwal ${id} berhasil dihapus.` });
   } catch (err: any) {

@@ -238,6 +238,29 @@ async function createSchema(): Promise<void> {
     );
   `);
   await db.execute('CREATE INDEX IF NOT EXISTS idx_notifications_created ON notifications(created_at);');
+  // Audit trail (append-only: no API updates or deletes these rows)
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS audit_logs (
+      id TEXT PRIMARY KEY,
+      at TEXT NOT NULL,
+      user_id TEXT,
+      user_name TEXT,
+      user_role TEXT,
+      action TEXT NOT NULL,
+      entity_type TEXT NOT NULL,
+      entity_id TEXT,
+      entity_label TEXT,
+      site_id INTEGER,
+      summary TEXT NOT NULL,
+      details TEXT,
+      ip TEXT,
+      user_agent TEXT
+    );
+  `);
+  await db.execute('CREATE INDEX IF NOT EXISTS idx_audit_at ON audit_logs(at);');
+  await db.execute('CREATE INDEX IF NOT EXISTS idx_audit_entity ON audit_logs(entity_type, entity_id);');
+  await db.execute('CREATE INDEX IF NOT EXISTS idx_audit_user ON audit_logs(user_id);');
+
   await db.execute(`
     CREATE TABLE IF NOT EXISTS notification_reads (
       notification_id TEXT NOT NULL,

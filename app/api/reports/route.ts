@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { audit, diffFields } from '@/lib/audit';
 import { baNumber } from '@/lib/work-type';
 import { notify, userIdsMentioned } from '@/lib/notify';
 import { requireSession, forbidden } from '@/lib/session';
@@ -222,6 +223,14 @@ export async function POST(req: Request) {
     } else if (can(session.role, 'report.sync')) {
       // Technician re-sending an already stored BA (e.g. retry after a timeout):
       // never overwrite, just confirm what is on the server.
+      await audit(db, req, session, {
+        action: 'resend',
+        entity_type: 'report',
+        entity_id: existing.id,
+        entity_label: `BA ${baNumber(existing)} · ${existing.site_code}`,
+        site_id: Number(existing.site_id),
+        summary: 'Mengirim ulang BA yang sudah final (tidak mengubah data)',
+      });
       return NextResponse.json({
         success: true,
         alreadyFinal: true,
@@ -291,6 +300,40 @@ export async function POST(req: Request) {
     });
 
     {
+      const label = `BA ${baNumber(updatedReport)} · ${updatedReport.site_code}`;
+      if (!existing) {
+        await audit(db, req, session, {
+          action: 'finalize',
+          entity_type: 'report',
+          entity_id: updatedReport.id,
+          entity_label: label,
+          site_id: Number(updatedReport.site_id),
+          summary: `Memfinalisasi BA (${updatedReport.work_type}) untuk ${updatedReport.site_name}`,
+          details: {
+            technician: updatedReport.technician_name,
+            supervisor: updatedReport.supervisor_name,
+            overall_status: updatedReport.overall_status,
+            photos: (updatedReport.attachments || []).length,
+          },
+        });
+      } else {
+        const changes = diffFields(existing, updatedReport, [
+          'updated_at', 'revision', 'revision_log', 'approval', 'gdrive', 'gdrive_pdf_id', 'synced_to_server', 'status', '_summary',
+          'finalized_at', 'finalized_by',
+        ]);
+        await audit(db, req, session, {
+          action: 'revise',
+          entity_type: 'report',
+          entity_id: updatedReport.id,
+          entity_label: label,
+          site_id: Number(updatedReport.site_id),
+          summary: `Revisi ${updatedReport.revision}: ${changes.length} isian diubah${existing.approval ? ' · validasi Pengawas direset' : ''}`,
+          details: { changes, approval_reset: !!existing.approval },
+        });
+      }
+    }
+
+    {
       const no = baNumber(updatedReport);
       const base = { link_module: 'preview' as const, link_id: updatedReport.id, actor_id: session.id };
       if (!existing) {
@@ -339,10 +382,32 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ success: false, message: 'ID laporan wajib disertakan.' }, { status: 400 });
     }
 
+    // Keep a record of what was deleted (the BA itself is gone afterwards)
+    const gone = await db.execute({
+      sql: `SELECT site_id, site_code, site_name, work_type, execution_date, technician_name, supervisor_name,
+              json_extract(report_data, '$.approval.by') AS approved_by, json_extract(report_data, '$.revision') AS revision,
+              json_extract(report_data, '$.gdrive.folder_url') AS drive
+            FROM pm_reports WHERE id = ? LIMIT 1;`,
+      args: [id],
+    });
+
     await db.execute({
       sql: 'DELETE FROM pm_reports WHERE id = ?;',
       args: [id],
     });
+
+    {
+      const g = gone.rows[0];
+      await audit(db, req, session, {
+        action: 'delete',
+        entity_type: 'report',
+        entity_id: id,
+        entity_label: g ? `BA ${baNumber({ id, work_type: g.work_type as any })} · ${g.site_code}` : `BA ${id}`,
+        site_id: g ? Number(g.site_id) : null,
+        summary: g ? `Menghapus BA ${g.site_name} tanggal ${g.execution_date}` : 'Menghapus BA (tidak ditemukan)',
+        details: g ? { technician: g.technician_name, supervisor: g.supervisor_name, approved_by: g.approved_by, revision: g.revision, drive_folder: g.drive } : undefined,
+      });
+    }
 
     return NextResponse.json({ success: true, message: `Laporan #${id} berhasil dihapus dari database.` });
   } catch (err: any) {
