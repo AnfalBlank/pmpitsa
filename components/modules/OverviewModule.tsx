@@ -16,7 +16,8 @@ import {
   ShieldCheck, 
   ArrowRight,
   ClipboardCheck,
-  AlertCircle
+  AlertCircle,
+  Fuel
 } from 'lucide-react';
 import { UserSession, Site, WorkType, SPBUTicket, MaintenancePlan, PMReport } from '@/lib/types';
 import { SAMPLE_SITES } from '@/lib/sample-data';
@@ -529,6 +530,35 @@ export const OverviewModule: React.FC<OverviewModuleProps> = ({
           </h3>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+{currentUser.division === 'TEKNIK' ? (
+            <button
+              type="button"
+              onClick={() => onStartExecution(currentSite, 'MECHANICAL_PM', 'POS-01')}
+              className="p-4 rounded-xl border border-slate-200 bg-white hover:border-slate-300 text-left transition-all shadow-2xs group flex flex-col justify-between min-h-[140px]"
+            >
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="w-9 h-9 rounded-lg bg-orange-600 text-white flex items-center justify-center font-bold">
+                    <Fuel className="w-4 h-4" />
+                  </div>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-orange-50 text-orange-900 border border-orange-200">
+                    Divisi Teknik
+                  </span>
+                </div>
+                <h4 className="text-sm font-bold text-slate-900 group-hover:text-orange-700 transition-colors">
+                  PM Teknik (Dispenser & Tangki)
+                </h4>
+                <p className="text-xs text-slate-600 mt-1 leading-snug">
+                  Nozzle, swivel, check valve, breakaway, sump dispenser, STP, dan PV vent.
+                </p>
+              </div>
+              <div className="mt-3 flex items-center gap-1 text-xs font-bold text-orange-700">
+                <span>Buka Form PM Teknik</span>
+                <ArrowRight className="w-3 h-3" />
+              </div>
+            </button>
+            ) : (
+            <>
             <button
               type="button"
               onClick={() => onStartExecution(currentSite, 'PREVENTIVE_MAINTENANCE', 'POS-01')}
@@ -583,6 +613,8 @@ export const OverviewModule: React.FC<OverviewModuleProps> = ({
               </div>
             </button>
 
+            </>
+            )}
             <button
               type="button"
               onClick={() => onStartExecution(currentSite, 'CORRECTIVE_REPAIR', 'POS-01')}

@@ -89,6 +89,16 @@ export const SiteForecourtEditor: React.FC<Props> = ({ site, onClose, onSaved })
       )
     );
 
+  // ---- dispenser units (model + SN, used by PM Teknik) ----
+  const units = cfg.dispensers || [];
+  const setUnits = (dispensers: NonNullable<SiteForecourtConfig['dispensers']>) => setCfg((c) => ({ ...c, dispensers }));
+  const modelNames = dispenserBrands.map(dispenserLabel);
+  const addUnit = () =>
+    setUnits([
+      ...units,
+      { id: `DSP-${Date.now().toString(36)}`, label: `Dispenser ${units.length + 1}`, model: cfg.dispenser_brand || modelNames[0] || '', serial_number: '', pumps: '' },
+    ]);
+
   // ---- tanks ----
   const setTanks = (tanks: SiteForecourtConfig['tanks']) => setCfg((c) => ({ ...c, tanks }));
   const addTank = () =>
@@ -97,6 +107,11 @@ export const SiteForecourtEditor: React.FC<Props> = ({ site, onClose, onSaved })
   const totalNozzles = cfg.pumps.reduce((n, p) => n + p.nozzles.length, 0);
 
   const save = async () => {
+    const noSn = units.find((u) => !u.serial_number.trim() || !u.model.trim());
+    if (noSn) {
+      feedback.notify({ variant: 'warning', title: 'Data Dispenser Belum Lengkap', message: `Isi model dan serial number untuk "${noSn.label}".` });
+      return;
+    }
     const dupTank = cfg.tanks.find((t, i) => cfg.tanks.findIndex((x) => x.tank_number.trim() === t.tank_number.trim()) !== i);
     if (dupTank) {
       feedback.notify({ variant: 'warning', title: 'Nama Tangki Ganda', message: `"${dupTank.tank_number}" dipakai lebih dari sekali. Beri nama berbeda.` });
@@ -265,6 +280,46 @@ export const SiteForecourtEditor: React.FC<Props> = ({ site, onClose, onSaved })
               ))}
               <button type="button" onClick={addPump} className="w-full min-h-[44px] rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-bold text-slate-800 flex items-center justify-center gap-1.5">
                 <Plus className="w-4 h-4" /> Tambah Pump
+              </button>
+            </section>
+
+            {/* Dispenser units */}
+            <section className="space-y-3">
+              <h4 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+                <Fuel className="w-4 h-4 text-blue-800" /> Unit Dispenser (Model & SN)
+                <span className="text-xs font-semibold text-slate-500">({units.length} unit)</span>
+              </h4>
+              <p className="text-[11px] text-slate-500 -mt-2">Dipakai di form PM Teknik: teknisi tinggal pilih dispenser, model & SN terisi otomatis.</p>
+              {units.map((u, i) => (
+                <div key={u.id} className="border border-slate-200 rounded-lg p-3 grid grid-cols-2 sm:grid-cols-[1fr_1.4fr_1.2fr_0.9fr_auto] gap-2 items-end">
+                  <div>
+                    <label htmlFor={`unit-label-${i}`} className={labelCls}>Nama / No.</label>
+                    <input id={`unit-label-${i}`} value={u.label} onChange={(e) => setUnits(units.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))} className={inputCls} />
+                  </div>
+                  <div className="col-span-2 sm:col-span-1 order-first sm:order-none">
+                    <label htmlFor={`unit-model-${i}`} className={labelCls}>Model</label>
+                    <select id={`unit-model-${i}`} value={u.model} onChange={(e) => setUnits(units.map((x, j) => (j === i ? { ...x, model: e.target.value } : x)))} className={inputCls}>
+                      <option value="">Pilih model…</option>
+                      {(u.model && !modelNames.includes(u.model) ? [u.model, ...modelNames] : modelNames).map((o) => (
+                        <option key={o} value={o}>{o}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label htmlFor={`unit-sn-${i}`} className={labelCls}>Serial Number</label>
+                    <input id={`unit-sn-${i}`} value={u.serial_number} onChange={(e) => setUnits(units.map((x, j) => (j === i ? { ...x, serial_number: e.target.value } : x)))} className={`${inputCls} font-mono`} />
+                  </div>
+                  <div>
+                    <label htmlFor={`unit-pumps-${i}`} className={labelCls}>Pump</label>
+                    <input id={`unit-pumps-${i}`} value={u.pumps || ''} placeholder="mis. 1-2" onChange={(e) => setUnits(units.map((x, j) => (j === i ? { ...x, pumps: e.target.value } : x)))} className={inputCls} />
+                  </div>
+                  <button type="button" onClick={() => setUnits(units.filter((_, j) => j !== i))} className="min-h-[44px] px-3 rounded-lg text-red-600 hover:bg-red-50 text-xs font-semibold flex items-center justify-center gap-1" aria-label={`Hapus ${u.label}`}>
+                    <Trash2 className="w-4 h-4" /> <span className="sm:hidden">Hapus</span>
+                  </button>
+                </div>
+              ))}
+              <button type="button" onClick={addUnit} className="w-full min-h-[44px] rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-bold text-slate-800 flex items-center justify-center gap-1.5">
+                <Plus className="w-4 h-4" /> Tambah Unit Dispenser
               </button>
             </section>
 

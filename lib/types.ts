@@ -2,7 +2,9 @@ export type ChecklistStatus = 'B' | 'R' | 'X'; // B: Baik, R: Rusak, X: Tidak Ad
 export type FeatureStatus = 'OK' | 'ISSUE' | 'NA';
 export type PMOverallStatus = 'Selesai (Normal)' | 'Perlu Tindak Lanjut' | 'Kritis (Perbaikan Segera)';
 export type UserRole = 'TECHNICIAN' | 'SUPERVISOR' | 'ADMIN';
-export type WorkType = 'PREVENTIVE_MAINTENANCE' | 'QUICK_CHECK' | 'CORRECTIVE_REPAIR';
+/** Technician discipline: IT (POS PINSYST/FMS) or Teknik (mekanikal dispenser & tangki). */
+export type TechDivision = 'IT' | 'TEKNIK';
+export type WorkType = 'PREVENTIVE_MAINTENANCE' | 'QUICK_CHECK' | 'CORRECTIVE_REPAIR' | 'MECHANICAL_PM';
 
 export type TicketPriority = 'Rendah' | 'Sedang' | 'Tinggi' | 'Darurat';
 export type TicketStatus = 'Open (Menunggu)' | 'Sedang Ditangani' | 'Selesai (Resolved)';
@@ -56,6 +58,7 @@ export interface UserSession {
   employeeId: string;
   phone: string;
   assignedSiteId: number;
+  division?: TechDivision;
 }
 
 export interface Site {
@@ -78,7 +81,44 @@ export interface SiteForecourtConfig {
   atg_brand?: string;
   pumps: { pump_number: number; nozzles: { nozzle_number: number; product_name: string }[] }[];
   tanks: { tank_number: string; product_name: string; capacity_liters: number }[];
+  /** Physical dispenser units (model + SN) used by the PM Teknik checklist */
+  dispensers?: SiteDispenserUnit[];
   updated_at?: string;
+}
+
+export interface SiteDispenserUnit {
+  id: string;
+  /** e.g. "Dispenser 1" */
+  label: string;
+  /** Master dispenser model (brand + series) */
+  model: string;
+  serial_number: string;
+  /** Pumps served, e.g. "Pump 1-2" */
+  pumps?: string;
+}
+
+/** One check row in the PM Teknik (mekanikal) checklist. */
+export interface MechCheck {
+  status: ChecklistStatus;
+  /** Only for items that include cleaning */
+  cleaned?: boolean;
+  notes?: string;
+}
+
+export interface MechanicalDispenserCheck {
+  id: string;
+  label: string;
+  model: string;
+  serial_number: string;
+  items: Record<string, MechCheck>;
+  notes?: string;
+}
+
+export interface MechanicalPMDetails {
+  dispensers: MechanicalDispenserCheck[];
+  /** Tank / STP / PV vent area */
+  tank_items: Record<string, MechCheck>;
+  tank_notes?: string;
 }
 
 export interface CorrectiveRepairDetails {
@@ -97,6 +137,25 @@ export interface CorrectiveRepairDetails {
   work_end?: string;
   /** Uraian uji fungsi setelah perbaikan */
   test_notes?: string;
+  /** Items swapped during the repair, with the old and new serial numbers */
+  parts_replaced?: ReplacedPart[];
+}
+
+export interface ReplacedPart {
+  id: string;
+  name: string;
+  old_serial: string;
+  new_serial: string;
+}
+
+/** PM cleaning checklist (true = done) */
+export interface CleaningChecklist {
+  pc: boolean;
+  printer: boolean;
+  monitor: boolean;
+  disk_cleanup: boolean;
+  pos_area: boolean;
+  notes?: string;
 }
 
 export interface QuickCheckDetails {
@@ -240,6 +299,8 @@ export interface PMAttachment {
     | 'EDC & Periferal'
     | 'Temuan Kerusakan'
     | 'Kondisi Umum'
+    | 'Sebelum Pemeliharaan'
+    | 'Sesudah Pemeliharaan'
     | 'Sebelum Perbaikan'
     | 'Proses Perbaikan'
     | 'Sesudah Perbaikan'
@@ -277,6 +338,10 @@ export interface PMReport {
   peripherals: PeripheralsInventory;
   network_power: NetworkPower;
   features_checklist: PinsystFeatureCheck[];
+  /** PM: cleaning of PC PINSYST, printer, monitor, disk cleanup, POS area */
+  cleaning?: CleaningChecklist;
+  /** PM Teknik (mekanikal dispenser & tangki) */
+  mechanical?: MechanicalPMDetails;
   attachments: PMAttachment[];
   
   technician_signature?: string;

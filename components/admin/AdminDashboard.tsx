@@ -1,5 +1,6 @@
 'use client';
 
+import { WORK_TYPE_LABEL } from '@/lib/work-type';
 import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Building2, 
@@ -1059,11 +1060,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         </span>
 
                         <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-blue-50 text-blue-900 border border-blue-200">
-                          {p.plan_type === 'PREVENTIVE_MAINTENANCE' 
-                            ? 'Preventive Maintenance (PM)' 
-                            : p.plan_type === 'QUICK_CHECK' 
-                            ? 'Pengecekan Aja' 
-                            : 'Perbaikan'}
+                          {WORK_TYPE_LABEL[p.plan_type as WorkType] || p.plan_type}
                         </span>
                       </div>
 
@@ -1191,11 +1188,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         #{r.id}
                       </span>
                       <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-blue-100 text-blue-900 border border-blue-200">
-                        {r.work_type === 'PREVENTIVE_MAINTENANCE' 
-                          ? 'Preventive Maintenance' 
-                          : r.work_type === 'QUICK_CHECK' 
-                          ? 'Pengecekan Aja' 
-                          : 'Perbaikan'}
+                        {WORK_TYPE_LABEL[r.work_type] || r.work_type}
                       </span>
                       <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full border ${
                         r.overall_status === 'Selesai (Normal)'
@@ -1599,6 +1592,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     className="w-full min-h-[44px] px-3 text-xs bg-slate-50 border border-slate-300 rounded-lg text-slate-800 font-medium focus:ring-2 focus:ring-red-500 focus:outline-none"
                   >
                     <option value="PREVENTIVE_MAINTENANCE">Preventive Maintenance (PM)</option>
+                    <option value="MECHANICAL_PM">PM Teknik (Dispenser & Tangki)</option>
                     <option value="QUICK_CHECK">Pengecekan Aja</option>
                     <option value="CORRECTIVE_REPAIR">Perbaikan (Repair)</option>
                   </select>

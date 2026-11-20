@@ -17,7 +17,8 @@ import {
   Clock,
   ChevronRight,
   Filter,
-  Lock
+  Lock,
+  History
 } from 'lucide-react';
 import { UserSession, Site, PMReport } from '@/lib/types';
 import { reportStatus, awaitingApproval } from '@/lib/report-status';
@@ -26,6 +27,7 @@ import { SAMPLE_SITES } from '@/lib/sample-data';
 import { useFeedback } from '@/components/feedback/FeedbackProvider';
 import { can } from '@/lib/rbac';
 import { deleteReportApi } from '@/lib/api-client';
+import { MaintenanceHistory } from '@/components/history/MaintenanceHistory';
 import { isDateInPeriod, PERIOD_OPTIONS, PeriodFilterKey } from '@/lib/date-filters';
 
 interface ReportsModuleProps {
@@ -51,6 +53,12 @@ export const ReportsModule: React.FC<ReportsModuleProps> = ({
   const [customDateFrom, setCustomDateFrom] = useState('');
   const [customDateTo, setCustomDateTo] = useState('');
   const [reportSignFilter, setReportSignFilter] = useState<'ALL' | 'SIGNED' | 'PENDING'>('ALL');
+  const [view, setView] = useState<'list' | 'history'>('list');
+  // Pengawas only sees own SPBU (sites are already scoped by the parent)
+  const historySites = activeSites.filter((s) => currentUser.role !== 'SUPERVISOR' || !currentUser.assignedSiteId || s.id === currentUser.assignedSiteId);
+  const [historySiteId, setHistorySiteId] = useState<number | null>(null);
+  const historySite = historySites.find((s) => s.id === historySiteId) || historySites[0];
+  const historyId = historySite?.id ?? null;
 
   // Filtering
   const filteredReports = reports.filter(r => {
@@ -143,6 +151,48 @@ export const ReportsModule: React.FC<ReportsModuleProps> = ({
         </div>
       </div>
 
+      {/* View switch: document list vs. per-SPBU maintenance history */}
+      <div className="grid grid-cols-2 gap-1 p-1 bg-slate-100 rounded-xl border border-slate-200 sm:max-w-md" role="tablist" aria-label="Tampilan arsip">
+        {([['list', 'Daftar Dokumen BA', FileText], ['history', 'Riwayat per SPBU', History]] as const).map(([k, label, Icon]) => (
+          <button
+            key={k}
+            type="button"
+            role="tab"
+            aria-selected={view === k}
+            onClick={() => setView(k)}
+            className={`min-h-[44px] rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 ${view === k ? 'bg-white text-[#0B2545] shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
+          >
+            <Icon className="w-4 h-4" /> {label}
+          </button>
+        ))}
+      </div>
+
+      {view === 'history' ? (
+        <div className="space-y-3">
+          {historySites.length > 1 && (
+            <div>
+              <label htmlFor="history-site" className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Pilih SPBU</label>
+              <select
+                id="history-site"
+                value={historyId ?? ''}
+                onChange={(e) => setHistorySiteId(Number(e.target.value))}
+                className="w-full sm:max-w-md min-h-[44px] px-3 bg-white border border-slate-300 rounded-lg text-sm"
+              >
+                {historySites.map((s) => (
+                  <option key={s.id} value={s.id}>{s.site_code} · {s.site_name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+          <MaintenanceHistory
+            key={historyId ?? 'none'}
+            reports={reports.filter((r) => r.site_id === historyId)}
+            siteLabel={historySite ? `${historySite.site_code} ${historySite.site_name}` : undefined}
+            onOpen={onOpenReportPdf}
+          />
+        </div>
+      ) : (
+      <>
       {/* Pending Sign-Off Card for Supervisor */}
       {can(currentUser.role, 'report.approve') && pendingApprovalReports.length > 0 && (
         <div className="bg-amber-50 rounded-xl p-5 border border-amber-300 space-y-3 shadow-xs">
@@ -499,6 +549,8 @@ export const ReportsModule: React.FC<ReportsModuleProps> = ({
         </div>
       )}
 
+      </>
+      )}
     </div>
   );
 };

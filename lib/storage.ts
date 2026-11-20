@@ -1,3 +1,4 @@
+import { EMPTY_CLEANING } from './cleaning';
 import { 
   PMReport, 
   Site, 
@@ -22,7 +23,8 @@ import {
   DEFAULT_ATG_BRANDS,
   DEFAULT_DISPENSER_BRANDS,
   DEFAULT_HARDWARE_CONFIGS,
-  DEFAULT_SYSTEM_SETTINGS
+  DEFAULT_SYSTEM_SETTINGS,
+  INITIAL_PINSYST_FEATURES
 } from './sample-data';
 
 const STORAGE_KEY_CURRENT = 'pertamina_pm_current_draft_v1';
@@ -93,6 +95,7 @@ export function blankDraft(r: PMReport): PMReport {
       root_cause: '',
       action_taken: '',
       sparepart_replaced: '',
+      parts_replaced: [],
       post_repair_status: 'B',
       notes: '',
       affected_unit: '',
@@ -110,6 +113,7 @@ export function blankDraft(r: PMReport): PMReport {
       general_notes: '',
     },
     attachments: [],
+    cleaning: { ...EMPTY_CLEANING },
     technician_signature: undefined,
     technician_signed_at: undefined,
     supervisor_signature: undefined,
@@ -125,6 +129,23 @@ export function blankDraft(r: PMReport): PMReport {
   };
 }
 
+/**
+ * Drafts saved before a form change get the current PINSYST feature titles
+ * (status/findings stay) and the cleaning checklist. Finalised BA are untouched.
+ */
+export function upgradeDraft(r: PMReport): PMReport {
+  if (!r || (r.status && r.status !== 'DRAFT') || (!r.status && r.synced_to_server)) return r;
+  const byId = new Map(INITIAL_PINSYST_FEATURES.map((f) => [f.id, f]));
+  return {
+    ...r,
+    features_checklist: (r.features_checklist || []).map((f) => {
+      const cur = byId.get(f.id);
+      return cur ? { ...f, code: cur.code, title: cur.title, description: cur.description } : f;
+    }),
+    cleaning: { ...EMPTY_CLEANING, ...(r.cleaning || {}) },
+  };
+}
+
 export function getCurrentReport(): PMReport {
   if (typeof window === 'undefined') {
     return createDefaultPMReport(SAMPLE_SITES[0], DEFAULT_USERS[0]);
@@ -133,7 +154,7 @@ export function getCurrentReport(): PMReport {
   const raw = localStorage.getItem(STORAGE_KEY_CURRENT);
   if (raw) {
     try {
-      return JSON.parse(raw);
+      return upgradeDraft(JSON.parse(raw));
     } catch {
       // fallback
     }

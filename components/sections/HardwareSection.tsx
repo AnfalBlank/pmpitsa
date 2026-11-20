@@ -1,11 +1,13 @@
 'use client';
 
 import React from 'react';
+import { CLEANING_ITEMS, EMPTY_CLEANING } from '@/lib/cleaning';
 import { MasterSelect } from '@/components/ui/MasterSelect';
+import { AutoTextarea } from '@/components/ui/AutoTextarea';
 import { hardwareOptions, useMasterData } from '@/lib/use-master-config';
 import { PMReport, HardwareSpecs, ChecklistStatus } from '@/lib/types';
 import { StatusSelector } from '../StatusSelector';
-import { Cpu, HardDrive, Fan, Wind, AlertTriangle } from 'lucide-react';
+import { Cpu, HardDrive, Fan, Wind, AlertTriangle, Sparkles } from 'lucide-react';
 
 interface HardwareSectionProps {
   report: PMReport;
@@ -17,6 +19,9 @@ export const HardwareSection: React.FC<HardwareSectionProps> = ({
   onChange,
 }) => {
   const master = useMasterData();
+  const cleaning = { ...EMPTY_CLEANING, ...(report.cleaning || {}) };
+  const setCleaning = (patch: Partial<typeof cleaning>) => onChange({ ...report, cleaning: { ...cleaning, ...patch } });
+
   const updateHardware = <K extends keyof HardwareSpecs>(
     key: K,
     val: HardwareSpecs[K]
@@ -269,6 +274,47 @@ export const HardwareSection: React.FC<HardwareSectionProps> = ({
               className="w-full px-3 py-2 bg-white border border-slate-300 rounded-md text-sm text-slate-900 focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
             />
           </div>
+        </div>
+      </div>
+
+      {/* Cleaning checklist */}
+      <div className="bg-white rounded-lg border border-slate-200 p-4 sm:p-5 shadow-xs">
+        <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-3 mb-3">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-5 h-5 text-emerald-600 flex-shrink-0" />
+            <div>
+              <h2 className="text-base font-bold text-slate-900">Checklist Pembersihan</h2>
+              <p className="text-xs text-slate-500">Tandai pekerjaan pembersihan yang sudah dilakukan</p>
+            </div>
+          </div>
+          <span className="text-xs font-bold text-slate-600 flex-shrink-0">
+            {CLEANING_ITEMS.filter((c) => cleaning[c.key]).length}/{CLEANING_ITEMS.length}
+          </span>
+        </div>
+        <div className="space-y-2">
+          {CLEANING_ITEMS.map((c) => (
+            <label
+              key={c.key}
+              className={`flex items-center gap-3 min-h-[48px] px-3 rounded-lg border cursor-pointer transition-colors ${
+                cleaning[c.key] ? 'bg-emerald-50 border-emerald-300' : 'bg-white border-slate-200 hover:bg-slate-50'
+              }`}
+            >
+              <input
+                type="checkbox"
+                checked={cleaning[c.key]}
+                onChange={(e) => setCleaning({ [c.key]: e.target.checked })}
+                className="w-5 h-5 rounded accent-emerald-600 flex-shrink-0"
+              />
+              <span className={`text-sm ${cleaning[c.key] ? 'font-semibold text-emerald-900' : 'text-slate-800'}`}>{c.label}</span>
+            </label>
+          ))}
+          <AutoTextarea
+            aria-label="Catatan pembersihan"
+            value={cleaning.notes || ''}
+            onChange={(e) => setCleaning({ notes: e.target.value })}
+            placeholder="Catatan pembersihan (opsional), mis. disk C: dibersihkan 4,2 GB"
+            className="w-full min-h-[44px] px-3 py-2 bg-white border border-slate-300 rounded-md text-sm text-slate-900"
+          />
         </div>
       </div>
     </div>

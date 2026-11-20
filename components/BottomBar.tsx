@@ -1,5 +1,6 @@
 'use client';
 
+import { WORK_TYPE_LABEL } from '@/lib/work-type';
 import React, { useState } from 'react';
 import { ModalPortal } from '@/components/ui/ModalPortal';
 import { TabKey, tabOrderFor } from './SectionTabs';
@@ -145,11 +146,7 @@ export const BottomBar: React.FC<BottomBarProps> = ({
                 <div className="flex justify-between gap-3">
                   <span className="font-semibold text-slate-500">Jenis Kegiatan:</span>
                   <span className="font-bold text-red-700">
-                    {report.work_type === 'PREVENTIVE_MAINTENANCE' 
-                      ? 'Preventive Maintenance (PM)' 
-                      : report.work_type === 'QUICK_CHECK'
-                      ? 'Pengecekan (Quick Check)'
-                      : 'Corrective Maintenance (CM)'}
+                    {WORK_TYPE_LABEL[report.work_type] || report.work_type}
                   </span>
                 </div>
                 <div className="flex justify-between gap-3">

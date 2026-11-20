@@ -5,6 +5,7 @@ import { notify, userIdsMentioned } from '@/lib/notify';
 import { requireSession, forbidden } from '@/lib/session';
 import { can, siteScope } from '@/lib/rbac';
 import { missingForFinalize } from '@/lib/report-status';
+import { workTypesForDivision } from '@/lib/work-type';
 import { getTursoClient, ensureSchema } from '@/lib/turso';
 import { PMReport } from '@/lib/types';
 
@@ -150,6 +151,13 @@ export async function POST(req: Request) {
       // First finalisation: technician only, and the BA must be complete
       if (!can(session.role, 'report.sync')) {
         return forbidden('Akses ditolak: hanya Teknisi yang dapat memfinalisasi Berita Acara.');
+      }
+      if (session.role === 'TECHNICIAN' && !workTypesForDivision(session.division).includes(report.work_type)) {
+        return forbidden(
+          session.division === 'TEKNIK'
+            ? 'Teknisi divisi Teknik hanya dapat memfinalisasi BA PM Teknik dan CM.'
+            : 'BA PM Teknik hanya dapat difinalisasi oleh teknisi divisi Teknik.'
+        );
       }
       const missing = missingForFinalize(report);
       if (missing.length) {

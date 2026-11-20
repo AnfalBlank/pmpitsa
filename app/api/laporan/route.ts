@@ -21,7 +21,7 @@ export async function GET(req: Request) {
     await ensureSchema();
     const db = getTursoClient();
     const p = new URL(req.url).searchParams;
-    const type = (['PM', 'CM', 'QC'].includes(String(p.get('type'))) ? p.get('type') : 'PM') as LaporanType;
+    const type = (['PM', 'PMT', 'CM', 'QC'].includes(String(p.get('type'))) ? p.get('type') : 'PM') as LaporanType;
     const from = p.get('from') || '';
     const to = p.get('to') || '';
     const siteId = p.get('site_id') ? Number(p.get('site_id')) : null;

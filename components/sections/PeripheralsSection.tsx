@@ -38,28 +38,28 @@ export const PeripheralsSection: React.FC<PeripheralsSectionProps> = ({
               Pemeriksaan Periferal POS Kasir
             </h2>
             <p className="text-xs text-slate-500">
-              Layar sentuh, printer struk thermal, barcode reader, dan laci kasir otomatis
+              Monitor PC POS PINSYST, printer struk thermal, barcode reader, dan laci kasir otomatis
             </p>
           </div>
         </div>
 
         <div className="space-y-5 divide-y divide-slate-100">
           
-          {/* 1. Display Touchscreen */}
+          {/* 1. Monitor PC POS PINSYST */}
           <div className="pt-2 grid grid-cols-1 md:grid-cols-3 gap-3 items-start">
             <div>
               <span className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
                 <Monitor className="w-4 h-4 text-blue-800" />
-                1. Layar (Display & Touchscreen)
+                1. Monitor PC POS PINSYST
               </span>
               <p className="text-xs text-slate-500 mt-0.5">
-                Sensitivitas sentuhan, kalibrasi multi-touch, dan kejernihan panel LCD
+                Kejernihan tampilan, dead pixel, kabel video & daya monitor PC POS PINSYST
               </p>
             </div>
 
             <div>
               <StatusSelector
-                label="Status Operasional Layar"
+                label="Status Operasional Monitor"
                 value={report.peripherals.display_touchscreen.status}
                 onChange={(val) =>
                   updatePeripherals('display_touchscreen', {
@@ -75,7 +75,7 @@ export const PeripheralsSection: React.FC<PeripheralsSectionProps> = ({
                 htmlFor="display-touchscreen-notes-input"
                 className="block text-xs font-semibold text-slate-700 uppercase mb-1"
               >
-                Catatan Layar
+                Catatan Monitor
               </label>
               <AutoTextarea
                 id="display-touchscreen-notes-input"
@@ -86,7 +86,7 @@ export const PeripheralsSection: React.FC<PeripheralsSectionProps> = ({
                     notes: e.target.value,
                   })
                 }
-                placeholder="Contoh: Layar jernih, kalibrasi tepat"
+                placeholder="Contoh: Tampilan jernih, tidak ada garis / flicker"
                 className="w-full min-h-[44px] px-3 py-1.5 bg-white border border-slate-300 rounded text-xs text-slate-900"
               />
             </div>
@@ -187,10 +187,10 @@ export const PeripheralsSection: React.FC<PeripheralsSectionProps> = ({
             <div>
               <span className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
                 <QrCode className="w-4 h-4 text-slate-700" />
-                3. Barcode & QR Scanner
+                3. Barcode Scanner
               </span>
               <p className="text-xs text-slate-500 mt-0.5">
-                Kecepatan scan QR MyPertamina pada layar ponsel konsumen
+                Kecepatan dan ketepatan pembacaan barcode
               </p>
             </div>
 

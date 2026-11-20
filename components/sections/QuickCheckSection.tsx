@@ -49,7 +49,7 @@ export const QuickCheckSection: React.FC<QuickCheckSectionProps> = ({
     {
       key: 'edc_transaction_ready' as const,
       label: '3. Mesin EDC & Pembayaran Non-Tunai',
-      desc: 'Unit EDC menyala, sinyal kartu perbankan aktif, siap memproses transaksi debit/kredit/QR.',
+      desc: 'Unit EDC menyala, sinyal kartu perbankan aktif, terhubung Wi-Fi Access Point, siap memproses transaksi debit/kredit.',
       icon: CreditCard,
     },
     {

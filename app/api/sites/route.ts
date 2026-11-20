@@ -29,6 +29,13 @@ function sanitizeForecourt(input: any): SiteForecourtConfig {
     product_name: str(t?.product_name),
     capacity_liters: Math.max(0, Number(t?.capacity_liters) || 0),
   }));
+  const dispensers = (Array.isArray(input?.dispensers) ? input.dispensers : []).slice(0, 60).map((d: any, i: number) => ({
+    id: str(d?.id, 40) || `DSP-${i + 1}`,
+    label: str(d?.label, 60) || `Dispenser ${i + 1}`,
+    model: str(d?.model),
+    serial_number: str(d?.serial_number, 80),
+    pumps: str(d?.pumps, 60) || undefined,
+  }));
   return {
     dispenser_brand_id: str(input?.dispenser_brand_id, 60) || undefined,
     dispenser_brand: str(input?.dispenser_brand) || undefined,
@@ -36,6 +43,7 @@ function sanitizeForecourt(input: any): SiteForecourtConfig {
     atg_brand: str(input?.atg_brand) || undefined,
     pumps,
     tanks,
+    dispensers,
     updated_at: new Date().toISOString(),
   };
 }
@@ -146,7 +154,7 @@ export async function PUT(req: Request) {
         entity_id: id,
         entity_label: prev ? `${prev.site_code} · ${prev.site_name}` : String(id),
         site_id: id,
-        summary: `Konfigurasi forecourt: ${old ? `${old.pumps.length} pump/${nz(old)} nozzle/${old.tanks.length} tangki` : 'belum ada'} → ${forecourt.pumps.length} pump/${nz(forecourt)} nozzle/${forecourt.tanks.length} tangki`,
+        summary: `Konfigurasi forecourt: ${old ? `${old.pumps.length} pump/${nz(old)} nozzle/${old.tanks.length} tangki` : 'belum ada'} → ${forecourt.pumps.length} pump/${nz(forecourt)} nozzle/${forecourt.tanks.length} tangki/${(forecourt.dispensers || []).length} unit dispenser`,
         details: {
           dispenser_brand: { from: old?.dispenser_brand ?? null, to: forecourt.dispenser_brand ?? null },
           atg_brand: { from: old?.atg_brand ?? null, to: forecourt.atg_brand ?? null },

@@ -630,7 +630,7 @@ export const TicketsModule: React.FC<TicketsModuleProps> = ({
                     <option value="ATG & Tangki Pendam">ATG & Tangki Pendam</option>
                     <option value="POS Terminal & Software">POS Terminal PINSYST</option>
                     <option value="Printer Struk & Periferal">Printer Struk Thermal</option>
-                    <option value="EDC & Jaringan">Mesin EDC & Jaringan LAN</option>
+                    <option value="EDC & Jaringan">Mesin EDC & Access Point Wi-Fi</option>
                     <option value="Kelistrikan & Power">Kelistrikan & Power UPS</option>
                     <option value="Lainnya">Lainnya</option>
                   </select>

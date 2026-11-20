@@ -99,8 +99,8 @@ export const INITIAL_PINSYST_FEATURES: PinsystFeatureCheck[] = [
   {
     id: 2,
     code: "F-02",
-    title: "Transaksi Menggunakan RFID / QR MyPertamina",
-    description: "Pembacaan kartu RFID pelanggan dan QR MyPertamina pada reader POS.",
+    title: "Transaksi Menggunakan Kartu RFID",
+    description: "Pembacaan kartu RFID pelanggan pada reader POS PINSYST.",
     status: "OK",
     findings: "Deteksi RFID kartu subsidi dan non-tunai responsif (< 1.5 detik).",
     corrective_action: "Tidak ada tindakan khusus.",
@@ -145,7 +145,7 @@ export const INITIAL_PINSYST_FEATURES: PinsystFeatureCheck[] = [
     id: 7,
     code: "F-07",
     title: "Printer POS & Auto-Cutter",
-    description: "Uji cetak font thermal, ketajaman barcode/QR, dan pemotong kertas otomatis.",
+    description: "Uji cetak font thermal, ketajaman barcode, dan pemotong kertas otomatis.",
     status: "OK",
     findings: "Thermal head bersih, pemotong pisau otomatis berfungsi tajam.",
     corrective_action: "Pembersihan roller dengan alkohol swab berkala.",
@@ -162,11 +162,11 @@ export const INITIAL_PINSYST_FEATURES: PinsystFeatureCheck[] = [
   {
     id: 9,
     code: "F-09",
-    title: "Fitur Void & Retur Transaksi",
-    description: "Pembatalan transaksi kesalahan input kasir dengan otorisasi pengawas.",
+    title: "Printer Dokumen Laporan POS",
+    description: "Cetak dokumen laporan POS (laporan shift, sales, settlement) pada printer dokumen.",
     status: "OK",
-    findings: "Void membutuhkan password supervisor dan tercatat di audit trail.",
-    corrective_action: "Monitoring log void mingguan.",
+    findings: "Dokumen laporan tercetak lengkap dan terbaca jelas.",
+    corrective_action: "Periksa stok kertas & tinta printer dokumen secara berkala.",
   },
   {
     id: 10,
@@ -332,7 +332,7 @@ export function createDefaultPMReport(
         serial_number: "SN-ING-88291039",
         physical_status: "B",
         connection_status: "B",
-        notes: "Koneksi LAN ke router SPBU, signal seluler backup aktif.",
+        notes: "Terhubung Wi-Fi Access Point SPBU, sinyal stabil.",
       },
       {
         id: "EDC-02",
@@ -355,7 +355,7 @@ export function createDefaultPMReport(
     peripherals: {
       display_touchscreen: {
         status: "B",
-        notes: "Panel layar sentuh 15.6 inch jernih, kalibrasi sentuhan presisi pada seluruh sudut.",
+        notes: "Monitor 15.6 inch jernih, tidak ada dead pixel, kabel VGA/HDMI kencang.",
       },
       receipt_printer: {
         status: "B",
@@ -365,7 +365,7 @@ export function createDefaultPMReport(
       },
       barcode_scanner: {
         status: "B",
-        notes: "Honeywell 1470g 2D Barcode Reader cepat memindai QR code.",
+        notes: "Honeywell 1470g 2D Barcode Reader cepat memindai barcode.",
       },
       cash_drawer: {
         status: "B",
@@ -517,7 +517,7 @@ export const SAMPLE_TICKETS: SPBUTicket[] = [
     priority: "Rendah",
     status: "Selesai (Resolved)",
     title: "Sinyal SIM card router modem EDC Mandiri/BNI lemah",
-    description: "Koneksi settlement EDC lambat saat malam. Antena eksternal 4G diarahkan ulang dan kabel LAN diganti dengan cat6 baru.",
+    description: "Koneksi settlement EDC lambat saat malam. Antena eksternal 4G diarahkan ulang dan posisi Access Point Wi-Fi disesuaikan.",
     reported_by: "Armando Da Costa (Supervisor PWS)",
     reported_at: "2026-11-10 09:15",
     assigned_to: "Rizky Ramadhan (Teknisi Lapangan)",
@@ -595,7 +595,7 @@ export const SAMPLE_MAINTENANCE_PLANS: MaintenancePlan[] = [
     assigned_technician: "Ahmad Fauzi",
     supervisor_pws: "Bambang Sudibyo",
     status: "Selesai",
-    notes: "Pengecekan kesiapan sistem jelang long weekend, transaksi MyPertamina dan EDC beroperasi lancar.",
+    notes: "Pengecekan kesiapan sistem jelang long weekend, transaksi kartu RFID dan EDC beroperasi lancar.",
   },
   {
     id: "PLAN-2026-11-05",

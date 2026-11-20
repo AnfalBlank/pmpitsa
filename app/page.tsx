@@ -23,6 +23,8 @@ import { OfficialPdfPreview } from '@/components/sections/OfficialPdfPreview';
 
 // Technical Form Step Sections
 import { GeneralInfoSection } from '@/components/sections/GeneralInfoSection';
+import { MechanicalSection } from '@/components/sections/MechanicalSection';
+import { MaintenanceHistory } from '@/components/history/MaintenanceHistory';
 import { SoftwareSection } from '@/components/sections/SoftwareSection';
 import { HardwareSection } from '@/components/sections/HardwareSection';
 import { ForecourtSection } from '@/components/sections/ForecourtSection';
@@ -956,13 +958,7 @@ export default function Home() {
       supervisor_name: site.contact_person.split(' (')[0],
     };
     handleReportChange(updated);
-    if (workType === 'QUICK_CHECK') {
-      setActiveTab('quick_check');
-    } else if (workType === 'CORRECTIVE_REPAIR') {
-      setActiveTab('corrective_repair');
-    } else {
-      setActiveTab('software');
-    }
+    setActiveTab(firstStepFor(workType));
     setCurrentModule('form');
     window.history.pushState(null, '', '/form');
     showToast(`Memulai ${workTypeLabels[workType]} untuk ${site.site_name}`);
@@ -1014,13 +1010,7 @@ export default function Home() {
     if (site && needsSiteForecourt(report, site)) {
       handleReportChange(applySiteForecourt(report, site));
     }
-    if (report.work_type === 'QUICK_CHECK') {
-      setActiveTab('quick_check');
-    } else if (report.work_type === 'CORRECTIVE_REPAIR') {
-      setActiveTab('corrective_repair');
-    } else {
-      setActiveTab('software');
-    }
+    setActiveTab(firstStepFor(report.work_type));
     setCurrentModule('form');
     window.history.pushState(null, '', '/form');
   };
@@ -1068,6 +1058,7 @@ export default function Home() {
     PREVENTIVE_MAINTENANCE: 'Preventive Maintenance (PM)',
     QUICK_CHECK: 'Pengecekan (Quick Check)',
     CORRECTIVE_REPAIR: 'Corrective Maintenance (CM)',
+    MECHANICAL_PM: 'PM Teknik (Dispenser & Tangki)',
   };
 
   // ---- Notifications (per user / role / SPBU), refreshed every 15 s ----
@@ -1400,7 +1391,15 @@ export default function Home() {
               {/* Form Step Workspace */}
               <div className="mt-4">
                 {activeTab === 'info' && (
-                  <GeneralInfoSection report={report} onChange={handleReportChange} sites={sites} users={usersList} locked={!adminEditing} />
+                  <div className="space-y-4">
+                    <GeneralInfoSection report={report} onChange={handleReportChange} sites={sites} users={usersList} locked={!adminEditing} />
+                    <MaintenanceHistory
+                      collapsible
+                      key={report.site_id}
+                      reports={reports.filter((r) => r.site_id === report.site_id && r.id !== report.id)}
+                      siteLabel={report.site_code}
+                    />
+                  </div>
                 )}
                 {activeTab === 'quick_check' && (
                   <QuickCheckSection report={report} onChange={handleReportChange} />
@@ -1410,6 +1409,12 @@ export default function Home() {
                 )}
                 {activeTab === 'cm_action' && (
                   <CorrectiveRepairSection step="action" report={report} onChange={handleReportChange} />
+                )}
+                {activeTab === 'mech_dispenser' && (
+                  <MechanicalSection step="dispenser" report={report} onChange={handleReportChange} sites={sites} />
+                )}
+                {activeTab === 'mech_tank' && (
+                  <MechanicalSection step="tank" report={report} onChange={handleReportChange} sites={sites} />
                 )}
                 {activeTab === 'cm_test' && (
                   <CorrectiveRepairSection step="test" report={report} onChange={handleReportChange} />

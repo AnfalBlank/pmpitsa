@@ -68,6 +68,32 @@ function detailTable(type: LaporanType, rows: LaporanRow[]): Content {
       fontSize: 7,
     });
   }
+  if (type === 'PMT') {
+    return T({
+      table: {
+        headerRows: 1,
+        dontBreakRows: true,
+        widths: [80, 50, 66, 86, 50, 110, 30, '*', '*', 66],
+        body: [
+          [...head, th('Status'), th('Dispenser (model, SN)'), th('R/X'), th('Item R/X & temuan'), th('Rencana tindak lanjut'), th('Validasi')],
+          ...rows.map((r) => [
+            r.ba_number,
+            fmtDate(r.date),
+            `${r.site_code}\n${r.site_name}`,
+            `${r.technician}\nPWS: ${r.supervisor}`,
+            statusCell(r.overall_status),
+            r.dispensers || '-',
+            { text: String(r.issues ?? 0), alignment: 'center' as const },
+            `${(r.mech_bad || []).join(', ') || 'Tidak ada'}${r.findings ? `\n${r.findings}` : ''}`,
+            r.action_plan || '-',
+            approval(r),
+          ]),
+        ],
+      },
+      layout: grid,
+      fontSize: 7,
+    });
+  }
   if (type === 'CM') {
     return T({
       table: {

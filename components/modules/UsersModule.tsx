@@ -20,7 +20,7 @@ import {
 import { UserSession, Site } from '@/lib/types';
 import { SAMPLE_SITES } from '@/lib/sample-data';
 import { useFeedback } from '@/components/feedback/FeedbackProvider';
-import { createUserApi, fetchUsersApi } from '@/lib/api-client';
+import { createUserApi, fetchUsersApi, setUserDivisionApi } from '@/lib/api-client';
 
 interface UsersModuleProps {
   currentUser: UserSession;
@@ -47,6 +47,7 @@ export const UsersModule: React.FC<UsersModuleProps> = ({
   const [newUserRole, setNewUserRole] = useState<'TECHNICIAN' | 'SUPERVISOR' | 'ADMIN'>('TECHNICIAN');
   const [newUserSiteId, setNewUserSiteId] = useState<number>(activeSites[0]?.id || 1);
   const [newUserPhone, setNewUserPhone] = useState('');
+  const [newDivision, setNewDivision] = useState<'IT' | 'TEKNIK'>('IT');
 
   // Filtering
   const filteredUsers = usersList.filter(u => {
@@ -86,6 +87,38 @@ export const UsersModule: React.FC<UsersModuleProps> = ({
     loadUsers();
   }, [loadUsers]);
 
+  const changeDivision = async (u: any, division: 'IT' | 'TEKNIK') => {
+    if ((u.division || 'IT') === division) return;
+    const ok = await feedback.confirm({
+      title: `Pindahkan ${u.name} ke divisi ${division === 'TEKNIK' ? 'Teknik' : 'IT'}?`,
+      message: division === 'TEKNIK'
+        ? 'Teknisi hanya dapat mengisi BA PM Teknik (dispenser & tangki) dan CM. Berlaku setelah teknisi login ulang.'
+        : 'Teknisi hanya dapat mengisi BA PM IT, Pengecekan, dan CM. Berlaku setelah teknisi login ulang.',
+      confirmLabel: 'Ya, Pindahkan',
+    });
+    if (!ok) return;
+    const res = await feedback.run(() => setUserDivisionApi(u.id, division), {
+      pending: 'Menyimpan divisi teknisi...',
+      success: { title: 'Divisi Tersimpan', message: `${u.name} sekarang di divisi ${division === 'TEKNIK' ? 'Teknik' : 'IT'}.` },
+      error: { title: 'Divisi Belum Tersimpan', message: 'Periksa koneksi lalu coba lagi.' },
+    });
+    if (res.success) {
+      const users = await fetchUsersApi();
+      if (users) onUsersUpdated(users);
+    }
+  };
+  const divisionSelect = (u: any) => (
+    <select
+      aria-label={`Divisi ${u.name}`}
+      value={u.division || 'IT'}
+      onChange={(e) => changeDivision(u, e.target.value as 'IT' | 'TEKNIK')}
+      className="min-h-[36px] px-2 text-xs bg-white border border-slate-300 rounded-md font-semibold text-slate-800"
+    >
+      <option value="IT">Divisi IT (POS & FMS)</option>
+      <option value="TEKNIK">Divisi Teknik (Dispenser & Tangki)</option>
+    </select>
+  );
+
   const handleCreateUserSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newUsername.trim() || !newFullName.trim() || !newPassword) {
@@ -98,7 +131,15 @@ export const UsersModule: React.FC<UsersModuleProps> = ({
           password: newPassword,
           name: newFullName.trim(),
           role: newUserRole,
-          role_title: newUserRole === 'ADMIN' ? 'Administrator IT & Forecourt Central' : newUserRole === 'SUPERVISOR' ? 'Pengawas (PWS) Site SPBU' : 'Teknisi Lapangan POS & FMS',
+          role_title:
+            newUserRole === 'ADMIN'
+              ? 'Administrator IT & Forecourt Central'
+              : newUserRole === 'SUPERVISOR'
+              ? 'Pengawas (PWS) Site SPBU'
+              : newDivision === 'TEKNIK'
+              ? 'Teknisi Teknik (Dispenser & Tangki)'
+              : 'Teknisi IT POS & FMS',
+          division: newUserRole === 'TECHNICIAN' ? newDivision : undefined,
           employee_id: `USR-${Date.now().toString().slice(-4)}`,
           phone: newUserPhone.trim() || '-',
           assigned_site_id: newUserRole === 'SUPERVISOR' ? newUserSiteId : 1,
@@ -286,6 +327,7 @@ export const UsersModule: React.FC<UsersModuleProps> = ({
                       : 'Pusat (seluruh SPBU)'}
                   </span>
                 </div>
+                {u.role === 'TECHNICIAN' && <div>{divisionSelect(u)}</div>}
                 <div className="flex items-center gap-1.5 font-mono">
                   <Phone className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />
                   <span>{u.phone || '-'}</span>
@@ -360,7 +402,9 @@ export const UsersModule: React.FC<UsersModuleProps> = ({
                           <Wrench className="w-3.5 h-3.5 text-emerald-700" />
                           <span>Lintas Seluruh Site (Mobile)</span>
                         </div>
-                      ) : (
+                      ) : null}
+                      {u.role === 'TECHNICIAN' && <div className="mt-1.5">{divisionSelect(u)}</div>}
+                      {u.role === 'ADMIN' && (
                         <div className="flex items-center gap-1.5 text-[#0B2545] font-semibold">
                           <ShieldCheck className="w-3.5 h-3.5 text-slate-700" />
                           <span>Pusat (Seluruh SPBU)</span>
@@ -449,11 +493,25 @@ export const UsersModule: React.FC<UsersModuleProps> = ({
                     onChange={(e) => setNewUserRole(e.target.value as any)}
                     className="w-full min-h-[44px] px-3 text-xs bg-slate-50 border border-slate-300 rounded-lg font-medium text-slate-800 focus:ring-2 focus:ring-blue-600 focus:outline-none"
                   >
-                    <option value="TECHNICIAN">Teknisi Lapangan POS & FMS</option>
+                    <option value="TECHNICIAN">Teknisi Lapangan</option>
                     <option value="SUPERVISOR">Pengawas (PWS) Site</option>
                     <option value="ADMIN">Administrator IT Central</option>
                   </select>
                 </div>
+                {newUserRole === 'TECHNICIAN' && (
+                  <div>
+                    <label htmlFor="new-user-division" className="block text-xs font-bold text-slate-700 uppercase mb-1">Divisi Teknisi</label>
+                    <select
+                      id="new-user-division"
+                      value={newDivision}
+                      onChange={(e) => setNewDivision(e.target.value as 'IT' | 'TEKNIK')}
+                      className="w-full min-h-[44px] px-3 text-xs bg-slate-50 border border-slate-300 rounded-lg font-medium text-slate-800 focus:ring-2 focus:ring-blue-600 focus:outline-none"
+                    >
+                      <option value="IT">IT (POS PINSYST & FMS)</option>
+                      <option value="TEKNIK">Teknik (Dispenser & Tangki)</option>
+                    </select>
+                  </div>
+                )}
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 uppercase mb-1">

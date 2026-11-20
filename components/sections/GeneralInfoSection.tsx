@@ -295,6 +295,8 @@ export const GeneralInfoSection: React.FC<GeneralInfoSectionProps> = ({
                 ? 'Status Setelah Perbaikan'
                 : report.work_type === 'QUICK_CHECK'
                 ? 'Kesimpulan Hasil Pengecekan'
+                : report.work_type === 'MECHANICAL_PM'
+                ? 'Klasifikasi Kondisi Hasil PM Teknik'
                 : 'Klasifikasi Kondisi Hasil PM'}
             </span>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">

@@ -5,6 +5,7 @@ import { MasterSelect } from '@/components/ui/MasterSelect';
 import { siteSupervisorNames, UserLite } from '@/lib/user-options';
 import { PMReport, WorkType, Site, UserSession } from '@/lib/types';
 import { SAMPLE_SITES } from '@/lib/sample-data';
+import { workTypesForDivision } from '@/lib/work-type';
 import { 
   Building2, 
   User, 
@@ -18,7 +19,7 @@ import {
   CheckCircle2, 
   Phone, 
   AlertTriangle,
-  Plus, Lock } from 'lucide-react';
+  Plus, Lock, Fuel } from 'lucide-react';
 
 interface InitiationLandingProps {
   report: PMReport;
@@ -84,6 +85,16 @@ export const InitiationLanding: React.FC<InitiationLandingProps> = ({
       badgeColor: 'bg-red-700 text-white',
     },
     {
+      key: 'MECHANICAL_PM',
+      title: 'PM Teknik (Dispenser & Tangki)',
+      subtitle: 'Pemeriksaan mekanikal per dispenser (nozzle, swivel, selang, breakaway, check valve, sump) serta STP, PV vent, dan area tangki.',
+      tag: 'Divisi Teknik',
+      icon: Fuel,
+      activeBorder: 'border-orange-600 ring-2 ring-orange-500/30',
+      activeBg: 'bg-orange-50/70',
+      badgeColor: 'bg-orange-700 text-white',
+    },
+    {
       key: 'QUICK_CHECK',
       title: 'Pengecekan (Quick Check)',
       subtitle: 'Pemeriksaan cepat kesiapan operasional kasir, tes online POS, komunikasi dispenser, EDC, dan level tangki tanpa audit fisik mendalam.',
@@ -104,6 +115,13 @@ export const InitiationLanding: React.FC<InitiationLandingProps> = ({
       badgeColor: 'bg-amber-800 text-white',
     },
   ];
+  // Technicians only see the forms of their division (IT / Teknik)
+  const allowedTypes = currentUser.role === 'TECHNICIAN' ? workTypesForDivision(currentUser.division) : workTypes.map((w) => w.key);
+  const visibleTypes = workTypes.filter((w) => allowedTypes.includes(w.key));
+  React.useEffect(() => {
+    if (!allowedTypes.includes(report.work_type)) updateField('work_type', allowedTypes[0]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [report.work_type, currentUser.division]);
 
   return (
     <div className="max-w-4xl mx-auto space-y-6 pb-20">
@@ -377,8 +395,8 @@ export const InitiationLanding: React.FC<InitiationLandingProps> = ({
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {workTypes.map((wt) => {
+        <div className={`grid grid-cols-1 gap-4 ${visibleTypes.length > 3 ? 'md:grid-cols-2' : visibleTypes.length === 2 ? 'md:grid-cols-2' : 'md:grid-cols-3'}`}>
+          {visibleTypes.map((wt) => {
             const isSelected = report.work_type === wt.key;
             const Icon = wt.icon;
 
@@ -452,10 +470,10 @@ export const InitiationLanding: React.FC<InitiationLandingProps> = ({
                   className="w-full min-h-[44px] px-3 py-2 bg-white border border-slate-300 rounded text-xs font-semibold text-slate-900"
                 >
                   <option value="Hardware POS">Hardware PC & Layar Sentuh POS</option>
-                  <option value="Printer / Scanner">Printer Struk Thermal / Scanner QR</option>
+                  <option value="Printer / Scanner">Printer Struk Thermal / Barcode Scanner</option>
                   <option value="Dispenser & Forecourt">Dispenser Pompa / Nozzle BBM</option>
                   <option value="ATG & Tangki">Sensor Tangki ATG / Deteksi Air</option>
-                  <option value="EDC & Jaringan">Mesin EDC / Jaringan LAN Switch</option>
+                  <option value="EDC & Jaringan">Mesin EDC / Access Point Wi-Fi</option>
                   <option value="Lainnya">Kelistrikan / E-Stop / Lainnya</option>
                 </select>
               </div>
@@ -494,6 +512,8 @@ export const InitiationLanding: React.FC<InitiationLandingProps> = ({
               ? 'Lanjut ke Formulir Preventive Maintenance Lengkap'
               : report.work_type === 'QUICK_CHECK'
               ? 'Lanjut ke Formulir Pengecekan (Quick Check)'
+              : report.work_type === 'MECHANICAL_PM'
+              ? 'Lanjut ke Formulir PM Teknik (Dispenser & Tangki)'
               : 'Lanjut ke Formulir Corrective Maintenance (CM)'}
           </span>
           <ArrowRight className="w-5 h-5 text-red-400" />

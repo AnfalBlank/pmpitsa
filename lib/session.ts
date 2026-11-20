@@ -16,6 +16,7 @@ export interface SessionPayload {
   name: string;
   role: UserRole;
   assignedSiteId: number;
+  division?: 'IT' | 'TEKNIK';
   exp: number; // unix seconds
 }
 

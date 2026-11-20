@@ -67,6 +67,16 @@ async function createSchema(): Promise<void> {
     );
   `);
 
+  // 1b. Technician division (IT / TEKNIK)
+  const userCols = await db.execute('PRAGMA table_info(users);');
+  if (!userCols.rows.some((r) => String(r.name) === 'division')) {
+    try {
+      await db.execute("ALTER TABLE users ADD COLUMN division TEXT DEFAULT 'IT';");
+    } catch {
+      // another instance added it concurrently
+    }
+  }
+
   // 2. Sites Table
   await db.execute(`
     CREATE TABLE IF NOT EXISTS sites (

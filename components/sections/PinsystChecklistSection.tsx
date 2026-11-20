@@ -58,7 +58,7 @@ export const PinsystChecklistSection: React.FC<PinsystChecklistSectionProps> = (
                 Pemeriksaan Fitur Aplikasi POS & PINSYST (11 Modul Wajib)
               </h2>
               <p className="text-xs text-slate-500">
-                Verifikasi fungsional transaksi kasir, RFID MyPertamina, tera takar, dan pelaporan
+                Verifikasi fungsional transaksi kasir, kartu RFID, tera takar, printer laporan, dan pelaporan
               </p>
             </div>
           </div>

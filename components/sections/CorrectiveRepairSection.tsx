@@ -3,9 +3,9 @@
 import React from 'react';
 import { MasterSelect } from '@/components/ui/MasterSelect';
 import { activeOnly, atgLabel, dispenserLabel, useMasterData } from '@/lib/use-master-config';
-import { PMReport, CorrectiveRepairDetails } from '@/lib/types';
+import { PMReport, CorrectiveRepairDetails, ReplacedPart } from '@/lib/types';
 import { StatusSelector } from '../StatusSelector';
-import { Search, Wrench, ClipboardCheck, Package, Clock, Ticket } from 'lucide-react';
+import { Search, Wrench, ClipboardCheck, Package, Clock, Ticket, Plus, Trash2 } from 'lucide-react';
 
 export type CorrectiveStep = 'diagnosis' | 'action' | 'test';
 
@@ -22,6 +22,7 @@ export const EMPTY_REPAIR_DETAILS: CorrectiveRepairDetails = {
   root_cause: '',
   action_taken: '',
   sparepart_replaced: '',
+  parts_replaced: [],
   post_repair_status: 'B',
   notes: '',
   affected_unit: '',
@@ -62,6 +63,9 @@ export const CorrectiveRepairSection: React.FC<CorrectiveRepairSectionProps> = (
   const update = <K extends keyof CorrectiveRepairDetails>(key: K, val: CorrectiveRepairDetails[K]) => {
     onChange({ ...report, repair_details: { ...details, [key]: val } });
   };
+  const parts: ReplacedPart[] = details.parts_replaced || [];
+  const setParts = (next: ReplacedPart[]) => update('parts_replaced', next);
+  const patchPart = (id: string, patch: Partial<ReplacedPart>) => setParts(parts.map((p) => (p.id === id ? { ...p, ...patch } : p)));
 
   if (step === 'diagnosis') {
     return (
@@ -85,7 +89,7 @@ export const CorrectiveRepairSection: React.FC<CorrectiveRepairSectionProps> = (
                 <option value="Printer / Scanner">Printer Struk / Auto-Cutter / Scanner</option>
                 <option value="Dispenser & Forecourt">Dispenser / Nozzle / Interface RS485</option>
                 <option value="ATG & Tangki">Sensor Tangki ATG / Water Sensor</option>
-                <option value="EDC & Jaringan">Mesin EDC / Router / Kabel LAN</option>
+                <option value="EDC & Jaringan">Mesin EDC / Access Point Wi-Fi / Router</option>
                 <option value="Lainnya">Listrik / UPS / E-Stop / Lainnya</option>
               </select>
             </div>
@@ -178,15 +182,75 @@ export const CorrectiveRepairSection: React.FC<CorrectiveRepairSectionProps> = (
           />
         </div>
         <div>
-          <label htmlFor="cm-parts" className={`${labelCls} flex items-center gap-1.5`}>
-            <Package className="w-4 h-4 text-slate-600" /> Sparepart yang Diganti
-          </label>
+          <div className="flex items-center justify-between gap-2 mb-1">
+            <span className={`${labelCls} flex items-center gap-1.5 mb-0`}>
+              <Package className="w-4 h-4 text-slate-600" /> Barang yang Diganti (SN lama → SN baru)
+            </span>
+            <span className="text-[11px] text-slate-500">{parts.length} barang</span>
+          </div>
+          {parts.length === 0 ? (
+            <p className="text-xs text-slate-500 border border-dashed border-slate-300 rounded-lg px-3 py-3">
+              Tidak ada barang yang diganti. Tekan &quot;Tambah Barang&quot; bila ada penggantian part / unit.
+            </p>
+          ) : (
+            <ul className="space-y-2.5">
+              {parts.map((p, i) => {
+                const incomplete = !p.name.trim() || !p.old_serial.trim() || !p.new_serial.trim();
+                return (
+                  <li key={p.id} className={`rounded-lg border p-3 space-y-2 ${incomplete ? 'border-amber-300 bg-amber-50/40' : 'border-slate-200 bg-slate-50/50'}`}>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-bold text-slate-700">Barang {i + 1}</span>
+                      <button
+                        type="button"
+                        onClick={() => setParts(parts.filter((x) => x.id !== p.id))}
+                        aria-label={`Hapus barang ${i + 1}`}
+                        className="min-h-[36px] min-w-[36px] rounded-md text-red-700 hover:bg-red-50 flex items-center justify-center"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <div>
+                      <label htmlFor={`part-name-${p.id}`} className={labelCls}>Nama Barang / Part</label>
+                      <MasterSelect
+                        id={`part-name-${p.id}`}
+                        value={p.name}
+                        onChange={(v) => patchPart(p.id, { name: v })}
+                        options={unitOptions}
+                        placeholder="Pilih / ketik nama barang"
+                        className={inputCls}
+                      />
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div>
+                        <label htmlFor={`part-old-${p.id}`} className={labelCls}>SN Barang Lama</label>
+                        <input id={`part-old-${p.id}`} value={p.old_serial} onChange={(e) => patchPart(p.id, { old_serial: e.target.value })} placeholder="SN yang dilepas" className={`${inputCls} font-mono`} />
+                      </div>
+                      <div>
+                        <label htmlFor={`part-new-${p.id}`} className={labelCls}>SN Barang Baru</label>
+                        <input id={`part-new-${p.id}`} value={p.new_serial} onChange={(e) => patchPart(p.id, { new_serial: e.target.value })} placeholder="SN yang dipasang" className={`${inputCls} font-mono`} />
+                      </div>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          <button
+            type="button"
+            onClick={() => setParts([...parts, { id: `PRT-${Date.now()}`, name: details.affected_unit || '', old_serial: details.affected_serial || '', new_serial: '' }])}
+            className="mt-2 min-h-[44px] px-4 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-bold text-slate-800 inline-flex items-center gap-1.5"
+          >
+            <Plus className="w-4 h-4" /> Tambah Barang
+          </button>
+        </div>
+        <div>
+          <label htmlFor="cm-parts" className={labelCls}>Catatan Sparepart (opsional)</label>
           <textarea
             id="cm-parts"
             rows={2}
             value={details.sparepart_replaced}
             onChange={(e) => update('sparepart_replaced', e.target.value)}
-            placeholder="Nama part, jumlah, part number / SN baru. Tulis 'Tidak ada' bila tanpa penggantian."
+            placeholder="Jumlah, part number, asal stok, dsb."
             className={inputCls}
           />
         </div>

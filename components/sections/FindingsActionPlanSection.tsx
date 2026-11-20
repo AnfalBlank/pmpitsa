@@ -7,6 +7,7 @@ import { PMReport, PMAttachment } from '@/lib/types';
 import { useFeedback } from '@/components/feedback/FeedbackProvider';
 
 const MAX_PHOTO_MB = 25; // raw camera file; it is compressed before attaching
+import { REQUIRED_PHOTOS, hasOwnCaption, needsCaption } from '@/lib/report-status';
 import { Camera, Image as ImageIcon, Plus, Trash2, Calendar, FileText, CheckCircle2, AlertTriangle } from 'lucide-react';
 
 /** Labels & photo categories differ per work type (PM / Pengecekan / CM) */
@@ -28,7 +29,17 @@ const COPY: Record<PMReport['work_type'], {
     planLabel: 'Rencana Tindak Lanjut & Kebutuhan Sparepart (Action Plan)',
     planPlaceholder: 'Contoh: 1. Pembersihan printer thermal berkala. 2. Ganti fan pendingin bulan depan.',
     planRequired: true,
-    categories: ['Kondisi Hardware', 'Dispenser & ATG', 'EDC & Periferal', 'Temuan Kerusakan', 'Lainnya'],
+    categories: ['Sebelum Pemeliharaan', 'Sesudah Pemeliharaan', 'Kondisi Hardware', 'Dispenser & ATG', 'EDC & Periferal', 'Temuan Kerusakan', 'Lainnya'],
+  },
+  MECHANICAL_PM: {
+    title: 'Catatan Temuan PM Teknik & Tindak Lanjut',
+    subtitle: 'Rangkuman kondisi dispenser, tangki, STP, dan PV vent',
+    findingsLabel: 'Ringkasan Temuan Lapangan',
+    findingsPlaceholder: 'Contoh: Swivel D2 rembes, sudah dikencangkan. Sump D1 ada air, sudah dikuras.',
+    planLabel: 'Rencana Tindak Lanjut & Kebutuhan Sparepart',
+    planPlaceholder: 'Contoh: Ganti breakaway nozzle 3 D2, cek ulang PV vent tangki 2 bulan depan.',
+    planRequired: true,
+    categories: ['Sebelum Pemeliharaan', 'Sesudah Pemeliharaan', 'Dispenser & ATG', 'Temuan Kerusakan', 'Lainnya'],
   },
   QUICK_CHECK: {
     title: 'Catatan Hasil Pengecekan',
@@ -63,6 +74,7 @@ export const FindingsActionPlanSection: React.FC<FindingsActionPlanSectionProps>
 }) => {
   const copy = COPY[report.work_type] || COPY.PREVENTIVE_MAINTENANCE;
   const categories = copy.categories;
+  const required = REQUIRED_PHOTOS[report.work_type] || [];
   const [selectedCategory, setSelectedCategory] = useState<PMAttachment['category']>(categories[0]);
   const [captionInput, setCaptionInput] = useState('');
   const feedback = useFeedback();
@@ -80,6 +92,10 @@ export const FindingsActionPlanSection: React.FC<FindingsActionPlanSectionProps>
 
     const file = files[0];
     e.target.value = '';
+    if (needsCaption(selectedCategory) && !captionInput.trim()) {
+      feedback.notify({ variant: 'warning', title: 'Isi Keterangan Foto', message: 'Untuk kategori "Lainnya", tulis dulu keterangan foto agar jelas di dokumen BA.' });
+      return;
+    }
     if (!file.type.startsWith('image/')) {
       feedback.notify({ variant: 'warning', title: 'Format File Tidak Didukung', message: 'Hanya file gambar (JPG, PNG, HEIC) yang dapat dilampirkan.' });
       return;
@@ -241,6 +257,31 @@ export const FindingsActionPlanSection: React.FC<FindingsActionPlanSectionProps>
           </span>
         </div>
 
+        {required.length > 0 && (
+          <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-900">
+            <p className="font-bold">Wajib: foto sebelum dan sesudah {report.work_type === 'CORRECTIVE_REPAIR' ? 'perbaikan' : 'pemeliharaan'}</p>
+            <ul className="mt-1.5 flex flex-wrap gap-2">
+              {required.map((c) => {
+                const n = report.attachments.filter((a) => a.category === c).length;
+                return (
+                  <li key={c}>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedCategory(c)}
+                      className={`min-h-[36px] px-2.5 rounded-md border font-semibold inline-flex items-center gap-1.5 ${
+                        n ? 'bg-emerald-50 border-emerald-300 text-emerald-800' : 'bg-white border-amber-300 text-amber-900'
+                      }`}
+                    >
+                      {n ? <CheckCircle2 className="w-3.5 h-3.5" /> : <AlertTriangle className="w-3.5 h-3.5" />}
+                      {c}: {n} foto
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
+
         {/* Upload Controls */}
         <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 sm:p-4 mb-4 space-y-3">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -268,14 +309,15 @@ export const FindingsActionPlanSection: React.FC<FindingsActionPlanSectionProps>
                 htmlFor="photo-caption-input"
                 className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1"
               >
-                Keterangan Foto / Caption
+                Keterangan Foto / Caption{needsCaption(selectedCategory) && <span className="text-red-600"> * wajib untuk Lainnya</span>}
               </label>
               <AutoTextarea
                 id="photo-caption-input"
                 value={captionInput}
                 onChange={(e) => setCaptionInput(e.target.value)}
-                placeholder="Contoh: Kondisi sirkulasi kipas atau serial number EDC"
-                className="w-full min-h-[44px] px-3 py-2 bg-white border border-slate-300 rounded-md text-xs text-slate-900"
+                placeholder={needsCaption(selectedCategory) ? 'Wajib: jelaskan foto ini, mis. kondisi panel listrik kanopi' : 'Contoh: Kondisi sirkulasi kipas atau serial number EDC'}
+                aria-required={needsCaption(selectedCategory)}
+                className={`w-full min-h-[44px] px-3 py-2 bg-white border rounded-md text-xs text-slate-900 ${needsCaption(selectedCategory) && !captionInput.trim() ? 'border-amber-400' : 'border-slate-300'}`}
               />
             </div>
           </div>
@@ -340,9 +382,21 @@ export const FindingsActionPlanSection: React.FC<FindingsActionPlanSectionProps>
 
                 <div className="p-3 flex-1 flex flex-col justify-between">
                   <div>
-                    <p className="text-xs font-semibold text-slate-900 line-clamp-2">
-                      {att.caption}
-                    </p>
+                    {needsCaption(att.category) ? (
+                      <>
+                        <label htmlFor={`cap-${att.id}`} className="sr-only">Keterangan foto</label>
+                        <AutoTextarea
+                          id={`cap-${att.id}`}
+                          value={hasOwnCaption(att) ? att.caption : ''}
+                          onChange={(e) => updateField('attachments', report.attachments.map((a) => (a.id === att.id ? { ...a, caption: e.target.value } : a)))}
+                          placeholder="Wajib: foto ini tentang apa?"
+                          className={`w-full min-h-[40px] px-2 py-1.5 border rounded-md text-xs ${hasOwnCaption(att) ? 'border-slate-300' : 'border-amber-400 bg-amber-50'}`}
+                        />
+                        {!hasOwnCaption(att) && <p className="text-[10px] text-amber-800 mt-0.5 font-semibold">Keterangan wajib diisi untuk foto Lainnya.</p>}
+                      </>
+                    ) : (
+                      <p className="text-xs font-semibold text-slate-900 line-clamp-2">{att.caption}</p>
+                    )}
                     <p className="text-[10px] text-slate-500 mt-1">
                       {att.uploaded_at}
                     </p>

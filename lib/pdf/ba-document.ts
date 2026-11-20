@@ -3,8 +3,10 @@
  * Pure function (no I/O) so it can be rendered on the server.
  */
 import type { Content, TableCell, TDocumentDefinitions } from 'pdfmake/interfaces';
-import type { ChecklistStatus, PMReport, WorkType } from '@/lib/types';
+import type { ChecklistStatus, MechCheck, PMReport, WorkType } from '@/lib/types';
 import { LOGO_DATA_URL } from './logo';
+import { CLEANING_ITEMS } from '@/lib/cleaning';
+import { DISPENSER_ITEMS, TANK_ITEMS, MechItemDef, normalizeMechanical } from '@/lib/mechanical';
 import { WORK_TYPE_TITLE, WORK_TYPE_SHORT, baNumber } from '@/lib/work-type';
 
 const NAVY = '#0B2545';
@@ -18,6 +20,7 @@ const WORK_TYPE_CODE: Record<WorkType, string> = {
   PREVENTIVE_MAINTENANCE: 'BA-PM',
   QUICK_CHECK: 'BA-QC',
   CORRECTIVE_REPAIR: 'BA-CR',
+  MECHANICAL_PM: 'BA-PMT',
 };
 
 export function baDocNumber(report: PMReport): string {
@@ -175,7 +178,21 @@ function repairSection(r: PMReport): Content[] {
     {
       table: {
         widths: ['30%', '70%'],
-        body: [row('Waktu Pengerjaan', duration), row('Tindakan Perbaikan', d.action_taken), row('Sparepart Diganti', d.sparepart_replaced)],
+        body: [row('Waktu Pengerjaan', duration), row('Tindakan Perbaikan', d.action_taken), row('Catatan Sparepart', d.sparepart_replaced)],
+      },
+      layout: gridLayout,
+    },
+    { text: 'Barang yang diganti (serial number lama dan baru)', bold: true, fontSize: 8, margin: [0, 5, 0, 2] },
+    {
+      table: {
+        headerRows: 1,
+        widths: [18, '*', '28%', '28%'],
+        body: [
+          [{ text: 'No', style: 'label' }, { text: 'Nama Barang / Part', style: 'label' }, { text: 'SN Lama (dilepas)', style: 'label' }, { text: 'SN Baru (dipasang)', style: 'label' }],
+          ...((d.parts_replaced || []).length
+            ? (d.parts_replaced || []).map((p, i) => [String(i + 1), v(p.name), { text: v(p.old_serial), font: 'Roboto' }, { text: v(p.new_serial), bold: true }] as TableCell[])
+            : [[{ text: 'Tidak ada barang yang diganti.', colSpan: 4, italics: true, color: '#64748B' }, '', '', ''] as TableCell[]]),
+        ],
       },
       layout: gridLayout,
     },
@@ -192,6 +209,32 @@ function repairSection(r: PMReport): Content[] {
       layout: gridLayout,
     },
   ];
+}
+
+function mechRows(defs: MechItemDef[], items: Record<string, MechCheck>): [string, ChecklistStatus, string][] {
+  return defs.map((d) => {
+    const c = items[d.key] || ({ status: 'B' } as MechCheck);
+    const clean = d.cleaning ? `Dibersihkan: ${c.cleaned ? 'Ya' : 'Tidak'}. ` : '';
+    return [d.label, c.status, `${clean}${c.notes || ''}`.trim() || '-'];
+  });
+}
+
+function mechanicalSection(r: PMReport): Content[] {
+  const m = normalizeMechanical(r.mechanical);
+  const out: Content[] = [sectionTitle('II. PEMERIKSAAN MEKANIKAL DISPENSER')];
+  if (!m.dispensers.length) out.push({ text: 'Tidak ada dispenser yang diperiksa.', italics: true, color: '#64748B', margin: [0, 4, 0, 0] });
+  m.dispensers.forEach((d) => {
+    out.push({
+      text: [{ text: d.label, bold: true }, `  ·  Model: ${v(d.model)}  ·  SN: ${v(d.serial_number)}`],
+      fontSize: 8.5,
+      margin: [0, 6, 0, 2],
+    });
+    out.push(checkTable(mechRows(DISPENSER_ITEMS, d.items)));
+    if (d.notes) out.push({ text: [{ text: 'Catatan: ', bold: true }, d.notes], margin: [0, 2, 0, 0] });
+  });
+  out.push(sectionTitle('III. AREA TANGKI, STP & PV VENT'), checkTable(mechRows(TANK_ITEMS, m.tank_items)));
+  if (m.tank_notes) out.push({ text: [{ text: 'Catatan: ', bold: true }, m.tank_notes], margin: [0, 3, 0, 0] });
+  return out;
 }
 
 function quickCheckSection(r: PMReport): Content[] {
@@ -237,6 +280,18 @@ function hardwareSection(r: PMReport, no: string): Content[] {
       ['Kondisi Heatsink', h.heatsink_condition, ''],
       ['Sirkulasi Udara', h.airflow_condition, h.notes],
     ]),
+    { text: 'Checklist Pembersihan', bold: true, fontSize: 8, margin: [0, 5, 0, 2] },
+    {
+      table: {
+        widths: ['*', 70],
+        body: CLEANING_ITEMS.map((c) => [
+          { text: c.label },
+          r.cleaning?.[c.key] ? { text: 'Dilakukan', bold: true, color: '#047857' } : { text: 'Tidak', color: '#C8102E' },
+        ]),
+      },
+      layout: gridLayout,
+    },
+    ...(r.cleaning?.notes ? [{ text: [{ text: 'Catatan pembersihan: ', bold: true }, r.cleaning.notes], margin: [0, 3, 0, 0] } as Content] : []),
   ];
 }
 
@@ -245,7 +300,7 @@ function peripheralsSection(r: PMReport, no: string): Content[] {
   return [
     sectionTitle(`${no}. PERIFERAL KASIR`),
     checkTable([
-      ['Display & Touchscreen', p.display_touchscreen.status, p.display_touchscreen.notes],
+      ['Monitor PC POS PINSYST', p.display_touchscreen.status, p.display_touchscreen.notes],
       [
         'Printer Struk',
         p.receipt_printer.status,
@@ -331,7 +386,7 @@ function edcSection(r: PMReport, no: string): Content[] {
   return [
     sectionTitle(`${no}. MESIN EDC`),
     headerTable(
-      ['Merk / Tipe', 'Serial Number', 'Fisik', 'Koneksi', 'Catatan'],
+      ['Merk / Tipe', 'Serial Number', 'Fisik', 'Wi-Fi (AP)', 'Catatan'],
       ['22%', '22%', '14%', '14%', '*'],
       r.edc_list.map((e) => [e.brand_type, { text: e.serial_number, bold: true }, st(e.physical_status), st(e.connection_status), v(e.notes)])
     ),
@@ -357,7 +412,7 @@ function featuresSection(r: PMReport, no: string): Content[] {
 }
 
 function findingsSection(r: PMReport, no: string): Content[] {
-  const isPM = r.work_type === 'PREVENTIVE_MAINTENANCE';
+  const isPM = r.work_type === 'PREVENTIVE_MAINTENANCE' || r.work_type === 'MECHANICAL_PM';
   return [
     sectionTitle(`${no}. ${isPM ? 'CATATAN TEMUAN & RENCANA TINDAK LANJUT' : 'CATATAN & TINDAK LANJUT'}`),
     {
@@ -488,6 +543,9 @@ export function buildBaDocDefinition(report: PMReport): TDocumentDefinitions {
   } else if (report.work_type === 'QUICK_CHECK') {
     body.push(...quickCheckSection(report));
     idx = 1;
+  } else if (report.work_type === 'MECHANICAL_PM') {
+    body.push(...mechanicalSection(report));
+    idx = 2;
   } else {
     body.push(
       ...softwareSection(report, next()),

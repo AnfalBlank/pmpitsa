@@ -4,12 +4,22 @@ export const WORK_TYPE_TITLE: Record<WorkType, string> = {
   PREVENTIVE_MAINTENANCE: 'BERITA ACARA PREVENTIVE MAINTENANCE (PM)',
   QUICK_CHECK: 'BERITA ACARA PENGECEKAN (QUICK CHECK)',
   CORRECTIVE_REPAIR: 'BERITA ACARA CORRECTIVE MAINTENANCE (CM / PERBAIKAN)',
+  MECHANICAL_PM: 'BERITA ACARA PM TEKNIK (DISPENSER & TANGKI)',
 };
 
 export const WORK_TYPE_SHORT: Record<WorkType, string> = {
   PREVENTIVE_MAINTENANCE: 'PM Rutin',
   QUICK_CHECK: 'Pengecekan',
   CORRECTIVE_REPAIR: 'CM Perbaikan',
+  MECHANICAL_PM: 'PM Teknik',
+};
+
+/** Human label used in lists, badges and buttons */
+export const WORK_TYPE_LABEL: Record<WorkType, string> = {
+  PREVENTIVE_MAINTENANCE: 'Preventive Maintenance (PM)',
+  MECHANICAL_PM: 'PM Teknik (Dispenser & Tangki)',
+  QUICK_CHECK: 'Pengecekan (Quick Check)',
+  CORRECTIVE_REPAIR: 'Corrective Maintenance (CM)',
 };
 
 /** Short code per work type used in BA numbers and Drive names */
@@ -17,6 +27,7 @@ export const WORK_TYPE_CODE: Record<WorkType, string> = {
   PREVENTIVE_MAINTENANCE: 'PM',
   CORRECTIVE_REPAIR: 'CM',
   QUICK_CHECK: 'QC',
+  MECHANICAL_PM: 'PMT',
 };
 
 /**
@@ -24,6 +35,13 @@ export const WORK_TYPE_CODE: Record<WorkType, string> = {
  * Derived from the internal id so it never changes after finalisation.
  */
 export function baNumber(r: { id: string; work_type: WorkType }): string {
-  const core = r.id.replace(/^(PM|CM|QC)-/i, '');
+  const core = r.id.replace(/^(PMT|PM|CM|QC)-/i, '');
   return `${WORK_TYPE_CODE[r.work_type] || 'PM'}-${core}`;
+}
+
+/** Work types a technician of a division may perform (Admin/PWS see all). */
+export function workTypesForDivision(division?: 'IT' | 'TEKNIK'): WorkType[] {
+  return division === 'TEKNIK'
+    ? ['MECHANICAL_PM', 'CORRECTIVE_REPAIR']
+    : ['PREVENTIVE_MAINTENANCE', 'QUICK_CHECK', 'CORRECTIVE_REPAIR'];
 }

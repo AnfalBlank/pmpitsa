@@ -148,7 +148,7 @@ export async function POST(req: Request) {
       db,
       {
         type: 'plan.new',
-        title: `Jadwal ${plan_type === 'CORRECTIVE_REPAIR' ? 'CM' : plan_type === 'QUICK_CHECK' ? 'pengecekan' : 'PM'} baru: ${siteCode}`,
+        title: `Jadwal ${plan_type === 'CORRECTIVE_REPAIR' ? 'CM' : plan_type === 'QUICK_CHECK' ? 'pengecekan' : plan_type === 'MECHANICAL_PM' ? 'PM Teknik' : 'PM'} baru: ${siteCode}`,
         message: `${scheduled_date} · ${siteName} · Teknisi: ${assigned_technician || '-'}`,
         link_module: 'schedule',
         link_id: id,

@@ -172,7 +172,7 @@ export const EdcSection: React.FC<EdcSectionProps> = ({
 
                   <div>
                     <span className="block text-[11px] font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                      Koneksi Jaringan / POS
+                      Koneksi Wi-Fi (Access Point)
                     </span>
                     <StatusSelector
                       value={edc.connection_status}

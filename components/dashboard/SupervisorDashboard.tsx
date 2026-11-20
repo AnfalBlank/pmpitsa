@@ -1,5 +1,6 @@
 'use client';
 
+import { WORK_TYPE_LABEL } from '@/lib/work-type';
 import React, { useState, useEffect } from 'react';
 import { 
   Building2, 
@@ -446,7 +447,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
 
               <label className="flex items-center gap-2.5 p-3 rounded-lg border border-slate-200 hover:bg-slate-50 cursor-pointer">
                 <input type="checkbox" defaultChecked className="w-4 h-4 text-emerald-600 rounded focus:ring-emerald-500" />
-                <span>Konektivitas EDC dan jaringan LAN switch forecourt beroperasi normal</span>
+                <span>Konektivitas EDC (Wi-Fi Access Point) dan jaringan forecourt beroperasi normal</span>
               </label>
 
               <label className="flex items-center gap-2.5 p-3 rounded-lg border border-slate-200 hover:bg-slate-50 cursor-pointer">
@@ -671,7 +672,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                         {p.scheduled_date}
                       </span>
                       <span className="font-bold text-slate-900 bg-slate-100 px-2 py-0.5 rounded">
-                        {p.plan_type === 'PREVENTIVE_MAINTENANCE' ? 'Preventive Maintenance (PM)' : p.plan_type}
+                        {WORK_TYPE_LABEL[p.plan_type as WorkType] || p.plan_type}
                       </span>
                       <span className={`px-2 py-0.5 rounded font-bold ${
                         p.status === 'Selesai' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-900'
@@ -779,6 +780,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                 >
                   <option value="ALL">Semua Jenis Kegiatan</option>
                   <option value="PREVENTIVE_MAINTENANCE">Preventive Maintenance</option>
+                  <option value="MECHANICAL_PM">PM Teknik (Dispenser & Tangki)</option>
                   <option value="QUICK_CHECK">Pengecekan Aja</option>
                   <option value="CORRECTIVE_REPAIR">Perbaikan (Repair)</option>
                 </select>
@@ -818,7 +820,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                       <span className="font-mono font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">#{r.id}</span>
                       <span className="font-semibold text-slate-600">{r.execution_date}</span>
                       <span className="font-bold text-slate-900">
-                        {r.work_type === 'PREVENTIVE_MAINTENANCE' ? 'Preventive Maintenance' : r.work_type === 'QUICK_CHECK' ? 'Pengecekan Cepat' : 'Perbaikan'}
+                        {WORK_TYPE_LABEL[r.work_type] || r.work_type}
                       </span>
                       <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold border border-emerald-200">
                         {r.overall_status}
@@ -912,7 +914,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                   <option value="ATG & Tangki Pendam">ATG & Tangki Pendam</option>
                   <option value="POS Terminal & Software">POS Terminal & Software PINSYST</option>
                   <option value="Printer Struk & Periferal">Printer Struk / Barcode Scanner</option>
-                  <option value="EDC & Jaringan">Mesin EDC & Jaringan LAN</option>
+                  <option value="EDC & Jaringan">Mesin EDC & Access Point Wi-Fi</option>
                   <option value="Kelistrikan & Power">Kelistrikan & Power UPS</option>
                   <option value="Lainnya">Lainnya</option>
                 </select>

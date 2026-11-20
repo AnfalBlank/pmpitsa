@@ -16,7 +16,8 @@ import {
   Activity,
   Wrench,
   Search,
-  ClipboardCheck
+  ClipboardCheck,
+  Gauge
 } from 'lucide-react';
 
 export type TabKey = 
@@ -33,7 +34,9 @@ export type TabKey =
   | 'quick_check'
   | 'corrective_repair' // CM step 2: laporan kerusakan & diagnosa
   | 'cm_action' // CM step 3: tindakan & sparepart
-  | 'cm_test'; // CM step 4: uji fungsi & hasil
+  | 'cm_test' // CM step 4: uji fungsi & hasil
+  | 'mech_dispenser' // PM Teknik: per-dispenser checks
+  | 'mech_tank'; // PM Teknik: tangki, STP, PV vent
 
 type TabDef = { key: TabKey; label: string; icon: React.ElementType };
 
@@ -57,6 +60,13 @@ export const WORK_TYPE_TABS: Record<PMReport['work_type'], TabDef[]> = {
     { key: 'cm_test', label: '4. Uji Fungsi', icon: ClipboardCheck },
     { key: 'action', label: '5. Foto Sebelum/Sesudah', icon: Camera },
     { key: 'signoff', label: '6. Pengesahan', icon: PenTool },
+  ],
+  MECHANICAL_PM: [
+    { key: 'info', label: '1. Info & PWS', icon: Building2 },
+    { key: 'mech_dispenser', label: '2. Dispenser', icon: Fuel },
+    { key: 'mech_tank', label: '3. Tangki, STP & PV Vent', icon: Gauge },
+    { key: 'action', label: '4. Foto & Catatan', icon: Camera },
+    { key: 'signoff', label: '5. Pengesahan', icon: PenTool },
   ],
   PREVENTIVE_MAINTENANCE: [
     { key: 'info', label: '1. Info & PWS', icon: Building2 },

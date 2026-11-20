@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { FileSpreadsheet, FileDown, ShieldCheck, Wrench, Activity, ChevronRight } from 'lucide-react';
+import { FileSpreadsheet, FileDown, ShieldCheck, Wrench, Activity, ChevronRight, Fuel } from 'lucide-react';
 import type { Site } from '@/lib/types';
 import type { LaporanRow, LaporanSiteRow, LaporanSummary, LaporanType } from '@/lib/laporan';
 import { apiFetch } from '@/lib/api-client';
@@ -9,6 +9,7 @@ import { LoadingBlock } from '@/components/ui/Loading';
 
 const TABS: { key: LaporanType; label: string; short: string; icon: React.ElementType }[] = [
   { key: 'PM', label: 'Preventive (PM)', short: 'PM', icon: ShieldCheck },
+  { key: 'PMT', label: 'PM Teknik', short: 'PM Teknik', icon: Fuel },
   { key: 'CM', label: 'Corrective (CM)', short: 'CM', icon: Wrench },
   { key: 'QC', label: 'Pengecekan', short: 'Pengecekan', icon: Activity },
 ];
@@ -84,7 +85,7 @@ export const LaporanModule: React.FC<{ sites: Site[]; onOpenReport: (id: string)
   return (
     <div className="space-y-5">
       {/* Report type */}
-      <div role="tablist" aria-label="Jenis laporan" className="grid grid-cols-3 gap-1.5 bg-white border border-slate-200 rounded-xl p-1.5">
+      <div role="tablist" aria-label="Jenis laporan" className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 bg-white border border-slate-200 rounded-xl p-1.5">
         {TABS.map((t) => {
           const Icon = t.icon;
           const active = type === t.key;
@@ -289,6 +290,14 @@ export const LaporanModule: React.FC<{ sites: Site[]; onOpenReport: (id: string)
                           <div className="text-[11px] text-slate-700">
                             {r.issues ? `${r.issues} temuan` : 'Tanpa temuan'}
                             {r.findings ? ` · ${r.findings}` : ''}
+                          </div>
+                        )}
+                        {type === 'PMT' && (
+                          <div className="text-[11px] text-slate-700 space-y-0.5">
+                            <div className="whitespace-pre-line">{r.dispensers || 'Tanpa data dispenser'}</div>
+                            <div>
+                              {(r.mech_bad || []).length ? <span className="text-red-700">R/X: {(r.mech_bad || []).join(', ')}</span> : 'Semua item baik'}
+                            </div>
                           </div>
                         )}
                         {type === 'CM' && (

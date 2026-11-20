@@ -1,8 +1,10 @@
 'use client';
 
 import React, { useState } from 'react';
-import { PMReport, ChecklistStatus } from '@/lib/types';
+import { PMReport, ChecklistStatus, MechCheck } from '@/lib/types';
 import { reportStatus } from '@/lib/report-status';
+import { CLEANING_ITEMS } from '@/lib/cleaning';
+import { DISPENSER_ITEMS, TANK_ITEMS, MechItemDef, normalizeMechanical } from '@/lib/mechanical';
 import { LoadingBlock } from '@/components/ui/Loading';
 import { DocumentHistory } from '@/components/audit/DocumentHistory';
 import { WORK_TYPE_TITLE, baNumber } from '@/lib/work-type';
@@ -60,6 +62,7 @@ export const OfficialPdfPreview: React.FC<OfficialPdfPreviewProps> = ({
 }) => {
   const status = reportStatus(report);
   const isPM = report.work_type === 'PREVENTIVE_MAINTENANCE';
+  const isMech = report.work_type === 'MECHANICAL_PM';
   const feedback = useFeedback();
   const [isSyncing, setIsSyncing] = useState(false);
   const [busy, setBusy] = useState<'pdf' | 'drive' | null>(null);
@@ -506,7 +509,7 @@ export const OfficialPdfPreview: React.FC<OfficialPdfPreviewProps> = ({
               ['III. TINDAKAN PERBAIKAN & SPAREPART', [
                 ['Waktu Pengerjaan', [report.repair_details.work_start, report.repair_details.work_end].filter(Boolean).join(' – ')],
                 ['Tindakan Perbaikan', report.repair_details.action_taken],
-                ['Sparepart Diganti', report.repair_details.sparepart_replaced],
+                ['Catatan Sparepart', report.repair_details.sparepart_replaced],
               ]],
               ['IV. UJI FUNGSI SETELAH PERBAIKAN', [
                 ['Hasil Uji Fungsi', stText(report.repair_details.post_repair_status)],
@@ -528,8 +531,94 @@ export const OfficialPdfPreview: React.FC<OfficialPdfPreviewProps> = ({
                 </table>
               </div>
             ))}
+            <div>
+              <h2 className="text-xs font-black uppercase text-slate-800 bg-slate-100 px-2.5 py-1 rounded-t border border-slate-300 border-b-0">Barang yang Diganti (SN lama → SN baru)</h2>
+              <div className="overflow-x-auto -mx-px">
+                <table className="w-full border-collapse border border-slate-300 text-[11px]">
+                  <thead>
+                    <tr className="bg-slate-50 text-slate-700 font-semibold text-left">
+                      <th className="p-2 border border-slate-300 w-8">No</th>
+                      <th className="p-2 border border-slate-300">Nama Barang</th>
+                      <th className="p-2 border border-slate-300">SN Lama</th>
+                      <th className="p-2 border border-slate-300">SN Baru</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(report.repair_details.parts_replaced || []).length === 0 ? (
+                      <tr><td colSpan={4} className="p-2 border border-slate-300 italic text-slate-500">Tidak ada barang yang diganti.</td></tr>
+                    ) : (
+                      (report.repair_details.parts_replaced || []).map((p, i) => (
+                        <tr key={p.id}>
+                          <td className="p-2 border border-slate-300">{i + 1}</td>
+                          <td className="p-2 border border-slate-300">{p.name || '-'}</td>
+                          <td className="p-2 border border-slate-300 font-mono">{p.old_serial || '-'}</td>
+                          <td className="p-2 border border-slate-300 font-mono font-bold">{p.new_serial || '-'}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         )}
+
+        {/* PM Teknik (mekanikal dispenser & tangki) */}
+        {report.work_type === 'MECHANICAL_PM' && (() => {
+          const m = normalizeMechanical(report.mechanical);
+          const table = (defs: MechItemDef[], items: Record<string, MechCheck>) => (
+            <div className="overflow-x-auto -mx-px">
+              <table className="w-full border-collapse border border-slate-300 text-[11px]">
+                <thead>
+                  <tr className="bg-slate-50 text-slate-700 font-semibold">
+                    <th className="p-2 border border-slate-300 text-left">Komponen</th>
+                    <th className="p-2 border border-slate-300 w-16">Status</th>
+                    <th className="p-2 border border-slate-300 text-left">Catatan</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {defs.map((d) => {
+                    const c = items[d.key];
+                    return (
+                      <tr key={d.key}>
+                        <td className="p-2 border border-slate-300 font-semibold">{d.label}</td>
+                        <td className={`p-2 border border-slate-300 text-center font-bold ${c?.status === 'B' ? 'text-emerald-700' : 'text-red-700'}`}>{c?.status || '-'}</td>
+                        <td className="p-2 border border-slate-300 whitespace-pre-line">
+                          {d.cleaning ? `Dibersihkan: ${c?.cleaned ? 'Ya' : 'Tidak'}. ` : ''}
+                          {c?.notes || ''}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          );
+          return (
+            <div className="mb-5 space-y-4">
+              <div>
+                <h2 className="text-xs font-black uppercase text-slate-800 bg-slate-100 px-2.5 py-1 rounded-t border border-slate-300 border-b-0">II. PEMERIKSAAN MEKANIKAL DISPENSER</h2>
+                <div className="border border-slate-300 p-2 space-y-3">
+                  {m.dispensers.length === 0 && <p className="text-[11px] italic text-slate-500">Tidak ada dispenser yang diperiksa.</p>}
+                  {m.dispensers.map((d) => (
+                    <div key={d.id}>
+                      <p className="text-[11px] mb-1">
+                        <strong>{d.label}</strong> · Model: {d.model || '-'} · SN: <span className="font-mono">{d.serial_number || '-'}</span>
+                      </p>
+                      {table(DISPENSER_ITEMS, d.items)}
+                      {d.notes && <p className="text-[11px] mt-1"><strong>Catatan:</strong> {d.notes}</p>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <h2 className="text-xs font-black uppercase text-slate-800 bg-slate-100 px-2.5 py-1 rounded-t border border-slate-300 border-b-0">III. AREA TANGKI, STP & PV VENT</h2>
+                {table(TANK_ITEMS, m.tank_items)}
+                {m.tank_notes && <p className="text-[11px] mt-1"><strong>Catatan:</strong> {m.tank_notes}</p>}
+              </div>
+            </div>
+          );
+        })()}
 
         {isPM && (
           <>
@@ -590,7 +679,7 @@ export const OfficialPdfPreview: React.FC<OfficialPdfPreviewProps> = ({
                 <td className="p-2 border border-slate-300">{report.hardware.notes || 'Normal, debu ventilasi telah dibersihkan'}</td>
               </tr>
               <tr>
-                <td className="p-2 border border-slate-300 font-semibold">Layar Display & Touchscreen</td>
+                <td className="p-2 border border-slate-300 font-semibold">Monitor PC POS PINSYST</td>
                 <td className="p-2 border border-slate-300 text-center font-bold">{report.peripherals.display_touchscreen.status}</td>
                 <td className="p-2 border border-slate-300">{report.peripherals.display_touchscreen.notes}</td>
               </tr>
@@ -617,6 +706,29 @@ export const OfficialPdfPreview: React.FC<OfficialPdfPreviewProps> = ({
             </tbody>
           </table>
           </div>
+          <table className="w-full border-collapse border border-slate-300 text-[11px] mt-2">
+            <thead>
+              <tr className="bg-slate-50 text-slate-700 font-semibold">
+                <th className="p-2 border border-slate-300 text-left">Checklist Pembersihan</th>
+                <th className="p-2 border border-slate-300 w-24">Hasil</th>
+              </tr>
+            </thead>
+            <tbody>
+              {CLEANING_ITEMS.map((c) => (
+                <tr key={c.key}>
+                  <td className="p-2 border border-slate-300">{c.label}</td>
+                  <td className={`p-2 border border-slate-300 text-center font-bold ${report.cleaning?.[c.key] ? 'text-emerald-700' : 'text-red-700'}`}>
+                    {report.cleaning?.[c.key] ? 'Dilakukan' : 'Tidak'}
+                  </td>
+                </tr>
+              ))}
+              {report.cleaning?.notes && (
+                <tr>
+                  <td colSpan={2} className="p-2 border border-slate-300 whitespace-pre-line"><strong>Catatan:</strong> {report.cleaning.notes}</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
 
         {/* 4. EDC Terminals & Forecourt Tanks */}
@@ -632,7 +744,7 @@ export const OfficialPdfPreview: React.FC<OfficialPdfPreviewProps> = ({
                   <th className="p-1.5 border border-slate-300 text-left">Unit EDC</th>
                   <th className="p-1.5 border border-slate-300 text-left">Serial Number (SN)</th>
                   <th className="p-1.5 border border-slate-300 text-center w-12">Fisik</th>
-                  <th className="p-1.5 border border-slate-300 text-center w-12">LAN</th>
+                  <th className="p-1.5 border border-slate-300 text-center w-14">Wi-Fi</th>
                 </tr>
               </thead>
               <tbody>
@@ -705,11 +817,17 @@ export const OfficialPdfPreview: React.FC<OfficialPdfPreviewProps> = ({
         {/* 6. Findings Summary & Action Plan */}
         <div className="mb-6 border border-slate-300 rounded p-3 bg-slate-50">
           <h2 className="text-xs font-black uppercase text-slate-800 mb-1.5">
-            {isPM ? 'VII. CATATAN TEMUAN & RENCANA TINDAK LANJUT (ACTION PLAN)' : report.work_type === 'QUICK_CHECK' ? 'III. CATATAN & TINDAK LANJUT' : 'V. CATATAN & TINDAK LANJUT'}
+            {isPM
+              ? 'VII. CATATAN TEMUAN & RENCANA TINDAK LANJUT (ACTION PLAN)'
+              : isMech
+              ? 'IV. CATATAN TEMUAN & RENCANA TINDAK LANJUT'
+              : report.work_type === 'QUICK_CHECK'
+              ? 'III. CATATAN & TINDAK LANJUT'
+              : 'V. CATATAN & TINDAK LANJUT'}
           </h2>
           <div className="space-y-2 text-[11px]">
             <div>
-              <span className="font-bold text-slate-700">{isPM ? 'Temuan Lapangan: ' : 'Catatan: '}</span>
+              <span className="font-bold text-slate-700">{isPM || isMech ? 'Temuan Lapangan: ' : 'Catatan: '}</span>
               <p className="text-slate-800 whitespace-pre-line mt-0.5">{report.findings_summary}</p>
             </div>
             <div>
@@ -743,7 +861,7 @@ export const OfficialPdfPreview: React.FC<OfficialPdfPreviewProps> = ({
         {/* 7. Sign-Off Section */}
         <div className="border border-slate-300 rounded p-4 bg-white">
           <h2 className="text-xs font-black uppercase text-slate-800 text-center mb-4">
-            {isPM ? 'VIII' : report.work_type === 'QUICK_CHECK' ? 'IV' : 'VI'}. LEMBAR PENGESAHAN
+            {isPM ? 'VIII' : isMech ? 'V' : report.work_type === 'QUICK_CHECK' ? 'IV' : 'VI'}. LEMBAR PENGESAHAN
           </h2>
 
           <div className="grid grid-cols-2 gap-4 sm:gap-8 text-center text-[11px]">

@@ -35,6 +35,15 @@ export async function fetchUsersApi(): Promise<any[] | null> {
   return null;
 }
 
+export async function setUserDivisionApi(id: string, division: 'IT' | 'TEKNIK'): Promise<{ success: boolean; message?: string }> {
+  try {
+    const res = await apiFetch('/api/users', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, division }) });
+    return await res.json();
+  } catch (err: any) {
+    return { success: false, message: 'Gagal terhubung ke server: ' + err.message };
+  }
+}
+
 export async function createUserApi(payload: any): Promise<{ success: boolean; message?: string; id?: string }> {
   try {
     const res = await apiFetch('/api/users', {

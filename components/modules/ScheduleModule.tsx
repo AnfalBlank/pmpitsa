@@ -1,5 +1,6 @@
 'use client';
 
+import { WORK_TYPE_LABEL } from '@/lib/work-type';
 import React, { useState } from 'react';
 import { ScheduleCalendar } from '@/components/modules/ScheduleCalendar';
 import { MasterSelect } from '@/components/ui/MasterSelect';
@@ -414,7 +415,7 @@ export const ScheduleModule: React.FC<ScheduleModuleProps> = ({
                         {p.scheduled_date}
                       </span>
                       <span className="text-xs font-bold text-slate-800 bg-slate-100 px-2.5 py-0.5 rounded">
-                        {p.plan_type === 'PREVENTIVE_MAINTENANCE' ? 'Preventive Maintenance (PM)' : p.plan_type === 'QUICK_CHECK' ? 'Pengecekan Cepat' : 'Perbaikan (Repair)'}
+                        {WORK_TYPE_LABEL[p.plan_type as WorkType] || p.plan_type}
                       </span>
                       <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${
                         isCompleted 
@@ -548,6 +549,7 @@ export const ScheduleModule: React.FC<ScheduleModuleProps> = ({
                     className="w-full min-h-[44px] px-3 text-xs bg-slate-50 border border-slate-300 rounded-lg font-medium text-slate-800 focus:ring-2 focus:ring-blue-600 focus:outline-none"
                   >
                     <option value="PREVENTIVE_MAINTENANCE">Preventive Maintenance (PM)</option>
+                    <option value="MECHANICAL_PM">PM Teknik (Dispenser & Tangki)</option>
                     <option value="QUICK_CHECK">Pengecekan Cepat</option>
                     <option value="CORRECTIVE_REPAIR">Perbaikan (Repair)</option>
                   </select>

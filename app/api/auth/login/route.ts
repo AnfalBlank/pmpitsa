@@ -102,6 +102,7 @@ export async function POST(req: Request) {
       employeeId: String(row.employee_id),
       phone: String(row.phone),
       assignedSiteId: Number(row.assigned_site_id || 1),
+      division: (String(row.division || 'IT') === 'TEKNIK' ? 'TEKNIK' : 'IT') as 'IT' | 'TEKNIK',
     };
 
     // Role-Based Access Control matrix (derived from lib/rbac.ts)
@@ -133,7 +134,7 @@ export async function POST(req: Request) {
     });
     setSessionCookie(
       response,
-      createSessionToken({ id: user.id, name: user.name, role: role as any, assignedSiteId: user.assignedSiteId })
+      createSessionToken({ id: user.id, name: user.name, role: role as any, assignedSiteId: user.assignedSiteId, division: user.division })
     );
     return response;
   } catch (err: any) {

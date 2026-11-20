@@ -1,17 +1,20 @@
 /** Management reports (PM / CM / Pengecekan) built from final Berita Acara. */
+import { DISPENSER_ITEMS, TANK_ITEMS, mechanicalIssues, normalizeMechanical } from './mechanical';
 import type { PMReport, WorkType } from './types';
 import { baNumber } from './work-type';
 
-export type LaporanType = 'PM' | 'CM' | 'QC';
+export type LaporanType = 'PM' | 'PMT' | 'CM' | 'QC';
 
 export const LAPORAN_WORK_TYPE: Record<LaporanType, WorkType> = {
   PM: 'PREVENTIVE_MAINTENANCE',
+  PMT: 'MECHANICAL_PM',
   CM: 'CORRECTIVE_REPAIR',
   QC: 'QUICK_CHECK',
 };
 
 export const LAPORAN_TITLE: Record<LaporanType, string> = {
   PM: 'Laporan Preventive Maintenance (PM)',
+  PMT: 'Laporan PM Teknik (Dispenser & Tangki)',
   CM: 'Laporan Corrective Maintenance (CM)',
   QC: 'Laporan Pengecekan (Quick Check)',
 };
@@ -47,6 +50,9 @@ export interface LaporanRow {
   duration_min?: number | null;
   // QC
   checks_bad?: string[];
+  // PM Teknik
+  dispensers?: string;
+  mech_bad?: string[];
 }
 
 export interface LaporanSummary {
@@ -131,6 +137,16 @@ export function toLaporanRow(r: PMReport): LaporanRow {
   if (r.work_type === 'PREVENTIVE_MAINTENANCE') {
     base.issues = pmIssues(r);
     base.next_pm = r.next_pm_recommendation_date;
+  } else if (r.work_type === 'MECHANICAL_PM') {
+    const m = normalizeMechanical(r.mechanical);
+    base.issues = mechanicalIssues(m);
+    base.dispensers = m.dispensers.map((d) => `${d.label} (${d.model || '-'}, SN ${d.serial_number || '-'})`).join('\n');
+    base.mech_bad = [
+      ...m.dispensers.flatMap((d) =>
+        DISPENSER_ITEMS.filter((it) => d.items[it.key]?.status !== 'B').map((it) => `${d.label}: ${it.label.split(':')[0]} (${d.items[it.key].status})`)
+      ),
+      ...TANK_ITEMS.filter((it) => m.tank_items[it.key]?.status !== 'B').map((it) => `Tangki: ${it.label.split(' (')[0]} (${m.tank_items[it.key].status})`),
+    ];
   } else if (r.work_type === 'CORRECTIVE_REPAIR') {
     const d = r.repair_details;
     base.category = d?.category;
@@ -138,7 +154,8 @@ export function toLaporanRow(r: PMReport): LaporanRow {
     base.problem = d?.reported_problem;
     base.root_cause = d?.root_cause;
     base.action_taken = d?.action_taken;
-    base.sparepart = d?.sparepart_replaced;
+    const swapped = (d?.parts_replaced || []).map((p) => `${p.name}: SN lama ${p.old_serial || '-'}, SN baru ${p.new_serial || '-'}`);
+    base.sparepart = [...swapped, d?.sparepart_replaced || ''].filter((x) => x.trim()).join('\n') || undefined;
     base.test_result = d?.post_repair_status ? STATUS_WORD[d.post_repair_status] || d.post_repair_status : '';
     base.duration_min = minutes(d?.work_start, d?.work_end);
   } else {
@@ -161,6 +178,9 @@ export function summarise(type: LaporanType, rows: LaporanRow[]): { summary: Lap
   };
   if (type === 'PM') {
     summary.extra.push({ label: 'Total temuan (item rusak / fitur bermasalah)', value: rows.reduce((n, r) => n + (r.issues || 0), 0) });
+  } else if (type === 'PMT') {
+    summary.extra.push({ label: 'Total temuan R/X (dispenser & tangki)', value: rows.reduce((n, r) => n + (r.issues || 0), 0) });
+    summary.extra.push({ label: 'Jumlah dispenser diperiksa', value: rows.reduce((n, r) => n + (r.dispensers ? r.dispensers.split('\n').length : 0), 0) });
   } else if (type === 'CM') {
     const parts = count((r) => !!r.sparepart && !/^tidak/i.test(r.sparepart.trim()) && r.sparepart.trim() !== '-');
     const unresolved = count((r) => !!r.test_result && r.test_result !== 'Baik');
@@ -210,6 +230,16 @@ export function csvColumns(type: LaporanType): { key: string; label: string; get
       { key: 'findings', label: 'Ringkasan Temuan', get: (r) => r.findings },
       { key: 'action_plan', label: 'Rencana Tindak Lanjut', get: (r) => r.action_plan },
       { key: 'next_pm', label: 'PM Berikutnya', get: (r) => r.next_pm },
+      ...tail,
+    ];
+  if (type === 'PMT')
+    return [
+      ...common,
+      { key: 'dispensers', label: 'Dispenser (Model, SN)', get: (r) => r.dispensers },
+      { key: 'issues', label: 'Jumlah Temuan R/X', get: (r) => r.issues },
+      { key: 'bad', label: 'Item R/X', get: (r) => (r.mech_bad || []).join('; ') || 'Tidak ada' },
+      { key: 'findings', label: 'Ringkasan Temuan', get: (r) => r.findings },
+      { key: 'action_plan', label: 'Rencana Tindak Lanjut', get: (r) => r.action_plan },
       ...tail,
     ];
   if (type === 'CM')
