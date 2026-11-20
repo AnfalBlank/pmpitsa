@@ -1,9 +1,9 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { MasterSelect } from '@/components/ui/MasterSelect';
 import { activeOnly, atgLabel, dispenserLabel, useMasterData } from '@/lib/use-master-config';
-import { PMReport, CorrectiveRepairDetails, ReplacedPart } from '@/lib/types';
+import { PMReport, CorrectiveRepairDetails, ReplacedPart, Site, TechDivision } from '@/lib/types';
 import { StatusSelector } from '../StatusSelector';
 import { Search, Wrench, ClipboardCheck, Package, Clock, Ticket, Plus, Trash2 } from 'lucide-react';
 
@@ -14,6 +14,10 @@ interface CorrectiveRepairSectionProps {
   onChange: (updated: PMReport) => void;
   /** Which part of the CM (corrective maintenance) form to show */
   step: CorrectiveStep;
+  /** SPBU list (for the dispenser units configured per site) */
+  sites?: Site[];
+  /** Technician division: Teknik defaults to forecourt categories */
+  division?: TechDivision;
 }
 
 export const EMPTY_REPAIR_DETAILS: CorrectiveRepairDetails = {
@@ -49,11 +53,15 @@ const Card: React.FC<{ icon: React.ElementType; title: string; subtitle: string;
   </div>
 );
 
-export const CorrectiveRepairSection: React.FC<CorrectiveRepairSectionProps> = ({ report, onChange, step }) => {
+export const CorrectiveRepairSection: React.FC<CorrectiveRepairSectionProps> = ({ report, onChange, step, sites = [], division }) => {
   const master = useMasterData();
   // Units registered in master data, grouped by type
   const CAT_LABEL: Record<string, string> = { POS: 'PC / Terminal POS', PRINTER: 'Printer', EDC: 'Mesin EDC', UPS: 'UPS', NETWORK: 'Jaringan' };
+  // Dispenser units of this SPBU (model + SN from the site configuration)
+  const siteUnits = sites.find((s) => s.id === report.site_id)?.forecourt?.dispensers || [];
+  const unitName = (u: { label: string; model: string }) => `${u.label} · ${u.model || 'Dispenser'}`;
   const unitOptions = [
+    ...siteUnits.map((u) => ({ value: unitName(u), group: 'Dispenser di SPBU ini' })),
     ...activeOnly(master.hardwareConfigs).map((h) => ({ value: h.brand_model, group: CAT_LABEL[h.category] || h.category })),
     ...activeOnly(master.dispenserBrands).map((b) => ({ value: dispenserLabel(b), group: 'Dispenser' })),
     ...activeOnly(master.atgBrands).map((b) => ({ value: atgLabel(b), group: 'ATG' })),
@@ -64,6 +72,13 @@ export const CorrectiveRepairSection: React.FC<CorrectiveRepairSectionProps> = (
     onChange({ ...report, repair_details: { ...details, [key]: val } });
   };
   const parts: ReplacedPart[] = details.parts_replaced || [];
+
+  // Teknik technicians work on the forecourt: a blank CM starts in that category
+  const blankCm = details.category === 'Hardware POS' && !details.reported_problem && !details.affected_unit;
+  useEffect(() => {
+    if (division === 'TEKNIK' && blankCm) update('category', 'Dispenser & Forecourt');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [division, report.id, blankCm]);
   const setParts = (next: ReplacedPart[]) => update('parts_replaced', next);
   const patchPart = (id: string, patch: Partial<ReplacedPart>) => setParts(parts.map((p) => (p.id === id ? { ...p, ...patch } : p)));
 
@@ -85,10 +100,10 @@ export const CorrectiveRepairSection: React.FC<CorrectiveRepairSectionProps> = (
                 Kategori Komponen <span className="text-red-500">*</span>
               </label>
               <select id="cm-category" value={details.category} onChange={(e) => update('category', e.target.value as any)} className={inputCls}>
-                <option value="Hardware POS">Hardware PC & Layar Sentuh POS</option>
+                <option value="Hardware POS">Hardware PC & Monitor POS</option>
                 <option value="Printer / Scanner">Printer Struk / Auto-Cutter / Scanner</option>
-                <option value="Dispenser & Forecourt">Dispenser / Nozzle / Interface RS485</option>
-                <option value="ATG & Tangki">Sensor Tangki ATG / Water Sensor</option>
+                <option value="Dispenser & Forecourt">Dispenser / Nozzle / Swivel / Breakaway / Interface</option>
+                <option value="ATG & Tangki">Tangki / STP / PV Vent / Sensor ATG</option>
                 <option value="EDC & Jaringan">Mesin EDC / Access Point Wi-Fi / Router</option>
                 <option value="Lainnya">Listrik / UPS / E-Stop / Lainnya</option>
               </select>
@@ -100,7 +115,18 @@ export const CorrectiveRepairSection: React.FC<CorrectiveRepairSectionProps> = (
               <MasterSelect
                 id="cm-unit"
                 value={details.affected_unit || ''}
-                onChange={(v) => update('affected_unit', v)}
+                onChange={(v) => {
+                  const u = siteUnits.find((x) => unitName(x) === v);
+                  onChange({
+                    ...report,
+                    repair_details: {
+                      ...details,
+                      affected_unit: v,
+                      // A configured dispenser fills its SN; category follows
+                      ...(u ? { affected_serial: u.serial_number, category: 'Dispenser & Forecourt' as const } : {}),
+                    },
+                  });
+                }}
                 options={unitOptions}
                 placeholder="— Pilih unit / perangkat —"
                 customPlaceholder="Contoh: Printer Epson TM-T82 kasir 1"

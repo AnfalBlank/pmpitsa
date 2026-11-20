@@ -6,7 +6,7 @@ import type { PMReport, WorkType } from '@/lib/types';
 import { reportStatus } from '@/lib/report-status';
 import { baNumber, WORK_TYPE_CODE, WORK_TYPE_SHORT } from '@/lib/work-type';
 import { CLEANING_ITEMS } from '@/lib/cleaning';
-import { mechanicalIssues } from '@/lib/mechanical';
+import { mechanicalCheckBad, mechanicalIssues } from '@/lib/mechanical';
 
 type TypeFilter = 'ALL' | WorkType;
 
@@ -15,12 +15,14 @@ const TYPE_STYLE: Record<WorkType, string> = {
   CORRECTIVE_REPAIR: 'bg-red-50 text-red-800 border-red-200',
   QUICK_CHECK: 'bg-emerald-50 text-emerald-800 border-emerald-200',
   MECHANICAL_PM: 'bg-orange-50 text-orange-800 border-orange-200',
+  MECHANICAL_CHECK: 'bg-amber-50 text-amber-800 border-amber-200',
 };
 const TYPE_ICON: Record<WorkType, React.ElementType> = {
   PREVENTIVE_MAINTENANCE: ShieldCheck,
   CORRECTIVE_REPAIR: Wrench,
   QUICK_CHECK: ClipboardCheck,
   MECHANICAL_PM: Fuel,
+  MECHANICAL_CHECK: ClipboardCheck,
 };
 const STATUS_STYLE: Record<string, string> = {
   'Selesai (Normal)': 'text-emerald-700',
@@ -82,7 +84,7 @@ export const MaintenanceHistory: React.FC<Props> = ({ reports, siteLabel, onOpen
     [reports]
   );
   const counts = useMemo(() => {
-    const c: Record<WorkType, number> = { PREVENTIVE_MAINTENANCE: 0, CORRECTIVE_REPAIR: 0, QUICK_CHECK: 0, MECHANICAL_PM: 0 };
+    const c: Record<WorkType, number> = { PREVENTIVE_MAINTENANCE: 0, CORRECTIVE_REPAIR: 0, QUICK_CHECK: 0, MECHANICAL_PM: 0, MECHANICAL_CHECK: 0 };
     done.forEach((r) => (c[r.work_type] = (c[r.work_type] || 0) + 1));
     return c;
   }, [done]);
@@ -117,7 +119,7 @@ export const MaintenanceHistory: React.FC<Props> = ({ reports, siteLabel, onOpen
       {open && (
         <>
           <div className="flex flex-wrap gap-2" role="group" aria-label="Filter jenis pekerjaan">
-            {(['ALL', 'PREVENTIVE_MAINTENANCE', 'MECHANICAL_PM', 'CORRECTIVE_REPAIR', 'QUICK_CHECK'] as TypeFilter[]).map((t) => (
+            {(['ALL', 'PREVENTIVE_MAINTENANCE', 'MECHANICAL_PM', 'CORRECTIVE_REPAIR', 'QUICK_CHECK', 'MECHANICAL_CHECK'] as TypeFilter[]).map((t) => (
               <button
                 key={t}
                 type="button"
@@ -174,6 +176,7 @@ export const MaintenanceHistory: React.FC<Props> = ({ reports, siteLabel, onOpen
                           {r.technician_name || '-'}
                           {parts.length > 0 && ` · ${parts.length} barang diganti`}
                           {r.work_type === 'MECHANICAL_PM' && ` · ${(r.mechanical?.dispensers || []).length} dispenser · ${mechanicalIssues(r.mechanical)} temuan R/X`}
+                          {r.work_type === 'MECHANICAL_CHECK' && ` · ${mechanicalCheckBad(r.mechanical_check).length} temuan R/X`}
                           {cleaned != null && r.work_type === 'PREVENTIVE_MAINTENANCE' && ` · pembersihan ${cleaned}/${CLEANING_ITEMS.length}`}
                         </p>
                       </button>

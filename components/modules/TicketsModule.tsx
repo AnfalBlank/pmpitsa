@@ -19,7 +19,8 @@ import {
   Calendar,
   RotateCcw
 } from 'lucide-react';
-import { UserSession, Site, SPBUTicket, TicketPriority, TicketCategory, TicketStatus } from '@/lib/types';
+import { UserSession, Site, SPBUTicket, TicketPriority, TicketCategory, TicketStatus, TechDivision } from '@/lib/types';
+import { DIVISION_LABEL, DIVISION_SHORT, TICKET_CATEGORIES, ticketDivision } from '@/lib/tickets';
 import { SAMPLE_SITES } from '@/lib/sample-data';
 import { saveTicket, updateTicketStatus } from '@/lib/storage';
 import { createTicketApi, updateTicketApi, deleteTicketApi } from '@/lib/api-client';
@@ -54,10 +55,14 @@ export const TicketsModule: React.FC<TicketsModuleProps> = ({
   const canRepair = can(currentUser.role, 'pm.perform');
   const feedback = useFeedback();
   const technicians = (usersList || []).filter(u => u.role === 'TECHNICIAN');
+  const divisionTechs = (t: SPBUTicket) => technicians.filter((u: any) => (u.division || 'IT') === ticketDivision(t));
+  // Technicians only run CM for tickets of their own division
+  const canRepairTicket = (t: SPBUTicket) => canRepair && (currentUser.division || 'IT') === ticketDivision(t);
 
   const [ticketSearch, setTicketSearch] = useState('');
   const [ticketStatusFilter, setTicketStatusFilter] = useState<string>('ALL');
   const [ticketPriorityFilter, setTicketPriorityFilter] = useState<string>('ALL');
+  const [ticketDivisionFilter, setTicketDivisionFilter] = useState<'ALL' | TechDivision>('ALL');
   const [ticketSiteFilter, setTicketSiteFilter] = useState<number | 'ALL'>('ALL');
   const [ticketPeriodFilter, setTicketPeriodFilter] = useState<PeriodFilterKey>('ALL');
   const [customTicketDateFrom, setCustomTicketDateFrom] = useState('');
@@ -67,7 +72,13 @@ export const TicketsModule: React.FC<TicketsModuleProps> = ({
   const [isNewTicketModalOpen, setIsNewTicketModalOpen] = useState(false);
   const [newTicketSiteId, setNewTicketSiteId] = useState<number>(scope ?? (currentUser.assignedSiteId || activeSites[0]?.id));
   const [newTicketTerminal, setNewTicketTerminal] = useState('POS-01');
-  const [newTicketCategory, setNewTicketCategory] = useState<TicketCategory>('Dispenser & Forecourt');
+  // Bidang tiket: a technician reports for their own division, Pengawas/Admin choose
+  const [newTicketDivision, setNewTicketDivision] = useState<TechDivision>(currentUser.role === 'TECHNICIAN' ? currentUser.division || 'IT' : 'IT');
+  const [newTicketCategory, setNewTicketCategory] = useState<TicketCategory>(TICKET_CATEGORIES[newTicketDivision][0].value);
+  const pickDivision = (d: TechDivision) => {
+    setNewTicketDivision(d);
+    if (!TICKET_CATEGORIES[d].some((c) => c.value === newTicketCategory)) setNewTicketCategory(TICKET_CATEGORIES[d][0].value);
+  };
   const [newTicketPriority, setNewTicketPriority] = useState<TicketPriority>('Tinggi');
   const [newTicketTitle, setNewTicketTitle] = useState('');
   const [newTicketDesc, setNewTicketDesc] = useState('');
@@ -84,6 +95,7 @@ export const TicketsModule: React.FC<TicketsModuleProps> = ({
     if (ticketSiteFilter !== 'ALL' && t.site_id !== ticketSiteFilter) return false;
     if (ticketStatusFilter !== 'ALL' && t.status !== ticketStatusFilter) return false;
     if (ticketPriorityFilter !== 'ALL' && t.priority !== ticketPriorityFilter) return false;
+    if (ticketDivisionFilter !== 'ALL' && ticketDivision(t) !== ticketDivisionFilter) return false;
     
     // Period filter on t.reported_at
     if (!isDateInPeriod(t.reported_at, ticketPeriodFilter, customTicketDateFrom, customTicketDateTo)) {
@@ -106,6 +118,7 @@ export const TicketsModule: React.FC<TicketsModuleProps> = ({
     setTicketSiteFilter('ALL');
     setTicketStatusFilter('ALL');
     setTicketPriorityFilter('ALL');
+    setTicketDivisionFilter('ALL');
     setTicketPeriodFilter('ALL');
     setCustomTicketDateFrom('');
     setCustomTicketDateTo('');
@@ -116,6 +129,7 @@ export const TicketsModule: React.FC<TicketsModuleProps> = ({
     ticketSiteFilter !== 'ALL' ||
     ticketStatusFilter !== 'ALL' ||
     ticketPriorityFilter !== 'ALL' ||
+    ticketDivisionFilter !== 'ALL' ||
     ticketPeriodFilter !== 'ALL';
 
   const openCount = tickets.filter(t => t.status === 'Open (Menunggu)').length;
@@ -137,10 +151,6 @@ export const TicketsModule: React.FC<TicketsModuleProps> = ({
     }
     const ticketNum = `TIK-PITL-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
 
-    const defaultTechName = technicians.length > 0 
-      ? `${technicians[0].name} (Teknisi)` 
-      : 'Belum Ditugaskan';
-
     const newTicket: SPBUTicket = {
       id: `TIK-${Date.now()}`,
       ticket_number: ticketNum,
@@ -149,20 +159,22 @@ export const TicketsModule: React.FC<TicketsModuleProps> = ({
       site_name: targetSite.site_name,
       terminal_id: newTicketTerminal,
       category: newTicketCategory,
+      division: newTicketDivision,
       priority: newTicketPriority,
       status: 'Open (Menunggu)',
       title: newTicketTitle,
       description: newTicketDesc,
       reported_by: newTicketReporter || currentUser.name,
       reported_at: new Date().toISOString().replace('T', ' ').substring(0, 16),
-      assigned_to: defaultTechName,
+      // Admin assigns a technician of this division afterwards
+      assigned_to: undefined,
     };
 
     const result = await feedback.run(() => createTicketApi(newTicket), {
       pending: 'Mengirim tiket ke server...',
       success: {
         title: 'Tiket Berhasil Dibuat',
-        message: <>Tiket <strong>{ticketNum}</strong> untuk {targetSite.site_name} telah tercatat dan diteruskan ke teknisi.</>,
+        message: <>Tiket <strong>{ticketNum}</strong> untuk {targetSite.site_name} telah tercatat dan diteruskan ke Admin & teknisi divisi {DIVISION_SHORT[newTicketDivision]}.</>,
       },
       error: { title: 'Gagal Membuat Tiket', message: 'Tiket belum tersimpan. Periksa koneksi lalu coba lagi.' },
     });
@@ -368,6 +380,19 @@ export const TicketsModule: React.FC<TicketsModuleProps> = ({
             </select>
           </div>
 
+          <div>
+            <select
+              value={ticketDivisionFilter}
+              onChange={(e) => setTicketDivisionFilter(e.target.value as 'ALL' | TechDivision)}
+              aria-label="Filter Divisi"
+              className="w-full min-h-[44px] px-3 text-xs bg-slate-50 border border-slate-300 rounded-lg font-medium text-slate-800 focus:ring-2 focus:ring-red-500 focus:outline-none"
+            >
+              <option value="ALL">Semua Divisi</option>
+              <option value="IT">Divisi IT</option>
+              <option value="TEKNIK">Divisi Teknik</option>
+            </select>
+          </div>
+
           <div className="col-span-2 sm:col-span-1 flex items-center gap-2 empty:hidden">
             {isFilterActive && (
               <button
@@ -474,6 +499,11 @@ export const TicketsModule: React.FC<TicketsModuleProps> = ({
                         Prioritas: {t.priority}
                       </span>
                       <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${
+                        ticketDivision(t) === 'TEKNIK' ? 'bg-orange-50 text-orange-900 border-orange-300' : 'bg-blue-50 text-blue-900 border-blue-200'
+                      }`}>
+                        Divisi {DIVISION_SHORT[ticketDivision(t)]}
+                      </span>
+                      <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${
                         t.status === 'Selesai (Resolved)'
                           ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
                           : t.status === 'Sedang Ditangani'
@@ -514,7 +544,7 @@ export const TicketsModule: React.FC<TicketsModuleProps> = ({
 
                   {/* Right Actions */}
                   <div className="flex items-center gap-2 flex-shrink-0 self-start lg:self-center flex-wrap">
-                    {canRepair && onStartRepairFromTicket && !isResolved && (
+                    {canRepairTicket(t) && onStartRepairFromTicket && !isResolved && (
                       <button
                         type="button"
                         onClick={() => onStartRepairFromTicket(t)}
@@ -534,8 +564,8 @@ export const TicketsModule: React.FC<TicketsModuleProps> = ({
                         setUpdateNotes(t.resolution_notes || '');
                         {
                           // Match the stored name to a registered technician (older tickets use other formats)
-                          const match = technicians.find((u: any) => t.assigned_to && t.assigned_to.toLowerCase().includes(String(u.name).toLowerCase()));
-                          setUpdateAssigned(match ? `${match.name} (Teknisi)` : t.assigned_to || '');
+                          const match = divisionTechs(t).find((u: any) => t.assigned_to && t.assigned_to.toLowerCase().includes(String(u.name).toLowerCase()));
+                          setUpdateAssigned(match ? `${match.name} (Teknisi)` : '');
                         }
                       }}
                       className="min-h-[40px] px-3.5 py-1.5 bg-[#0B2545] hover:bg-slate-800 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-2xs transition-colors"
@@ -590,6 +620,28 @@ export const TicketsModule: React.FC<TicketsModuleProps> = ({
             </div>
 
             <form onSubmit={handleCreateTicketSubmit} className="p-5 space-y-3.5">
+              <fieldset>
+                <legend className="block text-xs font-bold text-slate-700 uppercase mb-1">Bidang Kerusakan</legend>
+                <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Bidang kerusakan">
+                  {(['IT', 'TEKNIK'] as TechDivision[]).map((d) => (
+                    <button
+                      key={d}
+                      type="button"
+                      role="radio"
+                      aria-checked={newTicketDivision === d}
+                      onClick={() => pickDivision(d)}
+                      className={`min-h-[48px] px-2 rounded-lg border text-xs font-bold leading-tight ${
+                        newTicketDivision === d
+                          ? d === 'TEKNIK' ? 'bg-orange-600 border-orange-600 text-white' : 'bg-[#0B2545] border-[#0B2545] text-white'
+                          : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      {DIVISION_LABEL[d]}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1">Tiket diteruskan ke Admin dan teknisi divisi {DIVISION_SHORT[newTicketDivision]}.</p>
+              </fieldset>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Site SPBU</label>
@@ -626,13 +678,9 @@ export const TicketsModule: React.FC<TicketsModuleProps> = ({
                     onChange={(e) => setNewTicketCategory(e.target.value as TicketCategory)}
                     className="w-full min-h-[44px] px-3 text-xs bg-slate-50 border border-slate-300 rounded-lg font-medium text-slate-800 focus:ring-2 focus:ring-red-500 focus:outline-none"
                   >
-                    <option value="Dispenser & Forecourt">Dispenser / Pompa BBM</option>
-                    <option value="ATG & Tangki Pendam">ATG & Tangki Pendam</option>
-                    <option value="POS Terminal & Software">POS Terminal PINSYST</option>
-                    <option value="Printer Struk & Periferal">Printer Struk Thermal</option>
-                    <option value="EDC & Jaringan">Mesin EDC & Access Point Wi-Fi</option>
-                    <option value="Kelistrikan & Power">Kelistrikan & Power UPS</option>
-                    <option value="Lainnya">Lainnya</option>
+                    {TICKET_CATEGORIES[newTicketDivision].map((c) => (
+                      <option key={c.value} value={c.value}>{c.label}</option>
+                    ))}
                   </select>
                 </div>
 
@@ -734,17 +782,37 @@ export const TicketsModule: React.FC<TicketsModuleProps> = ({
                   </select>
                 </div>
 
-                <div>
-                  <label htmlFor="ticket-assignee" className="block text-xs font-bold text-slate-700 uppercase mb-1">Teknisi Bertugas</label>
-                  <MasterSelect
-                    id="ticket-assignee"
-                    value={updateAssigned}
-                    onChange={setUpdateAssigned}
-                    options={technicians.map((t: any) => ({ value: `${t.name} (Teknisi)`, label: `${t.name}${t.employeeId ? ` (${t.employeeId})` : ''}` }))}
-                    placeholder="— Pilih teknisi —"
-                    customPlaceholder="Nama teknisi"
-                  />
-                </div>
+                {currentUser.role === 'ADMIN' ? (
+                  <div>
+                    <label htmlFor="ticket-assignee" className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                      Teknisi Bertugas (Divisi {DIVISION_SHORT[ticketDivision(selectedTicketForUpdate)]})
+                    </label>
+                    <select
+                      id="ticket-assignee"
+                      value={updateAssigned}
+                      onChange={(e) => setUpdateAssigned(e.target.value)}
+                      className="w-full min-h-[44px] px-3 text-xs bg-slate-50 border border-slate-300 rounded-lg font-medium text-slate-800 focus:ring-2 focus:ring-blue-600 focus:outline-none"
+                    >
+                      <option value="">— Belum ditugaskan —</option>
+                      {divisionTechs(selectedTicketForUpdate).map((t: any) => (
+                        <option key={t.id} value={`${t.name} (Teknisi)`}>
+                          {t.name}
+                          {t.employeeId ? ` (${t.employeeId})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                    {divisionTechs(selectedTicketForUpdate).length === 0 && (
+                      <p className="text-[11px] text-amber-800 mt-1">Belum ada akun teknisi divisi {DIVISION_SHORT[ticketDivision(selectedTicketForUpdate)]}. Atur divisi di menu Users.</p>
+                    )}
+                  </div>
+                ) : (
+                  <div>
+                    <span className="block text-xs font-bold text-slate-700 uppercase mb-1">Teknisi Bertugas</span>
+                    <p className="min-h-[44px] px-3 flex items-center text-xs bg-slate-100 border border-slate-200 rounded-lg text-slate-700">
+                      {selectedTicketForUpdate.assigned_to || 'Belum ditugaskan (ditentukan Admin)'}
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div>

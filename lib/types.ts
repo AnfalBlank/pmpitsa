@@ -4,7 +4,7 @@ export type PMOverallStatus = 'Selesai (Normal)' | 'Perlu Tindak Lanjut' | 'Krit
 export type UserRole = 'TECHNICIAN' | 'SUPERVISOR' | 'ADMIN';
 /** Technician discipline: IT (POS PINSYST/FMS) or Teknik (mekanikal dispenser & tangki). */
 export type TechDivision = 'IT' | 'TEKNIK';
-export type WorkType = 'PREVENTIVE_MAINTENANCE' | 'QUICK_CHECK' | 'CORRECTIVE_REPAIR' | 'MECHANICAL_PM';
+export type WorkType = 'PREVENTIVE_MAINTENANCE' | 'QUICK_CHECK' | 'CORRECTIVE_REPAIR' | 'MECHANICAL_PM' | 'MECHANICAL_CHECK';
 
 export type TicketPriority = 'Rendah' | 'Sedang' | 'Tinggi' | 'Darurat';
 export type TicketStatus = 'Open (Menunggu)' | 'Sedang Ditangani' | 'Selesai (Resolved)';
@@ -32,6 +32,8 @@ export interface SPBUTicket {
   reported_by: string; // Nama pelapor kasir / PWS
   reported_at: string;
   assigned_to?: string; // Teknisi yang ditugaskan
+  /** Bidang penanganan: IT atau Teknik (menentukan teknisi yang bisa ditugaskan) */
+  division?: TechDivision;
   resolved_at?: string;
   resolution_notes?: string;
 }
@@ -112,6 +114,10 @@ export interface MechanicalDispenserCheck {
   serial_number: string;
   items: Record<string, MechCheck>;
   notes?: string;
+}
+
+export interface MechanicalCheckDetails {
+  items: Record<string, MechCheck>;
 }
 
 export interface MechanicalPMDetails {
@@ -342,6 +348,8 @@ export interface PMReport {
   cleaning?: CleaningChecklist;
   /** PM Teknik (mekanikal dispenser & tangki) */
   mechanical?: MechanicalPMDetails;
+  /** Pengecekan Teknik (short forecourt & tank readiness check) */
+  mechanical_check?: MechanicalCheckDetails;
   attachments: PMAttachment[];
   
   technician_signature?: string;

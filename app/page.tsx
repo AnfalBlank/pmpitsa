@@ -1059,6 +1059,7 @@ export default function Home() {
     QUICK_CHECK: 'Pengecekan (Quick Check)',
     CORRECTIVE_REPAIR: 'Corrective Maintenance (CM)',
     MECHANICAL_PM: 'PM Teknik (Dispenser & Tangki)',
+    MECHANICAL_CHECK: 'Pengecekan Teknik (Forecourt & Tangki)',
   };
 
   // ---- Notifications (per user / role / SPBU), refreshed every 15 s ----
@@ -1405,19 +1406,22 @@ export default function Home() {
                   <QuickCheckSection report={report} onChange={handleReportChange} />
                 )}
                 {activeTab === 'corrective_repair' && (
-                  <CorrectiveRepairSection step="diagnosis" report={report} onChange={handleReportChange} />
+                  <CorrectiveRepairSection step="diagnosis" report={report} onChange={handleReportChange} sites={sites} division={currentUser?.division} />
                 )}
                 {activeTab === 'cm_action' && (
-                  <CorrectiveRepairSection step="action" report={report} onChange={handleReportChange} />
+                  <CorrectiveRepairSection step="action" report={report} onChange={handleReportChange} sites={sites} division={currentUser?.division} />
                 )}
                 {activeTab === 'mech_dispenser' && (
                   <MechanicalSection step="dispenser" report={report} onChange={handleReportChange} sites={sites} />
+                )}
+                {activeTab === 'mech_check' && (
+                  <MechanicalSection step="check" report={report} onChange={handleReportChange} sites={sites} />
                 )}
                 {activeTab === 'mech_tank' && (
                   <MechanicalSection step="tank" report={report} onChange={handleReportChange} sites={sites} />
                 )}
                 {activeTab === 'cm_test' && (
-                  <CorrectiveRepairSection step="test" report={report} onChange={handleReportChange} />
+                  <CorrectiveRepairSection step="test" report={report} onChange={handleReportChange} sites={sites} division={currentUser?.division} />
                 )}
                 {activeTab === 'software' && (
                   <SoftwareSection report={report} onChange={handleReportChange} />

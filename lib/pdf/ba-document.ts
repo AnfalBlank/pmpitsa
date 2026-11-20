@@ -6,7 +6,7 @@ import type { Content, TableCell, TDocumentDefinitions } from 'pdfmake/interface
 import type { ChecklistStatus, MechCheck, PMReport, WorkType } from '@/lib/types';
 import { LOGO_DATA_URL } from './logo';
 import { CLEANING_ITEMS } from '@/lib/cleaning';
-import { DISPENSER_ITEMS, TANK_ITEMS, MechItemDef, normalizeMechanical } from '@/lib/mechanical';
+import { CHECK_ITEMS, DISPENSER_ITEMS, TANK_ITEMS, MechItemDef, normalizeMechanical, normalizeMechanicalCheck } from '@/lib/mechanical';
 import { WORK_TYPE_TITLE, WORK_TYPE_SHORT, baNumber } from '@/lib/work-type';
 
 const NAVY = '#0B2545';
@@ -21,6 +21,7 @@ const WORK_TYPE_CODE: Record<WorkType, string> = {
   QUICK_CHECK: 'BA-QC',
   CORRECTIVE_REPAIR: 'BA-CR',
   MECHANICAL_PM: 'BA-PMT',
+  MECHANICAL_CHECK: 'BA-QCT',
 };
 
 export function baDocNumber(report: PMReport): string {
@@ -235,6 +236,11 @@ function mechanicalSection(r: PMReport): Content[] {
   out.push(sectionTitle('III. AREA TANGKI, STP & PV VENT'), checkTable(mechRows(TANK_ITEMS, m.tank_items)));
   if (m.tank_notes) out.push({ text: [{ text: 'Catatan: ', bold: true }, m.tank_notes], margin: [0, 3, 0, 0] });
   return out;
+}
+
+function mechanicalCheckSection(r: PMReport): Content[] {
+  const c = normalizeMechanicalCheck(r.mechanical_check);
+  return [sectionTitle('II. HASIL PENGECEKAN TEKNIK (FORECOURT & TANGKI)'), checkTable(mechRows(CHECK_ITEMS, c.items))];
 }
 
 function quickCheckSection(r: PMReport): Content[] {
@@ -542,6 +548,9 @@ export function buildBaDocDefinition(report: PMReport): TDocumentDefinitions {
     idx = 3;
   } else if (report.work_type === 'QUICK_CHECK') {
     body.push(...quickCheckSection(report));
+    idx = 1;
+  } else if (report.work_type === 'MECHANICAL_CHECK') {
+    body.push(...mechanicalCheckSection(report));
     idx = 1;
   } else if (report.work_type === 'MECHANICAL_PM') {
     body.push(...mechanicalSection(report));

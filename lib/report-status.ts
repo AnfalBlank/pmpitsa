@@ -29,7 +29,7 @@ const hasPhoto = (r: PMReport, c: PMAttachment['category']) => (r.attachments ||
 export function missingForFinalize(r: PMReport): string[] {
   const miss: string[] = [];
   if (!filled(r.site_name) || !r.site_id) miss.push('Lokasi SPBU');
-  if (r.work_type !== 'MECHANICAL_PM' && !filled(r.terminal_id)) miss.push('Terminal POS ID');
+  if (r.work_type !== 'MECHANICAL_PM' && r.work_type !== 'MECHANICAL_CHECK' && !filled(r.terminal_id)) miss.push('Terminal POS ID');
   if (!filled(r.technician_name)) miss.push('Nama teknisi');
   if (!filled(r.supervisor_name)) miss.push('Nama pengawas SPBU');
 
@@ -44,6 +44,11 @@ export function missingForFinalize(r: PMReport): string[] {
       miss.push('Nama barang + SN lama + SN baru untuk setiap barang yang diganti');
     if (!hasPhoto(r, 'Sebelum Perbaikan')) miss.push('Foto sebelum perbaikan');
     if (!hasPhoto(r, 'Sesudah Perbaikan')) miss.push('Foto sesudah perbaikan');
+  } else if (r.work_type === 'MECHANICAL_CHECK') {
+    if (!r.mechanical_check) miss.push('Checklist pengecekan teknik');
+    const noNote = Object.values(r.mechanical_check?.items || {}).filter((c) => c.status !== 'B' && !filled(c.notes)).length;
+    if (noNote) miss.push(`Catatan untuk ${noNote} item berstatus R/X`);
+    if (!filled(r.findings_summary)) miss.push('Catatan hasil pengecekan');
   } else if (r.work_type === 'QUICK_CHECK') {
     if (!r.quick_check_details) miss.push('Checklist pengecekan cepat');
     if (!filled(r.findings_summary)) miss.push('Catatan hasil pengecekan');

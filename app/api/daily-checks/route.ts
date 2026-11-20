@@ -94,8 +94,8 @@ export async function POST(req: Request) {
       const ticketNumber = `TIK-PITL-${now.getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
       const title = `Checklist harian: ${def.label}`.slice(0, 160);
       await db.execute({
-        sql: `INSERT INTO tickets (id, ticket_number, site_id, site_code, site_name, terminal_id, category, priority, status, title, description, reported_by, reported_at, assigned_to)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+        sql: `INSERT INTO tickets (id, ticket_number, site_id, site_code, site_name, terminal_id, category, priority, status, title, description, reported_by, reported_at, assigned_to, division)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
         args: [
           id,
           ticketNumber,
@@ -111,13 +111,19 @@ export async function POST(req: Request) {
           s.name,
           now.toISOString().replace('T', ' ').substring(0, 16),
           null,
+          def.division,
         ],
       });
       ticketNumbers.push(ticketNumber);
       await notify(
         db,
-        { type: 'ticket.new', title: `Tiket baru ${ticketNumber}`, message: `${siteCode} · Sedang · ${def.label}`, link_module: 'tickets', link_id: id, actor_id: s.id },
-        [{ role: 'ADMIN' }, { role: 'TECHNICIAN' }]
+        { type: 'ticket.new', title: `Tiket ${def.division === 'TEKNIK' ? 'Teknik' : 'IT'} baru ${ticketNumber}`, message: `${siteCode} · Sedang · ${def.label}`, link_module: 'tickets', link_id: id, actor_id: s.id },
+        [
+          { role: 'ADMIN' },
+          ...(
+            await db.execute({ sql: "SELECT id FROM users WHERE role = 'TECHNICIAN' AND COALESCE(division, 'IT') = ?;", args: [def.division] })
+          ).rows.map((r) => ({ userId: String(r.id) })),
+        ]
       );
       await audit(db, req, s, {
         action: 'create',

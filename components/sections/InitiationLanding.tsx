@@ -95,6 +95,16 @@ export const InitiationLanding: React.FC<InitiationLandingProps> = ({
       badgeColor: 'bg-orange-700 text-white',
     },
     {
+      key: 'MECHANICAL_CHECK',
+      title: 'Pengecekan Teknik (Forecourt & Tangki)',
+      subtitle: 'Cek cepat kesiapan dispenser, nozzle & selang, sump, STP, PV vent, area tangki, drainase, spill kit, dan APAR.',
+      tag: 'Divisi Teknik · Cepat',
+      icon: Activity,
+      activeBorder: 'border-amber-600 ring-2 ring-amber-500/30',
+      activeBg: 'bg-amber-50/70',
+      badgeColor: 'bg-amber-700 text-white',
+    },
+    {
       key: 'QUICK_CHECK',
       title: 'Pengecekan (Quick Check)',
       subtitle: 'Pemeriksaan cepat kesiapan operasional kasir, tes online POS, komunikasi dispenser, EDC, dan level tangki tanpa audit fisik mendalam.',
@@ -395,7 +405,7 @@ export const InitiationLanding: React.FC<InitiationLandingProps> = ({
           </p>
         </div>
 
-        <div className={`grid grid-cols-1 gap-4 ${visibleTypes.length > 3 ? 'md:grid-cols-2' : visibleTypes.length === 2 ? 'md:grid-cols-2' : 'md:grid-cols-3'}`}>
+        <div className={`grid grid-cols-1 gap-4 ${visibleTypes.length === 3 ? 'md:grid-cols-3' : 'md:grid-cols-2'}`}>
           {visibleTypes.map((wt) => {
             const isSelected = report.work_type === wt.key;
             const Icon = wt.icon;
@@ -514,6 +524,8 @@ export const InitiationLanding: React.FC<InitiationLandingProps> = ({
               ? 'Lanjut ke Formulir Pengecekan (Quick Check)'
               : report.work_type === 'MECHANICAL_PM'
               ? 'Lanjut ke Formulir PM Teknik (Dispenser & Tangki)'
+              : report.work_type === 'MECHANICAL_CHECK'
+              ? 'Lanjut ke Formulir Pengecekan Teknik'
               : 'Lanjut ke Formulir Corrective Maintenance (CM)'}
           </span>
           <ArrowRight className="w-5 h-5 text-red-400" />

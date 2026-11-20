@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { FileSpreadsheet, FileDown, ShieldCheck, Wrench, Activity, ChevronRight, Fuel } from 'lucide-react';
+import { FileSpreadsheet, FileDown, ShieldCheck, Wrench, Activity, ChevronRight, Fuel, ClipboardCheck } from 'lucide-react';
 import type { Site } from '@/lib/types';
 import type { LaporanRow, LaporanSiteRow, LaporanSummary, LaporanType } from '@/lib/laporan';
 import { apiFetch } from '@/lib/api-client';
@@ -12,6 +12,7 @@ const TABS: { key: LaporanType; label: string; short: string; icon: React.Elemen
   { key: 'PMT', label: 'PM Teknik', short: 'PM Teknik', icon: Fuel },
   { key: 'CM', label: 'Corrective (CM)', short: 'CM', icon: Wrench },
   { key: 'QC', label: 'Pengecekan', short: 'Pengecekan', icon: Activity },
+  { key: 'QCT', label: 'Pengecekan Teknik', short: 'Cek Teknik', icon: ClipboardCheck },
 ];
 
 type Preset = 'this_month' | 'last_month' | 'last_3' | 'this_year' | 'all' | 'custom';
@@ -85,7 +86,7 @@ export const LaporanModule: React.FC<{ sites: Site[]; onOpenReport: (id: string)
   return (
     <div className="space-y-5">
       {/* Report type */}
-      <div role="tablist" aria-label="Jenis laporan" className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 bg-white border border-slate-200 rounded-xl p-1.5">
+      <div role="tablist" aria-label="Jenis laporan" className="grid grid-cols-2 sm:grid-cols-5 gap-1.5 bg-white border border-slate-200 rounded-xl p-1.5">
         {TABS.map((t) => {
           const Icon = t.icon;
           const active = type === t.key;
@@ -313,7 +314,7 @@ export const LaporanModule: React.FC<{ sites: Site[]; onOpenReport: (id: string)
                             </div>
                           </div>
                         )}
-                        {type === 'QC' && (
+                        {(type === 'QC' || type === 'QCT') && (
                           <div className="text-[11px] text-slate-700">
                             {(r.checks_bad || []).length ? <span className="text-red-700">Rusak: {(r.checks_bad || []).join(', ')}</span> : 'Semua item baik'}
                             {r.findings ? ` · ${r.findings}` : ''}

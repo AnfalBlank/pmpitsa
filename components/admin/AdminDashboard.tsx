@@ -1593,6 +1593,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   >
                     <option value="PREVENTIVE_MAINTENANCE">Preventive Maintenance (PM)</option>
                     <option value="MECHANICAL_PM">PM Teknik (Dispenser & Tangki)</option>
+                    <option value="MECHANICAL_CHECK">Pengecekan Teknik</option>
                     <option value="QUICK_CHECK">Pengecekan Aja</option>
                     <option value="CORRECTIVE_REPAIR">Perbaikan (Repair)</option>
                   </select>

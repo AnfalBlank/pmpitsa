@@ -155,8 +155,8 @@ export async function POST(req: Request) {
       if (session.role === 'TECHNICIAN' && !workTypesForDivision(session.division).includes(report.work_type)) {
         return forbidden(
           session.division === 'TEKNIK'
-            ? 'Teknisi divisi Teknik hanya dapat memfinalisasi BA PM Teknik dan CM.'
-            : 'BA PM Teknik hanya dapat difinalisasi oleh teknisi divisi Teknik.'
+            ? 'Teknisi divisi Teknik hanya dapat memfinalisasi BA PM Teknik, Pengecekan Teknik, dan CM.'
+            : 'BA PM Teknik / Pengecekan Teknik hanya dapat difinalisasi oleh teknisi divisi Teknik.'
         );
       }
       const missing = missingForFinalize(report);

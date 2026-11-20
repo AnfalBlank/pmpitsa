@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { Fuel, Gauge, Plus, Trash2, ChevronDown, ChevronUp, Sparkles, AlertTriangle, Info } from 'lucide-react';
 import type { MechanicalDispenserCheck, MechanicalPMDetails, MechCheck, PMReport, Site, SiteDispenserUnit } from '@/lib/types';
-import { DISPENSER_ITEMS, TANK_ITEMS, MechItemDef, dispenserCheckFrom, emptyMechanical, normalizeMechanical } from '@/lib/mechanical';
+import { CHECK_ITEMS, DISPENSER_ITEMS, TANK_ITEMS, MechItemDef, dispenserCheckFrom, emptyMechanical, normalizeMechanical, normalizeMechanicalCheck } from '@/lib/mechanical';
 import { activeOnly, dispenserLabel, useMasterData } from '@/lib/use-master-config';
 import { MasterSelect } from '@/components/ui/MasterSelect';
 import { AutoTextarea } from '@/components/ui/AutoTextarea';
@@ -53,7 +53,7 @@ interface Props {
   report: PMReport;
   onChange: (r: PMReport) => void;
   sites: Site[];
-  step: 'dispenser' | 'tank';
+  step: 'dispenser' | 'tank' | 'check';
 }
 
 export const MechanicalSection: React.FC<Props> = ({ report, onChange, sites, step }) => {
@@ -66,9 +66,13 @@ export const MechanicalSection: React.FC<Props> = ({ report, onChange, sites, st
 
   // New PM Teknik: pre-fill every dispenser registered for this SPBU
   useEffect(() => {
+    if (step === 'check') {
+      if (!report.mechanical_check) onChange({ ...report, mechanical_check: normalizeMechanicalCheck() });
+      return;
+    }
     if (!report.mechanical) onChange({ ...report, mechanical: emptyMechanical(units) });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [report.id, report.mechanical == null]);
+  }, [report.id, report.mechanical == null, report.mechanical_check == null, step]);
 
   const set = (patch: Partial<MechanicalPMDetails>) => onChange({ ...report, mechanical: { ...m, ...patch } });
   const setDisp = (id: string, patch: Partial<MechanicalDispenserCheck>) =>
@@ -77,6 +81,43 @@ export const MechanicalSection: React.FC<Props> = ({ report, onChange, sites, st
   const modelOptions = activeOnly(master.dispenserBrands).map((b) => ({ value: dispenserLabel(b) }));
   const notAdded = units.filter((u) => !m.dispensers.some((d) => d.id === u.id));
   const fromConfig = (id: string) => units.some((u) => u.id === id);
+
+  if (step === 'check') {
+    const c = normalizeMechanicalCheck(report.mechanical_check);
+    const bad = CHECK_ITEMS.filter((it) => c.items[it.key].status !== 'B').length;
+    return (
+      <div className="bg-white rounded-xl border border-slate-200 p-4 sm:p-6 shadow-xs space-y-4">
+        <div className="flex items-start justify-between gap-2 border-b border-slate-100 pb-3">
+          <div className="flex items-start gap-2">
+            <Fuel className="w-5 h-5 text-blue-800 flex-shrink-0 mt-0.5" />
+            <div>
+              <h2 className="text-base font-bold text-slate-900">Checklist Pengecekan Teknik</h2>
+              <p className="text-xs text-slate-500">Kesiapan dispenser, STP, area tangki, dan keselamatan forecourt</p>
+            </div>
+          </div>
+          <span className={`text-[10px] font-bold px-2 py-0.5 rounded flex-shrink-0 ${bad ? 'bg-amber-100 text-amber-900' : 'bg-emerald-50 text-emerald-800'}`}>
+            {bad ? `${bad} R/X` : 'Semua B'}
+          </span>
+        </div>
+        {units.length > 0 && (
+          <p className="text-[11px] text-slate-500">
+            Dispenser SPBU ini: {units.map((u) => `${u.label} (${u.model || '-'}, SN ${u.serial_number || '-'})`).join('; ')}. Sebutkan dispenser yang bermasalah di catatan item.
+          </p>
+        )}
+        <ul className="space-y-2.5">
+          {CHECK_ITEMS.map((def) => (
+            <CheckRow
+              key={def.key}
+              def={def}
+              idPrefix="qct"
+              value={c.items[def.key]}
+              onChange={(v) => onChange({ ...report, mechanical_check: { items: { ...c.items, [def.key]: v } } })}
+            />
+          ))}
+        </ul>
+      </div>
+    );
+  }
 
   if (step === 'tank') {
     return (

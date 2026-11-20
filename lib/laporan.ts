@@ -1,15 +1,16 @@
 /** Management reports (PM / CM / Pengecekan) built from final Berita Acara. */
-import { DISPENSER_ITEMS, TANK_ITEMS, mechanicalIssues, normalizeMechanical } from './mechanical';
+import { DISPENSER_ITEMS, TANK_ITEMS, mechanicalCheckBad, mechanicalIssues, normalizeMechanical } from './mechanical';
 import type { PMReport, WorkType } from './types';
 import { baNumber } from './work-type';
 
-export type LaporanType = 'PM' | 'PMT' | 'CM' | 'QC';
+export type LaporanType = 'PM' | 'PMT' | 'CM' | 'QC' | 'QCT';
 
 export const LAPORAN_WORK_TYPE: Record<LaporanType, WorkType> = {
   PM: 'PREVENTIVE_MAINTENANCE',
   PMT: 'MECHANICAL_PM',
   CM: 'CORRECTIVE_REPAIR',
   QC: 'QUICK_CHECK',
+  QCT: 'MECHANICAL_CHECK',
 };
 
 export const LAPORAN_TITLE: Record<LaporanType, string> = {
@@ -17,6 +18,7 @@ export const LAPORAN_TITLE: Record<LaporanType, string> = {
   PMT: 'Laporan PM Teknik (Dispenser & Tangki)',
   CM: 'Laporan Corrective Maintenance (CM)',
   QC: 'Laporan Pengecekan (Quick Check)',
+  QCT: 'Laporan Pengecekan Teknik (Forecourt & Tangki)',
 };
 
 export interface LaporanRow {
@@ -147,6 +149,8 @@ export function toLaporanRow(r: PMReport): LaporanRow {
       ),
       ...TANK_ITEMS.filter((it) => m.tank_items[it.key]?.status !== 'B').map((it) => `Tangki: ${it.label.split(' (')[0]} (${m.tank_items[it.key].status})`),
     ];
+  } else if (r.work_type === 'MECHANICAL_CHECK') {
+    base.checks_bad = mechanicalCheckBad(r.mechanical_check);
   } else if (r.work_type === 'CORRECTIVE_REPAIR') {
     const d = r.repair_details;
     base.category = d?.category;

@@ -550,6 +550,7 @@ export const ScheduleModule: React.FC<ScheduleModuleProps> = ({
                   >
                     <option value="PREVENTIVE_MAINTENANCE">Preventive Maintenance (PM)</option>
                     <option value="MECHANICAL_PM">PM Teknik (Dispenser & Tangki)</option>
+                    <option value="MECHANICAL_CHECK">Pengecekan Teknik</option>
                     <option value="QUICK_CHECK">Pengecekan Cepat</option>
                     <option value="CORRECTIVE_REPAIR">Perbaikan (Repair)</option>
                   </select>

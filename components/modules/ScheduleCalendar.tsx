@@ -26,11 +26,12 @@ const PALETTE = [
 ];
 
 const DAY_NAMES = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'];
-const TYPE_SHORT: Record<WorkType, string> = { PREVENTIVE_MAINTENANCE: 'PM', CORRECTIVE_REPAIR: 'CM', QUICK_CHECK: 'QC', MECHANICAL_PM: 'PMT' };
+const TYPE_SHORT: Record<WorkType, string> = { PREVENTIVE_MAINTENANCE: 'PM', CORRECTIVE_REPAIR: 'CM', QUICK_CHECK: 'QC', MECHANICAL_PM: 'PMT', MECHANICAL_CHECK: 'QCT' };
 const TYPE_LONG: Record<WorkType, string> = {
   PREVENTIVE_MAINTENANCE: 'Preventive Maintenance',
   CORRECTIVE_REPAIR: 'Corrective Maintenance',
   MECHANICAL_PM: 'PM Teknik (Dispenser & Tangki)',
+  MECHANICAL_CHECK: 'Pengecekan Teknik',
   QUICK_CHECK: 'Pengecekan',
 };
 

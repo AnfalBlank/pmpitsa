@@ -41,6 +41,16 @@ const COPY: Record<PMReport['work_type'], {
     planRequired: true,
     categories: ['Sebelum Pemeliharaan', 'Sesudah Pemeliharaan', 'Dispenser & ATG', 'Temuan Kerusakan', 'Lainnya'],
   },
+  MECHANICAL_CHECK: {
+    title: 'Catatan Hasil Pengecekan Teknik',
+    subtitle: 'Kesimpulan kesiapan forecourt & area tangki serta tindak lanjut bila ada',
+    findingsLabel: 'Catatan Hasil Pengecekan',
+    findingsPlaceholder: 'Contoh: Semua dispenser normal, sump D2 ada air sedikit, sudah dikuras.',
+    planLabel: 'Tindak Lanjut (bila ada)',
+    planPlaceholder: 'Contoh: Jadwalkan PM Teknik untuk ganti seal swivel D2.',
+    planRequired: false,
+    categories: ['Kondisi Umum', 'Dispenser & ATG', 'Temuan Kerusakan', 'Lainnya'],
+  },
   QUICK_CHECK: {
     title: 'Catatan Hasil Pengecekan',
     subtitle: 'Kesimpulan singkat kesiapan operasional dan tindak lanjut bila ada',

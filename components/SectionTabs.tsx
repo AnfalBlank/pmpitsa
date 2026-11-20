@@ -36,7 +36,8 @@ export type TabKey =
   | 'cm_action' // CM step 3: tindakan & sparepart
   | 'cm_test' // CM step 4: uji fungsi & hasil
   | 'mech_dispenser' // PM Teknik: per-dispenser checks
-  | 'mech_tank'; // PM Teknik: tangki, STP, PV vent
+  | 'mech_tank' // PM Teknik: tangki, STP, PV vent
+  | 'mech_check'; // Pengecekan Teknik checklist
 
 type TabDef = { key: TabKey; label: string; icon: React.ElementType };
 
@@ -67,6 +68,12 @@ export const WORK_TYPE_TABS: Record<PMReport['work_type'], TabDef[]> = {
     { key: 'mech_tank', label: '3. Tangki, STP & PV Vent', icon: Gauge },
     { key: 'action', label: '4. Foto & Catatan', icon: Camera },
     { key: 'signoff', label: '5. Pengesahan', icon: PenTool },
+  ],
+  MECHANICAL_CHECK: [
+    { key: 'info', label: '1. Info & PWS', icon: Building2 },
+    { key: 'mech_check', label: '2. Checklist Teknik', icon: Activity },
+    { key: 'action', label: '3. Foto & Catatan', icon: Camera },
+    { key: 'signoff', label: '4. Pengesahan', icon: PenTool },
   ],
   PREVENTIVE_MAINTENANCE: [
     { key: 'info', label: '1. Info & PWS', icon: Building2 },

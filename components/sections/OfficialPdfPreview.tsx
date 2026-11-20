@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { PMReport, ChecklistStatus, MechCheck } from '@/lib/types';
 import { reportStatus } from '@/lib/report-status';
 import { CLEANING_ITEMS } from '@/lib/cleaning';
-import { DISPENSER_ITEMS, TANK_ITEMS, MechItemDef, normalizeMechanical } from '@/lib/mechanical';
+import { CHECK_ITEMS, DISPENSER_ITEMS, TANK_ITEMS, MechItemDef, normalizeMechanical, normalizeMechanicalCheck } from '@/lib/mechanical';
 import { LoadingBlock } from '@/components/ui/Loading';
 import { DocumentHistory } from '@/components/audit/DocumentHistory';
 import { WORK_TYPE_TITLE, baNumber } from '@/lib/work-type';
@@ -563,6 +563,27 @@ export const OfficialPdfPreview: React.FC<OfficialPdfPreviewProps> = ({
           </div>
         )}
 
+        {/* Pengecekan Teknik */}
+        {report.work_type === 'MECHANICAL_CHECK' && (() => {
+          const c = normalizeMechanicalCheck(report.mechanical_check);
+          return (
+            <div className="mb-5">
+              <h2 className="text-xs font-black uppercase text-slate-800 bg-slate-100 px-2.5 py-1 rounded-t border border-slate-300 border-b-0">II. HASIL PENGECEKAN TEKNIK (FORECOURT & TANGKI)</h2>
+              <table className="w-full border-collapse border border-slate-300 text-[11px]">
+                <tbody>
+                  {CHECK_ITEMS.map((d) => (
+                    <tr key={d.key}>
+                      <td className="w-1/2 p-2 bg-slate-50 font-semibold border border-slate-300">{d.label}</td>
+                      <td className={`p-2 border border-slate-300 font-bold w-16 text-center ${c.items[d.key].status === 'B' ? 'text-emerald-700' : 'text-red-700'}`}>{c.items[d.key].status}</td>
+                      <td className="p-2 border border-slate-300 whitespace-pre-line">{c.items[d.key].notes || '-'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          );
+        })()}
+
         {/* PM Teknik (mekanikal dispenser & tangki) */}
         {report.work_type === 'MECHANICAL_PM' && (() => {
           const m = normalizeMechanical(report.mechanical);
@@ -821,7 +842,7 @@ export const OfficialPdfPreview: React.FC<OfficialPdfPreviewProps> = ({
               ? 'VII. CATATAN TEMUAN & RENCANA TINDAK LANJUT (ACTION PLAN)'
               : isMech
               ? 'IV. CATATAN TEMUAN & RENCANA TINDAK LANJUT'
-              : report.work_type === 'QUICK_CHECK'
+              : report.work_type === 'QUICK_CHECK' || report.work_type === 'MECHANICAL_CHECK'
               ? 'III. CATATAN & TINDAK LANJUT'
               : 'V. CATATAN & TINDAK LANJUT'}
           </h2>
@@ -861,7 +882,7 @@ export const OfficialPdfPreview: React.FC<OfficialPdfPreviewProps> = ({
         {/* 7. Sign-Off Section */}
         <div className="border border-slate-300 rounded p-4 bg-white">
           <h2 className="text-xs font-black uppercase text-slate-800 text-center mb-4">
-            {isPM ? 'VIII' : isMech ? 'V' : report.work_type === 'QUICK_CHECK' ? 'IV' : 'VI'}. LEMBAR PENGESAHAN
+            {isPM ? 'VIII' : isMech ? 'V' : report.work_type === 'QUICK_CHECK' || report.work_type === 'MECHANICAL_CHECK' ? 'IV' : 'VI'}. LEMBAR PENGESAHAN
           </h2>
 
           <div className="grid grid-cols-2 gap-4 sm:gap-8 text-center text-[11px]">

@@ -120,6 +120,16 @@ async function createSchema(): Promise<void> {
     );
   `);
 
+  // 3b. Ticket division (IT / TEKNIK)
+  const ticketCols = await db.execute('PRAGMA table_info(tickets);');
+  if (!ticketCols.rows.some((r) => String(r.name) === 'division')) {
+    try {
+      await db.execute("ALTER TABLE tickets ADD COLUMN division TEXT DEFAULT 'IT';");
+    } catch {
+      // another instance added it concurrently
+    }
+  }
+
   // 4. Maintenance Plans Table
   await db.execute(`
     CREATE TABLE IF NOT EXISTS maintenance_plans (

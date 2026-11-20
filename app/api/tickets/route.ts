@@ -4,7 +4,30 @@ import { notify, userIdsMentioned } from '@/lib/notify';
 import { requireSession, forbidden } from '@/lib/session';
 import { siteScope } from '@/lib/rbac';
 import { getTursoClient, ensureSchema } from '@/lib/turso';
-import { SPBUTicket } from '@/lib/types';
+import { SPBUTicket, TechDivision } from '@/lib/types';
+import { asDivision, categoryAllowed, DIVISION_SHORT } from '@/lib/tickets';
+import type { Client } from '@libsql/client';
+
+/**
+ * The technician named in `assigned` must be registered and belong to the ticket's division.
+ * Returns an error message, or null when OK.
+ */
+async function checkAssignee(db: Client, assigned: string, division: TechDivision): Promise<string | null> {
+  const res = await db.execute("SELECT name, COALESCE(division, 'IT') AS division FROM users WHERE role = 'TECHNICIAN';");
+  const lower = assigned.toLowerCase();
+  const match = res.rows.find((r) => lower.includes(String(r.name).toLowerCase()));
+  if (!match) return `Teknisi "${assigned}" tidak terdaftar.`;
+  if (String(match.division) !== division) {
+    return `${String(match.name)} adalah teknisi divisi ${DIVISION_SHORT[String(match.division) as TechDivision] || 'IT'}, sedangkan tiket ini untuk divisi ${DIVISION_SHORT[division]}.`;
+  }
+  return null;
+}
+
+/** Technicians of one division (to notify about an unassigned ticket). */
+async function divisionTechIds(db: Client, division: TechDivision): Promise<string[]> {
+  const res = await db.execute({ sql: "SELECT id FROM users WHERE role = 'TECHNICIAN' AND COALESCE(division, 'IT') = ?;", args: [division] });
+  return res.rows.map((r) => String(r.id));
+}
 
 export async function GET(req: Request) {
   try {
@@ -30,6 +53,12 @@ export async function GET(req: Request) {
     } else if (siteId && siteId !== 'ALL') {
       query += ' AND site_id = ?';
       args.push(Number(siteId));
+    }
+
+    if (session.role === 'TECHNICIAN') {
+      // Technicians see tickets of their own division, plus any assigned to them
+      query += " AND (COALESCE(division, 'IT') = ? OR LOWER(COALESCE(assigned_to, '')) LIKE ?)";
+      args.push(session.division || 'IT', `%${session.name.toLowerCase()}%`);
     }
 
     if (status && status !== 'ALL') {
@@ -64,6 +93,7 @@ export async function GET(req: Request) {
       assigned_to: row.assigned_to ? String(row.assigned_to) : undefined,
       resolved_at: row.resolved_at ? String(row.resolved_at) : undefined,
       resolution_notes: row.resolution_notes ? String(row.resolution_notes) : undefined,
+      division: String(row.division || 'IT') === 'TEKNIK' ? 'TEKNIK' : 'IT',
     }));
 
     return NextResponse.json({ success: true, tickets });
@@ -102,6 +132,15 @@ export async function POST(req: Request) {
       );
     }
 
+    const division: TechDivision = asDivision(body.division) || 'IT';
+    if (category && !categoryAllowed(division, category)) {
+      return NextResponse.json({ success: false, message: `Kategori "${category}" tidak tersedia untuk divisi ${DIVISION_SHORT[division]}.` }, { status: 400 });
+    }
+    if (assigned_to) {
+      const err = await checkAssignee(db, String(assigned_to), division);
+      if (err) return NextResponse.json({ success: false, message: err }, { status: 400 });
+    }
+
     const scope = siteScope(session);
     if (scope !== null && Number(site_id) !== scope) {
       return forbidden('Akses ditolak: Pengawas hanya dapat membuat tiket untuk SPBU yang ditugaskan.');
@@ -125,8 +164,8 @@ export async function POST(req: Request) {
       sql: `INSERT INTO tickets (
               id, ticket_number, site_id, site_code, site_name, terminal_id,
               category, priority, status, title, description, reported_by,
-              reported_at, assigned_to
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+              reported_at, assigned_to, division
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
       args: [
         id,
         ticket_number,
@@ -142,6 +181,7 @@ export async function POST(req: Request) {
         reported_by || 'Staf SPBU',
         reported_at,
         assigned_to || null,
+        division,
       ],
     });
 
@@ -160,6 +200,7 @@ export async function POST(req: Request) {
       reported_by: reported_by || 'Staf SPBU',
       reported_at,
       assigned_to: assigned_to || undefined,
+      division,
     };
 
     await audit(db, req, session, {
@@ -169,16 +210,16 @@ export async function POST(req: Request) {
       entity_label: `${ticket_number} · ${siteCode}`,
       site_id: Number(site_id),
       summary: `Membuat tiket "${title}" (${priority || 'Sedang'})`,
-      details: { category, priority, terminal_id, assigned_to: assigned_to || null, reported_by: reported_by || null },
+      details: { division, category, priority, terminal_id, assigned_to: assigned_to || null, reported_by: reported_by || null },
     });
 
-    // Notify Admin, the assigned technician (or all technicians) and the SPBU's Pengawas
-    const assignedIds = await userIdsMentioned(db, assigned_to, 'TECHNICIAN');
+    // Notify Admin, the assigned technician (or that division's technicians) and the SPBU's Pengawas
+    const assignedIds = assigned_to ? await userIdsMentioned(db, assigned_to, 'TECHNICIAN') : await divisionTechIds(db, division);
     await notify(
       db,
       {
         type: 'ticket.new',
-        title: `Tiket baru ${ticket_number}${priority === 'Darurat' ? ' (DARURAT)' : ''}`,
+        title: `Tiket ${DIVISION_SHORT[division]} baru ${ticket_number}${priority === 'Darurat' ? ' (DARURAT)' : ''}`,
         message: `${siteCode} · ${priority || 'Sedang'} · ${title}`,
         link_module: 'tickets',
         link_id: id,
@@ -186,7 +227,7 @@ export async function POST(req: Request) {
       },
       [
         { role: 'ADMIN' },
-        ...(assignedIds.length ? assignedIds.map((userId) => ({ userId })) : [{ role: 'TECHNICIAN' as const }]),
+        ...assignedIds.map((userId) => ({ userId })),
         { role: 'SUPERVISOR', siteId: Number(site_id) },
       ]
     );
@@ -212,8 +253,22 @@ export async function PUT(req: Request) {
       return NextResponse.json({ success: false, message: 'ID tiket wajib disertakan.' }, { status: 400 });
     }
 
-    const before = await db.execute({ sql: 'SELECT ticket_number, title, site_id, site_code, status, assigned_to FROM tickets WHERE id = ? LIMIT 1;', args: [id] });
+    const before = await db.execute({
+      sql: "SELECT ticket_number, title, site_id, site_code, status, assigned_to, COALESCE(division, 'IT') AS division FROM tickets WHERE id = ? LIMIT 1;",
+      args: [id],
+    });
     const old = before.rows[0];
+    if (!old) return NextResponse.json({ success: false, message: 'Tiket tidak ditemukan.' }, { status: 404 });
+    const ticketDiv = String(old.division) === 'TEKNIK' ? 'TEKNIK' : 'IT';
+
+    if (assigned_to && assigned_to !== old.assigned_to) {
+      // Only Admin assigns; a technician may only take the ticket for themself
+      if (session.role !== 'ADMIN' && !String(assigned_to).toLowerCase().includes(session.name.toLowerCase())) {
+        return forbidden('Hanya Admin yang dapat menugaskan teknisi lain.');
+      }
+      const err = await checkAssignee(db, String(assigned_to), ticketDiv);
+      if (err) return NextResponse.json({ success: false, message: err }, { status: 400 });
+    }
 
     const resolved_at = status === 'Selesai (Resolved)' 
       ? new Date().toISOString().replace('T', ' ').substring(0, 16) 
