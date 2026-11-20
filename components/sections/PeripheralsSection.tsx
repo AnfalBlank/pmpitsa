@@ -94,28 +94,26 @@ export const PeripheralsSection: React.FC<PeripheralsSectionProps> = ({
 
           {/* 2. Receipt Printer */}
           <div className="pt-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <span className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
-                  <Printer className="w-4 h-4 text-red-600" />
-                  2. Receipt Printer (Thermal Struk POS)
-                </span>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Pemeriksaan mendalam komponen mekanik pencetak struk transaksi
-                </p>
-              </div>
-
-              <StatusSelector
-                value={report.peripherals.receipt_printer.status}
-                onChange={(val) =>
-                  updatePeripherals('receipt_printer', {
-                    ...report.peripherals.receipt_printer,
-                    status: val,
-                  })
-                }
-                size="sm"
-              />
+            <div>
+              <span className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+                <Printer className="w-4 h-4 text-red-600" />
+                2. Receipt Printer (Thermal Struk POS)
+              </span>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Pemeriksaan mendalam komponen mekanik pencetak struk transaksi
+              </p>
             </div>
+
+            <StatusSelector
+              label="Status Operasional Printer"
+              value={report.peripherals.receipt_printer.status}
+              onChange={(val) =>
+                updatePeripherals('receipt_printer', {
+                  ...report.peripherals.receipt_printer,
+                  status: val,
+                })
+              }
+            />
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 bg-slate-50 p-3 rounded-lg border border-slate-200">
               <div>

@@ -1,10 +1,34 @@
 import { NextResponse } from 'next/server';
 import { audit } from '@/lib/audit';
-import { notify, userIdsMentioned } from '@/lib/notify';
+import { notify } from '@/lib/notify';
 import { requireSession } from '@/lib/session';
 import { siteScope } from '@/lib/rbac';
 import { getTursoClient, ensureSchema } from '@/lib/turso';
-import { MaintenancePlan } from '@/lib/types';
+import { MaintenancePlan, WorkType } from '@/lib/types';
+import { planDivision } from '@/lib/schedule';
+import { WORK_TYPE_SHORT } from '@/lib/work-type';
+import type { Client } from '@libsql/client';
+
+/**
+ * Technicians to notify about a plan: the assigned one when the name matches a
+ * registered technician, otherwise every technician of the plan's division.
+ * Returns an error when the assigned technician belongs to another division.
+ */
+async function planRecipients(db: Client, technician: string | undefined, type: WorkType): Promise<{ ids: string[]; error?: string }> {
+  const division = planDivision(type);
+  const res = await db.execute("SELECT id, name, COALESCE(division, 'IT') AS division FROM users WHERE role = 'TECHNICIAN';");
+  const lower = String(technician || '').toLowerCase();
+  const match = lower ? res.rows.find((r) => lower.includes(String(r.name).toLowerCase())) : undefined;
+  if (match) {
+    if (division && String(match.division) !== division) {
+      return { ids: [], error: `${String(match.name)} adalah teknisi divisi ${String(match.division) === 'TEKNIK' ? 'Teknik' : 'IT'}, sedangkan ${WORK_TYPE_SHORT[type]} dikerjakan divisi ${division === 'TEKNIK' ? 'Teknik' : 'IT'}.` };
+    }
+    return { ids: [String(match.id)] };
+  }
+  return { ids: res.rows.filter((r) => !division || String(r.division) === division).map((r) => String(r.id)) };
+}
+
+const typeWord = (t: string) => WORK_TYPE_SHORT[t as WorkType] || 'PM';
 
 export async function GET(req: Request) {
   try {
@@ -96,6 +120,8 @@ export async function POST(req: Request) {
     }
     const siteCode = String(siteRow.rows[0].site_code);
     const siteName = String(siteRow.rows[0].site_name);
+    const recipients = await planRecipients(db, assigned_technician, (plan_type || 'PREVENTIVE_MAINTENANCE') as WorkType);
+    if (recipients.error) return NextResponse.json({ success: false, message: recipients.error }, { status: 400 });
     const id = body.id || `PLAN-${Date.now()}`;
     const planStatus = status || 'Terjadwal';
 
@@ -143,12 +169,12 @@ export async function POST(req: Request) {
       details: { technician: assigned_technician, supervisor: supervisor_pws, terminal_id },
     });
 
-    const techIds = await userIdsMentioned(db, assigned_technician, 'TECHNICIAN');
+    const techIds = recipients.ids;
     await notify(
       db,
       {
         type: 'plan.new',
-        title: `Jadwal ${plan_type === 'CORRECTIVE_REPAIR' ? 'CM' : plan_type === 'QUICK_CHECK' ? 'pengecekan' : plan_type === 'MECHANICAL_PM' ? 'PM Teknik' : 'PM'} baru: ${siteCode}`,
+        title: `Jadwal ${typeWord(plan_type)} baru: ${siteCode}`,
         message: `${scheduled_date} · ${siteName} · Teknisi: ${assigned_technician || '-'}`,
         link_module: 'schedule',
         link_id: id,
@@ -178,8 +204,16 @@ export async function PUT(req: Request) {
       return NextResponse.json({ success: false, message: 'ID rencana wajib disertakan.' }, { status: 400 });
     }
 
-    const before = await db.execute({ sql: 'SELECT site_id, site_code, scheduled_date, status, notes, assigned_technician FROM maintenance_plans WHERE id = ? LIMIT 1;', args: [id] });
+    const before = await db.execute({
+      sql: 'SELECT site_id, site_code, site_name, plan_type, scheduled_date, status, notes, assigned_technician FROM maintenance_plans WHERE id = ? LIMIT 1;',
+      args: [id],
+    });
     const old = before.rows[0];
+    const reassigned = !!old && !!assigned_technician && assigned_technician !== old.assigned_technician;
+    if (reassigned) {
+      const chk = await planRecipients(db, assigned_technician, String(old.plan_type) as WorkType);
+      if (chk.error) return NextResponse.json({ success: false, message: chk.error }, { status: 400 });
+    }
 
     await db.execute({
       sql: `UPDATE maintenance_plans 
@@ -205,6 +239,26 @@ export async function PUT(req: Request) {
         summary: changes.length ? changes.map((c) => `${c.field}: ${c.from ?? '-'} → ${c.to}`).join(' · ') : 'Jadwal disimpan tanpa perubahan',
         details: { changes },
       });
+
+      // Tell the technician(s) about a new assignment or a moved date
+      const moved = !!scheduled_date && scheduled_date !== old.scheduled_date;
+      if (reassigned || moved) {
+        const tech = String(assigned_technician || old.assigned_technician || '');
+        const { ids } = await planRecipients(db, tech, String(old.plan_type) as WorkType);
+        const date = String(scheduled_date || old.scheduled_date);
+        await notify(
+          db,
+          {
+            type: 'plan.update',
+            title: reassigned ? `Anda dijadwalkan ${typeWord(String(old.plan_type))}: ${old.site_code}` : `Jadwal ${typeWord(String(old.plan_type))} ${old.site_code} diubah`,
+            message: `${date} · ${old.site_name} · Teknisi: ${tech || '-'}${moved ? ` (sebelumnya ${old.scheduled_date})` : ''}`,
+            link_module: 'schedule',
+            link_id: String(id),
+            actor_id: session.id,
+          },
+          [...ids.map((userId) => ({ userId })), { role: 'SUPERVISOR', siteId: Number(old.site_id) }]
+        );
+      }
     }
 
     return NextResponse.json({ success: true, message: 'Jadwal pemeliharaan berhasil diperbarui.' });

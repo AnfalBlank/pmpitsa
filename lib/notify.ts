@@ -11,6 +11,7 @@ export type NotificationType =
   | 'ticket.update'
   | 'ticket.assigned'
   | 'plan.new'
+  | 'plan.update'
   | 'ba.final'
   | 'ba.approved'
   | 'ba.revised'

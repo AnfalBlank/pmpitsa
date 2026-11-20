@@ -1,14 +1,18 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, Wrench, User, ShieldCheck, CalendarDays } from 'lucide-react';
-import type { MaintenancePlan, Site, WorkType } from '@/lib/types';
+import { ChevronLeft, ChevronRight, Wrench, User, ShieldCheck, CalendarDays, FileWarning, FileText } from 'lucide-react';
+import type { MaintenancePlan, PMReport, Site, WorkType } from '@/lib/types';
+import { baNumber } from '@/lib/work-type';
 
 interface Props {
   plans: MaintenancePlan[];
   sites: Site[];
   canExecute?: boolean;
   onExecute?: (site: Site, workType: WorkType, terminalId: string) => void;
+  /** BA done without an Admin schedule (marked separately) */
+  unscheduled?: PMReport[];
+  onOpenReport?: (r: PMReport) => void;
 }
 
 /** Distinct, colour-blind friendlier palette; one colour per SPBU */
@@ -44,7 +48,7 @@ const shortName = (s: string) => s.replace(/\s*\(.*\)\s*$/, '').split(' ').slice
  * SPBU's colour (split when several SPBU are visited that day) and lists who
  * is on duty. Tapping a day shows its plans below the grid.
  */
-export const ScheduleCalendar: React.FC<Props> = ({ plans, sites, canExecute, onExecute }) => {
+export const ScheduleCalendar: React.FC<Props> = ({ plans, sites, canExecute, onExecute, unscheduled = [], onOpenReport }) => {
   const today = new Date();
   const [cursor, setCursor] = useState(() => new Date(today.getFullYear(), today.getMonth(), 1));
   const [selected, setSelected] = useState<string>(ymd(today));
@@ -68,6 +72,16 @@ export const ScheduleCalendar: React.FC<Props> = ({ plans, sites, canExecute, on
     return m;
   }, [plans]);
 
+  const extraByDay = useMemo(() => {
+    const m = new Map<string, PMReport[]>();
+    for (const r of unscheduled) {
+      const k = (r.execution_date || '').slice(0, 10);
+      if (!m.has(k)) m.set(k, []);
+      m.get(k)!.push(r);
+    }
+    return m;
+  }, [unscheduled]);
+
   // Grid: weeks starting Monday
   const year = cursor.getFullYear();
   const month = cursor.getMonth();
@@ -86,6 +100,8 @@ export const ScheduleCalendar: React.FC<Props> = ({ plans, sites, canExecute, on
   monthPlans.forEach((p) => techCount.set(shortName(p.assigned_technician || '-'), (techCount.get(shortName(p.assigned_technician || '-')) || 0) + 1));
   const sitesThisMonth = Array.from(new Set(monthPlans.map((p) => p.site_id)));
   const selectedPlans = byDay.get(selected) || [];
+  const selectedExtra = extraByDay.get(selected) || [];
+  const monthExtra = unscheduled.filter((r) => (r.execution_date || '').startsWith(monthKey)).length;
   const monthLabel = first.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
 
   const move = (delta: number) => setCursor(new Date(year, month + delta, 1));
@@ -119,6 +135,11 @@ export const ScheduleCalendar: React.FC<Props> = ({ plans, sites, canExecute, on
       <div className="px-3 sm:px-5 py-2.5 bg-slate-50 border-b border-slate-100 text-[11px] text-slate-600 flex flex-wrap gap-x-4 gap-y-1">
         <span>
           <strong className="text-slate-900">{monthPlans.length}</strong> jadwal · <strong className="text-slate-900">{sitesThisMonth.length}</strong> SPBU
+          {monthExtra > 0 && (
+            <>
+              {' '}· <strong className="text-violet-800">{monthExtra}</strong> BA tanpa jadwal
+            </>
+          )}
         </span>
         {techCount.size > 0 && (
           <span className="flex flex-wrap gap-x-2">
@@ -146,6 +167,7 @@ export const ScheduleCalendar: React.FC<Props> = ({ plans, sites, canExecute, on
             if (!d) return <div key={`e${i}`} aria-hidden="true" />;
             const key = ymd(d);
             const dayPlans = byDay.get(key) || [];
+            const dayExtra = extraByDay.get(key) || [];
             const colors = Array.from(new Set(dayPlans.map((p) => p.site_id))).map(colorOf);
             const isToday = key === ymd(today);
             const isSel = key === selected;
@@ -161,12 +183,22 @@ export const ScheduleCalendar: React.FC<Props> = ({ plans, sites, canExecute, on
                 type="button"
                 onClick={() => setSelected(key)}
                 aria-pressed={isSel}
-                aria-label={`${d.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long' })}${dayPlans.length ? `, ${dayPlans.length} jadwal: ${dayPlans.map((p) => `${codeOf(p)} ${shortName(p.assigned_technician)}`).join(', ')}` : ', tidak ada jadwal'}`}
+                aria-label={`${d.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long' })}${dayPlans.length ? `, ${dayPlans.length} jadwal: ${dayPlans.map((p) => `${codeOf(p)} ${shortName(p.assigned_technician)}`).join(', ')}` : ', tidak ada jadwal'}${dayExtra.length ? `, ${dayExtra.length} BA tanpa jadwal` : ''}`}
                 style={background ? { background } : undefined}
                 className={`relative min-h-[52px] sm:min-h-[92px] rounded-lg border text-left p-1 sm:p-1.5 flex flex-col transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B2545] ${
                   isSel ? 'border-[#0B2545] ring-2 ring-[#0B2545]/30' : dayPlans.length ? 'border-transparent' : 'border-slate-100 hover:bg-slate-50'
                 }`}
               >
+                {/* BA done without an Admin schedule */}
+                {dayExtra.length > 0 && (
+                  <span
+                    className="absolute top-0.5 right-0.5 sm:top-1 sm:right-1 min-w-[16px] h-4 px-1 rounded-full bg-violet-600 text-white text-[9px] font-bold flex items-center justify-center"
+                    title={`${dayExtra.length} BA tanpa jadwal`}
+                    aria-hidden="true"
+                  >
+                    {dayExtra.length}
+                  </span>
+                )}
                 <span
                   className={`text-[11px] sm:text-xs font-bold leading-none ${
                     isToday ? 'bg-red-600 text-white rounded-full w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center' : 'text-slate-800'
@@ -193,6 +225,11 @@ export const ScheduleCalendar: React.FC<Props> = ({ plans, sites, canExecute, on
                     );
                   })}
                   {dayPlans.length > 3 && <span className="text-[10px] font-bold text-slate-600">+{dayPlans.length - 3} lagi</span>}
+                  {dayExtra.slice(0, dayPlans.length ? 1 : 2).map((r) => (
+                    <span key={r.id} className="block truncate rounded px-1 py-0.5 text-[10px] font-semibold bg-white/90 text-violet-800 border border-dashed border-violet-400">
+                      {TYPE_SHORT[r.work_type]} {r.site_code} · tanpa jadwal
+                    </span>
+                  ))}
                 </span>
               </button>
             );
@@ -202,6 +239,10 @@ export const ScheduleCalendar: React.FC<Props> = ({ plans, sites, canExecute, on
 
       {/* Legend: colour per SPBU */}
       <div className="px-3 sm:px-5 pb-3 flex flex-wrap gap-x-3 gap-y-1.5">
+        <span className="inline-flex items-center gap-1.5 text-[11px] text-violet-800 font-semibold">
+          <span className="min-w-[16px] h-4 px-1 rounded-full bg-violet-600 text-white text-[9px] font-bold flex items-center justify-center">1</span>
+          BA tanpa jadwal Admin
+        </span>
         {sites.map((s) => {
           const c = colorOf(s.id);
           return (
@@ -219,7 +260,38 @@ export const ScheduleCalendar: React.FC<Props> = ({ plans, sites, canExecute, on
           <CalendarDays className="w-4 h-4 text-slate-500" />
           {new Date(`${selected}T00:00:00`).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
         </h4>
-        {selectedPlans.length === 0 ? (
+        {selectedExtra.map((r) => (
+          <div
+            key={r.id}
+            className="rounded-lg border border-dashed border-violet-400 bg-violet-50/60 p-3 text-xs flex flex-col sm:flex-row sm:items-center gap-2"
+          >
+            <div className="min-w-0 flex-1 space-y-0.5">
+              <div className="font-bold text-violet-900 flex items-center gap-1.5">
+                <FileWarning className="w-4 h-4 flex-shrink-0" /> Dikerjakan tanpa jadwal Admin
+              </div>
+              <div className="font-semibold text-slate-900 break-words">
+                {r.site_code} · {r.site_name}
+              </div>
+              <div className="text-slate-600">
+                {TYPE_LONG[r.work_type]} · <span className="font-mono">{baNumber(r)}</span>
+                {r.ticket_number ? ` · dari tiket ${r.ticket_number}` : ''}
+              </div>
+              <div className="text-slate-700 inline-flex items-center gap-1">
+                <User className="w-3.5 h-3.5 text-slate-500" /> {r.technician_name}
+              </div>
+            </div>
+            {onOpenReport && (
+              <button
+                type="button"
+                onClick={() => onOpenReport(r)}
+                className="min-h-[40px] px-3 rounded-lg border border-violet-300 bg-white hover:bg-violet-50 text-violet-900 font-bold flex items-center justify-center gap-1.5 flex-shrink-0"
+              >
+                <FileText className="w-3.5 h-3.5" /> Lihat BA
+              </button>
+            )}
+          </div>
+        ))}
+        {selectedPlans.length === 0 && selectedExtra.length === 0 ? (
           <p className="text-xs text-slate-500">Tidak ada jadwal pada tanggal ini.</p>
         ) : (
           selectedPlans.map((p) => {

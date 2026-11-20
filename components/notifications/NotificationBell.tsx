@@ -9,6 +9,7 @@ const ICON: Record<string, { icon: React.ElementType; cls: string }> = {
   'ticket.update': { icon: Ticket, cls: 'bg-blue-100 text-blue-700' },
   'ticket.assigned': { icon: UserCheck, cls: 'bg-amber-100 text-amber-800' },
   'plan.new': { icon: CalendarPlus, cls: 'bg-indigo-100 text-indigo-700' },
+  'plan.update': { icon: CalendarPlus, cls: 'bg-violet-100 text-violet-700' },
   'ba.final': { icon: FileCheck2, cls: 'bg-amber-100 text-amber-800' },
   'ba.approved': { icon: BadgeCheck, cls: 'bg-emerald-100 text-emerald-700' },
   'ba.revised': { icon: PencilLine, cls: 'bg-slate-200 text-slate-700' },

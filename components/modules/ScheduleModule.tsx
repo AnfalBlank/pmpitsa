@@ -1,5 +1,6 @@
 'use client';
 
+import { planDivision, unscheduledReports } from '@/lib/schedule';
 import { WORK_TYPE_LABEL } from '@/lib/work-type';
 import React, { useState } from 'react';
 import { ScheduleCalendar } from '@/components/modules/ScheduleCalendar';
@@ -18,7 +19,7 @@ import {
   CalendarCheck2,
   RotateCcw
 } from 'lucide-react';
-import { UserSession, Site, MaintenancePlan, WorkType } from '@/lib/types';
+import { UserSession, Site, MaintenancePlan, WorkType, PMReport } from '@/lib/types';
 import { SAMPLE_SITES } from '@/lib/sample-data';
 import { savePlan } from '@/lib/storage';
 import { createPlanApi, deletePlanApi } from '@/lib/api-client';
@@ -31,6 +32,9 @@ interface ScheduleModuleProps {
   plans: MaintenancePlan[];
   sites?: Site[];
   usersList?: any[];
+  /** Submitted BA, to mark work done without an Admin schedule on the calendar */
+  reports?: PMReport[];
+  onOpenReport?: (r: PMReport) => void;
   onPlansUpdated: (plans: MaintenancePlan[]) => void;
   onStartExecutionFromPlan: (site: Site, workType: WorkType, terminalId: string) => void;
 }
@@ -40,6 +44,8 @@ export const ScheduleModule: React.FC<ScheduleModuleProps> = ({
   plans,
   sites,
   usersList,
+  reports = [],
+  onOpenReport,
   onPlansUpdated,
   onStartExecutionFromPlan,
 }) => {
@@ -75,6 +81,16 @@ export const ScheduleModule: React.FC<ScheduleModuleProps> = ({
   const initialSpv = activeSites[0]?.contact_person.split(' (')[0] || 'Pengawas Site';
 
   const [newPlanTech, setNewPlanTech] = useState(initialTech);
+  // Only technicians of the division that does this work type (CM: everyone)
+  const planTechs = (type: WorkType) => {
+    const div = planDivision(type);
+    return technicians.filter((t: any) => !div || (t.division || 'IT') === div);
+  };
+  const changePlanType = (type: WorkType) => {
+    setNewPlanType(type);
+    const list = planTechs(type);
+    if (list.length && !list.some((t: any) => t.name === newPlanTech)) setNewPlanTech(list[0].name);
+  };
   const [newPlanSpv, setNewPlanSpv] = useState(initialSpv);
   const [newPlanNotes, setNewPlanNotes] = useState('');
 
@@ -357,7 +373,17 @@ export const ScheduleModule: React.FC<ScheduleModuleProps> = ({
       </div>
 
       {view === 'calendar' ? (
-        <ScheduleCalendar plans={filteredPlans} sites={activeSites} canExecute={canExecute} onExecute={onStartExecutionFromPlan} />
+        <ScheduleCalendar
+          plans={filteredPlans}
+          sites={activeSites}
+          canExecute={canExecute}
+          onExecute={onStartExecutionFromPlan}
+          unscheduled={unscheduledReports(
+            reports.filter((r) => planSiteFilter === 'ALL' || r.site_id === planSiteFilter),
+            plans
+          )}
+          onOpenReport={onOpenReport}
+        />
       ) : (
       <>
       {/* Schedule List Cards */}
@@ -545,7 +571,7 @@ export const ScheduleModule: React.FC<ScheduleModuleProps> = ({
                   <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Jenis Pekerjaan</label>
                   <select
                     value={newPlanType}
-                    onChange={(e) => setNewPlanType(e.target.value as WorkType)}
+                    onChange={(e) => changePlanType(e.target.value as WorkType)}
                     className="w-full min-h-[44px] px-3 text-xs bg-slate-50 border border-slate-300 rounded-lg font-medium text-slate-800 focus:ring-2 focus:ring-blue-600 focus:outline-none"
                   >
                     <option value="PREVENTIVE_MAINTENANCE">Preventive Maintenance (PM)</option>
@@ -571,15 +597,20 @@ export const ScheduleModule: React.FC<ScheduleModuleProps> = ({
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Teknisi Ditugaskan</label>
-                  {technicians.length > 0 ? (
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                    Teknisi Ditugaskan
+                    {planDivision(newPlanType) && <span className="normal-case font-semibold text-slate-500"> (Divisi {planDivision(newPlanType) === 'TEKNIK' ? 'Teknik' : 'IT'})</span>}
+                  </label>
+                  {planTechs(newPlanType).length > 0 ? (
                     <select
                       value={newPlanTech}
                       onChange={(e) => setNewPlanTech(e.target.value)}
                       className="w-full min-h-[44px] px-3 text-xs bg-slate-50 border border-slate-300 rounded-lg font-medium text-slate-800 focus:ring-2 focus:ring-blue-600 focus:outline-none"
                     >
-                      {technicians.map((t: any) => (
-                        <option key={t.id} value={t.name}>{t.name} ({t.employeeId || 'Teknisi'})</option>
+                      {planTechs(newPlanType).map((t: any) => (
+                        <option key={t.id} value={t.name}>
+                          {t.name} ({t.employeeId || 'Teknisi'}){planDivision(newPlanType) ? '' : ` · ${t.division === 'TEKNIK' ? 'Teknik' : 'IT'}`}
+                        </option>
                       ))}
                     </select>
                   ) : (

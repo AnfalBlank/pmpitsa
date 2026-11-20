@@ -1251,6 +1251,8 @@ export default function Home() {
               plans={visiblePlans}
               sites={visibleSites}
               usersList={usersList}
+              reports={visibleReports}
+              onOpenReport={handleSelectPastReport}
               onPlansUpdated={(updated) => setPlans(updated)}
               onStartExecutionFromPlan={handleStartExecutionFromPlan}
             />
