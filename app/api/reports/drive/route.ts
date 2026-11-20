@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { audit } from '@/lib/audit';
 import { baNumber } from '@/lib/work-type';
 import { requireSession, forbidden } from '@/lib/session';
+import { canViewReport } from '@/lib/report-access';
 import { can } from '@/lib/rbac';
 import { getTursoClient, ensureSchema } from '@/lib/turso';
 import { isDriveConfigured } from '@/lib/gdrive';
@@ -47,6 +48,9 @@ export async function POST(req: Request) {
     }
 
     const report: PMReport = JSON.parse(String(res.rows[0].report_data));
+    if (!canViewReport(report, auth.session)) {
+      return forbidden('Akses ditolak: Berita Acara ini dibuat oleh teknisi lain.');
+    }
     const gdrive = await archiveReportToDrive(report);
     const updated: PMReport = { ...report, gdrive, gdrive_pdf_id: gdrive.pdf_file_id };
 

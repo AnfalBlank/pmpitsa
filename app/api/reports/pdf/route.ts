@@ -3,6 +3,7 @@ import { audit } from '@/lib/audit';
 import { baNumber } from '@/lib/work-type';
 import { requireSession, forbidden } from '@/lib/session';
 import { siteScope } from '@/lib/rbac';
+import { canViewReport } from '@/lib/report-access';
 import { getTursoClient, ensureSchema } from '@/lib/turso';
 import { renderBaPdf } from '@/lib/pdf/render';
 import { baFileName } from '@/lib/pdf/ba-document';
@@ -39,6 +40,9 @@ export async function GET(req: Request) {
       return forbidden('Akses ditolak: Berita Acara ini bukan milik SPBU Anda.');
     }
     const report: PMReport = JSON.parse(String(res.rows[0].report_data));
+    if (!canViewReport(report, auth.session)) {
+      return forbidden('Akses ditolak: Berita Acara ini dibuat oleh teknisi lain.');
+    }
     const pdf = await renderBaPdf(report);
     await audit(getTursoClient(), req, auth.session, {
       action: 'download_pdf',

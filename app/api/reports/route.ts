@@ -6,6 +6,7 @@ import { requireSession, forbidden } from '@/lib/session';
 import { can, siteScope } from '@/lib/rbac';
 import { missingForFinalize } from '@/lib/report-status';
 import { workTypesForDivision } from '@/lib/work-type';
+import { canViewReport, OWN_REPORT_SQL, ownReportArgs } from '@/lib/report-access';
 import { getTursoClient, ensureSchema } from '@/lib/turso';
 import { PMReport } from '@/lib/types';
 
@@ -37,6 +38,9 @@ export async function GET(req: Request) {
         return forbidden('Akses ditolak: Berita Acara ini bukan milik SPBU Anda.');
       }
       const parsedData: PMReport = JSON.parse(String(row.report_data));
+      if (!canViewReport(parsedData, session)) {
+        return forbidden('Akses ditolak: Berita Acara ini dibuat oleh teknisi lain.');
+      }
       return NextResponse.json({ success: true, report: parsedData });
     }
 
@@ -61,6 +65,12 @@ export async function GET(req: Request) {
     } else if (siteId && siteId !== 'ALL') {
       query += ' AND site_id = ?';
       args.push(Number(siteId));
+    }
+
+    if (session.role === 'TECHNICIAN') {
+      // Technicians only see the BA they made themselves
+      query += ` AND ${OWN_REPORT_SQL}`;
+      args.push(...ownReportArgs(session));
     }
 
     query += ' ORDER BY execution_date DESC, created_at DESC;';
@@ -190,6 +200,7 @@ export async function POST(req: Request) {
         synced_to_server: true,
         finalized_at: now,
         finalized_by: session.name,
+        created_by_id: session.id,
         revision: 1,
         revision_log: [],
         approval: undefined,
@@ -206,6 +217,7 @@ export async function POST(req: Request) {
         synced_to_server: true,
         finalized_at: existing.finalized_at || existing.created_at || now,
         finalized_by: existing.finalized_by || existing.technician_name,
+        created_by_id: existing.created_by_id,
         revision,
         revision_log: [
           ...(existing.revision_log || []),

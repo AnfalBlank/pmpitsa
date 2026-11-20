@@ -39,7 +39,8 @@ import { CorrectiveRepairSection } from '@/components/sections/CorrectiveRepairS
 
 import { PMReport, Site, UserSession, SPBUTicket, MaintenancePlan, WorkType } from '@/lib/types';
 import { SAMPLE_SITES, createDefaultPMReport, newReportId } from '@/lib/sample-data';
-import { awaitingApproval, isFinal, isLocked, missingForFinalize, reportStatus } from '@/lib/report-status';
+import { awaitingApproval, isFinal, isLocked, missingForFinalize, reportStatus, REQUIRED_PHOTOS } from '@/lib/report-status';
+import { canViewReport } from '@/lib/report-access';
 import { baNumber } from '@/lib/work-type';
 import { applySiteForecourt, hasForecourtConfig, needsSiteForecourt } from '@/lib/forecourt';
 import { siteSupervisorNames, technicianLabel } from '@/lib/user-options';
@@ -651,6 +652,29 @@ export default function Home() {
     }
   };
 
+  /** BA finalised on the device but not yet on the server: technician may drop photos that make it too large. */
+  const handleRemovePendingPhoto = async (attId: string) => {
+    if (!currentUser || !can(currentUser.role, 'report.sync') || reportStatus(report) !== 'PENDING_SYNC') return;
+    const att = (report.attachments || []).find((a) => a.id === attId);
+    if (!att) return;
+    const required = REQUIRED_PHOTOS[report.work_type] || [];
+    if (required.includes(att.category) && report.attachments.filter((a) => a.category === att.category).length <= 1) {
+      feedback.notify({ variant: 'warning', title: 'Foto Wajib', message: `Minimal 1 foto "${att.category}" harus tetap ada di Berita Acara.` });
+      return;
+    }
+    const ok = await feedback.confirm({
+      title: 'Hapus Foto dari BA?',
+      message: `Foto "${att.caption || att.category}" dihapus dari Berita Acara yang menunggu terkirim. Tindakan ini tidak dapat dibatalkan.`,
+      confirmLabel: 'Ya, Hapus Foto',
+      danger: true,
+    });
+    if (!ok) return;
+    const saved = submitReport({ ...report, attachments: report.attachments.filter((a) => a.id !== attId) });
+    setReport(saved);
+    setReports((prev) => prev.map((r) => (r.id === saved.id ? saved : r)));
+    showToast('Foto dihapus. Tekan "Kirim Ulang ke Server" untuk mengirim BA.');
+  };
+
   const handleSubmitFinal = async () => {
     if (!requirePM()) return;
     if (isLocked(report)) {
@@ -1082,7 +1106,8 @@ export default function Home() {
   const visibleSites = scope === null ? sites : sites.filter((s) => s.id === scope);
   const visibleTickets = scope === null ? tickets : tickets.filter((t) => t.site_id === scope);
   const visiblePlans = scope === null ? plans : plans.filter((p) => p.site_id === scope);
-  const visibleReports = scope === null ? reports : reports.filter((r) => r.site_id === scope);
+  // Archive: Admin all BA, Pengawas own SPBU, Teknisi only the BA they made (also for cached copies on a shared device)
+  const visibleReports = currentUser ? reports.filter((r) => canViewReport(r, currentUser)) : [];
 
   const currentSite: Site =
     (scope !== null ? visibleSites[0] : undefined) ||
@@ -1355,6 +1380,7 @@ export default function Home() {
                 window.history.pushState(null, '', '/reports');
               }}
               onSyncToServer={handleSubmitFinal}
+              onRemovePhoto={can(currentUser.role, 'report.sync') && reportStatus(report) === 'PENDING_SYNC' ? handleRemovePendingPhoto : undefined}
               onDownloadPdf={() => handleDownloadPdf(report)}
               onUploadToDrive={
                 isFinal(report) && (can(currentUser.role, 'report.sync') || can(currentUser.role, 'report.delete'))
@@ -1450,7 +1476,7 @@ export default function Home() {
                     <MaintenanceHistory
                       collapsible
                       key={report.site_id}
-                      reports={reports.filter((r) => r.site_id === report.site_id && r.id !== report.id)}
+                      reports={visibleReports.filter((r) => r.site_id === report.site_id && r.id !== report.id)}
                       siteLabel={report.site_code}
                     />
                   </div>

@@ -348,6 +348,8 @@ export interface PMReport {
   cleaning?: CleaningChecklist;
   /** PM Teknik (mekanikal dispenser & tangki) */
   mechanical?: MechanicalPMDetails;
+  /** Account (user id) that made the BA; set by the server on first finalisation */
+  created_by_id?: string;
   /** Pengecekan Teknik (short forecourt & tank readiness check) */
   mechanical_check?: MechanicalCheckDetails;
   attachments: PMAttachment[];
@@ -404,6 +406,8 @@ export interface GDriveArchiveInfo {
   folder_id: string;
   folder_url: string;
   folder_path: string;
+  /** Subfolder with every documentation photo */
+  docs_folder_url?: string;
   pdf_file_id: string;
   pdf_url: string;
   pdf_file_name: string;

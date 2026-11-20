@@ -4,10 +4,13 @@
  * Folder layout (created automatically):
  *   <root>/<KODE SPBU - Nama SPBU>/<YYYY-MM-DD>/<Nomor BA: PM-/CM-/QC-...>/
  *       BA_<Nomor BA>_<KODE SPBU>_<tanggal>.pdf
- *       BA_<Nomor BA>_<KODE SPBU>_<tanggal>_Foto-01.jpg ...   (same name as the BA file)
+ *       Dokumentasi/
+ *           BA_<Nomor BA>_<KODE SPBU>_<tanggal>_Foto-01_<Kategori>.jpg ...
+ * The PDF prints only the main photos plus a list + QR link to this folder.
  */
 import type { GDriveArchiveInfo, PMReport } from '@/lib/types';
-import { baFileBase, baFileName } from '@/lib/pdf/ba-document';
+import { baFileName } from '@/lib/pdf/ba-document';
+import { photoFileName } from '@/lib/photos';
 import { baNumber } from '@/lib/work-type';
 import { renderBaPdf } from '@/lib/pdf/render';
 import { decodeDataUrl, ensureFolderPath, folderUrl, safeName, uploadFile } from '@/lib/gdrive';
@@ -25,8 +28,8 @@ export function baFolderSegments(r: PMReport): string[] {
 export async function archiveReportToDrive(report: PMReport): Promise<GDriveArchiveInfo> {
   const segments = baFolderSegments(report);
   const folderId = await ensureFolderPath(segments);
+  const docsId = await ensureFolderPath([...segments, 'Dokumentasi']);
   const photos: Record<string, string> = { ...(report.gdrive?.photos || {}) };
-  const base = baFileBase(report);
 
   const attachments = report.attachments || [];
   for (let i = 0; i < attachments.length; i++) {
@@ -35,18 +38,23 @@ export async function archiveReportToDrive(report: PMReport): Promise<GDriveArch
     const decoded = decodeDataUrl(a.file_url);
     if (!decoded) continue;
     const ext = EXT[decoded.mime] || 'jpg';
-    const file = await uploadFile(folderId, `${base}_Foto-${String(i + 1).padStart(2, '0')}.${ext}`, decoded.mime, decoded.data);
+    const file = await uploadFile(docsId, photoFileName(report, i, a, ext), decoded.mime, decoded.data);
     photos[a.id] = file.id;
   }
 
-  const pdf = await renderBaPdf(report);
+  const info = {
+    folder_id: folderId,
+    folder_url: folderUrl(folderId),
+    folder_path: segments.join(' / '),
+    docs_folder_url: folderUrl(docsId),
+  };
+  // The PDF links (and QR-codes) the Drive folder that holds every photo
+  const pdf = await renderBaPdf({ ...report, gdrive: { ...(report.gdrive || {}), ...info, photos } as GDriveArchiveInfo });
   const pdfName = baFileName(report);
   const pdfFile = await uploadFile(folderId, pdfName, 'application/pdf', pdf);
 
   return {
-    folder_id: folderId,
-    folder_url: folderUrl(folderId),
-    folder_path: segments.join(' / '),
+    ...info,
     pdf_file_id: pdfFile.id,
     pdf_url: pdfFile.webViewLink || `https://drive.google.com/file/d/${pdfFile.id}/view`,
     pdf_file_name: pdfName,

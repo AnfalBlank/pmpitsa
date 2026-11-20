@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { PMReport, ChecklistStatus, MechCheck } from '@/lib/types';
 import { reportStatus } from '@/lib/report-status';
 import { CLEANING_ITEMS } from '@/lib/cleaning';
+import { featuredPhotoIndexes, photoFileName } from '@/lib/photos';
 import { CHECK_ITEMS, DISPENSER_ITEMS, TANK_ITEMS, MechItemDef, normalizeMechanical, normalizeMechanicalCheck } from '@/lib/mechanical';
 import { LoadingBlock } from '@/components/ui/Loading';
 import { DocumentHistory } from '@/components/audit/DocumentHistory';
@@ -26,6 +27,8 @@ interface OfficialPdfPreviewProps {
   onAdminEdit?: () => void | Promise<void>;
   /** Pengawas of this SPBU: validate (approve) the final BA */
   onApprove?: () => void | Promise<void>;
+  /** Final BA still waiting to be sent: remove a photo when the BA is too large */
+  onRemovePhoto?: (attachmentId: string) => void | Promise<void>;
   /** The full BA (photos, signatures) is still loading from the server */
   loadingFull?: boolean;
   /** Admin sees IP / device of each history entry */
@@ -57,6 +60,7 @@ export const OfficialPdfPreview: React.FC<OfficialPdfPreviewProps> = ({
   onUploadToDrive,
   onAdminEdit,
   onApprove,
+  onRemovePhoto,
   loadingFull = false,
   showAuditNetwork = false,
 }) => {
@@ -310,6 +314,42 @@ export const OfficialPdfPreview: React.FC<OfficialPdfPreviewProps> = ({
               <strong>Final, menunggu terkirim ke server.</strong> Berita Acara sudah terkunci dan tersimpan aman di perangkat ini; akan dikirim otomatis
               saat ada koneksi.
             </>
+          )}
+          {status === 'PENDING_SYNC' && onRemovePhoto && report.attachments.length > 0 && (
+            <div className="mt-3 rounded-lg border border-amber-300 bg-white p-3 text-slate-800">
+              <p className="font-bold">
+                Kurangi foto bila BA gagal terkirim karena terlalu besar
+                <span className="font-normal text-slate-500">
+                  {' '}
+                  · {report.attachments.length} foto, ±
+                  {(() => {
+                    const kb = report.attachments.reduce((n, a) => n + a.file_url.length * 0.75, 0) / 1024;
+                    return kb >= 1024 ? `${(kb / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(kb))} KB`;
+                  })()}
+                </span>
+              </p>
+              <p className="text-[11px] text-slate-500 mt-0.5">Isi BA lain tetap terkunci. Minimal 1 foto sebelum dan 1 foto sesudah harus tetap ada.</p>
+              <ul className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {report.attachments.map((a, i) => (
+                  <li key={a.id} className="rounded-md border border-slate-200 overflow-hidden">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={a.file_url} alt={a.caption} className="w-full aspect-[4/3] object-cover" />
+                    <div className="p-1.5">
+                      <p className="text-[10px] font-semibold truncate">
+                        {i + 1}. {a.category}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => onRemovePhoto(a.id)}
+                        className="mt-1 w-full min-h-[36px] rounded text-red-700 hover:bg-red-50 border border-red-200 text-[11px] font-bold"
+                      >
+                        Hapus foto
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
           {status === 'DRAFT' && (
             <>
@@ -858,26 +898,74 @@ export const OfficialPdfPreview: React.FC<OfficialPdfPreviewProps> = ({
           </div>
         </div>
 
-        {/* Documentation photos */}
-        {report.attachments?.length > 0 && (
-          <div className="mb-6">
-            <h2 className="text-xs font-black uppercase text-slate-800 bg-slate-100 px-2.5 py-1 rounded-t border border-slate-300 border-b-0">
-              LAMPIRAN DOKUMENTASI FOTO ({report.attachments.length})
-            </h2>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 border border-slate-300 p-2.5">
-              {report.attachments.map((att, i) => (
-                <figure key={att.id} className="min-w-0">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={att.file_url} alt={att.caption} className="w-full aspect-[4/3] object-cover rounded border border-slate-200" />
-                  <figcaption className="mt-1 text-[10px] leading-tight">
-                    <span className="font-bold">Foto {i + 1}.</span> {att.caption}
-                    <span className="block text-slate-500">{att.category}</span>
-                  </figcaption>
-                </figure>
-              ))}
+        {/* Documentation photos: main photos + full list (all photos are in Google Drive) */}
+        {report.attachments?.length > 0 && (() => {
+          const featured = featuredPhotoIndexes(report);
+          const driveUrl = report.gdrive?.docs_folder_url || report.gdrive?.folder_url;
+          return (
+            <div className="mb-6">
+              <h2 className="text-xs font-black uppercase text-slate-800 bg-slate-100 px-2.5 py-1 rounded-t border border-slate-300 border-b-0">
+                LAMPIRAN DOKUMENTASI FOTO
+              </h2>
+              <div className="border border-slate-300 p-2.5 space-y-3">
+                <div className="grid grid-cols-2 gap-2">
+                  {featured.map((i) => {
+                    const att = report.attachments[i];
+                    return (
+                      <figure key={att.id} className="min-w-0">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={att.file_url} alt={att.caption} className="w-full aspect-[4/3] object-cover rounded border border-slate-200" />
+                        <figcaption className="mt-1 text-[10px] leading-tight">
+                          <span className="font-bold">Foto {i + 1}.</span> {att.caption}
+                          <span className="block text-slate-500">{att.category}</span>
+                        </figcaption>
+                      </figure>
+                    );
+                  })}
+                </div>
+                <div>
+                  <p className="text-[11px] font-bold text-slate-800 mb-1">Dokumentasi lengkap ({report.attachments.length} foto)</p>
+                  <div className="overflow-x-auto -mx-px">
+                    <table className="w-full border-collapse border border-slate-300 text-[10px]">
+                      <thead>
+                        <tr className="bg-slate-50 text-left text-slate-700">
+                          <th className="p-1.5 border border-slate-300 w-7">No</th>
+                          <th className="p-1.5 border border-slate-300">Kategori</th>
+                          <th className="p-1.5 border border-slate-300">Keterangan</th>
+                          <th className="p-1.5 border border-slate-300">Nama file (Google Drive)</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {report.attachments.map((a, i) => (
+                          <tr key={a.id} className={featured.includes(i) ? 'bg-amber-50/60' : ''}>
+                            <td className="p-1.5 border border-slate-300 font-bold">{i + 1}</td>
+                            <td className="p-1.5 border border-slate-300">{a.category}</td>
+                            <td className="p-1.5 border border-slate-300">{a.caption || '-'}</td>
+                            <td className="p-1.5 border border-slate-300 font-mono break-all">{photoFileName(report, i, a)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+                {driveUrl ? (
+                  <a
+                    href={driveUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="no-print inline-flex items-center gap-1.5 min-h-[40px] px-3 rounded-lg border border-blue-200 bg-blue-50 text-blue-900 text-xs font-bold"
+                  >
+                    <FolderOpen className="w-4 h-4" /> Buka semua foto di Google Drive
+                  </a>
+                ) : (
+                  <p className="text-[10px] italic text-slate-500">
+                    Seluruh foto diarsipkan ke folder Google Drive BA ini setelah BA terkirim ke server. PDF BA memuat QR code ke folder tersebut.
+                  </p>
+                )}
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* 7. Sign-Off Section */}
         <div className="border border-slate-300 rounded p-4 bg-white">

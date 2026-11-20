@@ -5,6 +5,7 @@
 import type { Content, TableCell, TDocumentDefinitions } from 'pdfmake/interfaces';
 import type { ChecklistStatus, MechCheck, PMReport, WorkType } from '@/lib/types';
 import { LOGO_DATA_URL } from './logo';
+import { baFileBase, featuredPhotoIndexes, photoFileName } from '@/lib/photos';
 import { CLEANING_ITEMS } from '@/lib/cleaning';
 import { CHECK_ITEMS, DISPENSER_ITEMS, TANK_ITEMS, MechItemDef, normalizeMechanical, normalizeMechanicalCheck } from '@/lib/mechanical';
 import { WORK_TYPE_TITLE, WORK_TYPE_SHORT, baNumber } from '@/lib/work-type';
@@ -30,12 +31,7 @@ export function baDocNumber(report: PMReport): string {
 }
 
 /** BA file base name (no extension), e.g. BA_CM-20261116-K3F9QX_PITL-001_2026-11-16 */
-export function baFileBase(report: PMReport): string {
-  return ['BA', baNumber(report), report.site_code, report.execution_date]
-    .filter(Boolean)
-    .join('_')
-    .replace(/[^A-Za-z0-9._-]+/g, '-');
-}
+export { baFileBase };
 
 export function baFileName(report: PMReport): string {
   return `${baFileBase(report)}.pdf`;
@@ -518,22 +514,77 @@ function signOffSection(r: PMReport, no: string): Content[] {
 }
 
 function photosSection(r: PMReport): Content[] {
-  const photos = (r.attachments || []).filter((a) => isEmbeddableImage(a.file_url));
-  if (!photos.length) return [];
-  const cells: Content[] = photos.map((a, i) => ({
-    stack: [
-      { image: a.file_url, fit: [245, 185], alignment: 'center' },
-      { text: `Foto ${i + 1}. ${a.caption || a.file_name}`, bold: true, fontSize: 8, margin: [0, 3, 0, 0] },
-      { text: `${a.category} · ${a.uploaded_at}`, fontSize: 7.5, color: '#64748B' },
-    ],
-    margin: [0, 0, 0, 10],
-    unbreakable: true,
-  }));
-  const rows: Content[] = [];
-  for (let i = 0; i < cells.length; i += 2) {
-    rows.push({ columns: [cells[i], cells[i + 1] || { text: '' }], columnGap: 14 });
-  }
-  return [{ text: '', pageBreak: 'before' }, sectionTitle('LAMPIRAN — DOKUMENTASI FOTO'), { text: '', margin: [0, 6, 0, 0] }, ...rows];
+  const all = r.attachments || [];
+  if (!all.length) return [];
+  // Only the main photos are printed; the full set lives in the BA's Google Drive folder
+  const featured = featuredPhotoIndexes(r).filter((i) => isEmbeddableImage(all[i]?.file_url));
+  const cells: Content[] = featured.map((i) => {
+    const a = all[i];
+    return {
+      stack: [
+        { image: a.file_url, fit: [245, 185], alignment: 'center' },
+        { text: `Foto ${i + 1}. ${a.caption || a.file_name}`, bold: true, fontSize: 8, margin: [0, 3, 0, 0] },
+        { text: `${a.category} · ${a.uploaded_at}`, fontSize: 7.5, color: '#64748B' },
+      ],
+      unbreakable: true,
+    } as Content;
+  });
+  const out: Content[] = [{ text: '', pageBreak: 'before' }, sectionTitle('LAMPIRAN — DOKUMENTASI FOTO'), { text: '', margin: [0, 6, 0, 0] }];
+  if (cells.length) out.push({ columns: [cells[0], cells[1] || { text: '' }], columnGap: 14, margin: [0, 0, 0, 10] });
+
+  out.push({ text: `Dokumentasi lengkap (${all.length} foto)`, bold: true, fontSize: 8.5, margin: [0, 2, 0, 3] });
+  out.push({
+    table: {
+      headerRows: 1,
+      widths: [22, 90, '*', 150],
+      body: [
+        [
+          { text: 'No', style: 'label' },
+          { text: 'Kategori', style: 'label' },
+          { text: 'Keterangan', style: 'label' },
+          { text: 'Nama file (Google Drive)', style: 'label' },
+        ],
+        ...all.map((a, i) => [
+          { text: String(i + 1), bold: featured.includes(i) },
+          a.category,
+          a.caption || '-',
+          { text: photoFileName(r, i, a), fontSize: 6.5 },
+        ] as TableCell[]),
+      ],
+    },
+    layout: gridLayout,
+    fontSize: 7.5,
+  });
+
+  const url = r.gdrive?.docs_folder_url || r.gdrive?.folder_url;
+  out.push(
+    url
+      ? {
+          columns: [
+            { qr: url, fit: 78, width: 86 },
+            {
+              width: '*',
+              margin: [6, 4, 0, 0],
+              stack: [
+                { text: 'Seluruh foto dokumentasi tersimpan di Google Drive', bold: true, fontSize: 8 },
+                { text: 'Pindai QR code atau buka tautan berikut:', fontSize: 7.5, color: '#475569', margin: [0, 2, 0, 2] },
+                { text: url, link: url, color: '#1D4ED8', decoration: 'underline', fontSize: 7.5 },
+                { text: `Folder: ${r.gdrive?.folder_path || '-'}${r.gdrive?.docs_folder_url ? ' / Dokumentasi' : ''}`, fontSize: 7, color: '#64748B', margin: [0, 2, 0, 0] },
+              ],
+            },
+          ],
+          margin: [0, 8, 0, 0],
+          unbreakable: true,
+        }
+      : {
+          text: 'Seluruh foto dokumentasi diarsipkan ke folder Google Drive BA ini setelah BA terkirim ke server.',
+          italics: true,
+          fontSize: 7.5,
+          color: '#64748B',
+          margin: [0, 6, 0, 0],
+        }
+  );
+  return out;
 }
 
 export function buildBaDocDefinition(report: PMReport): TDocumentDefinitions {
