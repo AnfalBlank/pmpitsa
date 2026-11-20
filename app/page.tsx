@@ -943,10 +943,46 @@ export default function Home() {
 
   /** Continue the open draft, or start a new BA when the current one was already submitted. */
   const draftBase = (site: Site, workType: WorkType): PMReport =>
-    isLocked(report) ? freshReportFor(site, workType) : { ...report, ticket_id: undefined, ticket_number: undefined };
+    isLocked(report) || report.site_id !== site.id ? freshReportFor(site, workType) : { ...report, ticket_id: undefined, ticket_number: undefined };
 
-  const handleStartExecutionFromPlan = (site: Site, workType: WorkType, terminalId: string) => {
+  /** Draft already contains work (text, photos, signatures) that a new BA would replace. */
+  const draftHasProgress = (r: PMReport) =>
+    reportStatus(r) === 'DRAFT' &&
+    ((r.attachments || []).length > 0 ||
+      !!r.technician_signature ||
+      !!r.supervisor_signature ||
+      !!(r.findings_summary || '').trim() ||
+      !!(r.action_plan || '').trim() ||
+      !!(r.repair_details?.reported_problem || '').trim() ||
+      !!(r.repair_details?.action_taken || '').trim());
+
+  /** Ask before a draft of another SPBU is replaced. Returns false when the user cancels. */
+  const confirmSwitchSite = async (site: Site) => {
+    if (report.site_id === site.id || !draftHasProgress(report)) return true;
+    return feedback.confirm({
+      title: `Mulai BA baru di ${site.site_code}?`,
+      message: `Draft BA ${report.site_code} yang belum difinalisasi (catatan, foto, tanda tangan) akan diganti dengan BA baru untuk ${site.site_name}.`,
+      confirmLabel: 'Ya, Mulai BA Baru',
+      danger: true,
+    });
+  };
+
+  /** Landing page: changing the SPBU starts a fresh draft for that SPBU. */
+  const handleLandingChange = async (updated: PMReport) => {
+    if (updated.site_id !== report.site_id && !isLocked(report)) {
+      const site = sites.find((s) => s.id === updated.site_id);
+      if (!site) return;
+      if (!(await confirmSwitchSite(site))) return;
+      const fresh = freshReportFor(site, updated.work_type);
+      handleReportChange({ ...fresh, site_id: site.id, site_code: site.site_code, site_name: site.site_name, terminal_id: updated.terminal_id || fresh.terminal_id, supervisor_name: updated.supervisor_name });
+      return;
+    }
+    handleReportChange(updated);
+  };
+
+  const handleStartExecutionFromPlan = async (site: Site, workType: WorkType, terminalId: string) => {
     if (!requirePM()) return;
+    if (!(await confirmSwitchSite(site))) return;
     setSelectedSiteId(site.id);
     const updated: PMReport = {
       ...draftBase(site, workType),
@@ -964,10 +1000,11 @@ export default function Home() {
     showToast(`Memulai ${workTypeLabels[workType]} untuk ${site.site_name}`);
   };
 
-  const handleStartRepairFromTicket = (ticket: SPBUTicket) => {
+  const handleStartRepairFromTicket = async (ticket: SPBUTicket) => {
     if (!requirePM()) return;
-    setSelectedSiteId(ticket.site_id);
     const targetSite = sites.find(s => s.id === ticket.site_id) || sites[0] || SAMPLE_SITES[0];
+    if (!(await confirmSwitchSite(targetSite))) return;
+    setSelectedSiteId(ticket.site_id);
     
     let repairCat: any = 'Lainnya';
     if (ticket.category === 'POS Terminal & Software') repairCat = 'Hardware POS';
@@ -1289,7 +1326,7 @@ export default function Home() {
               report={report}
               sites={sites}
               users={usersList}
-              onChange={handleReportChange}
+              onChange={handleLandingChange}
               onProceedToForm={handleProceedFromLanding}
               currentUser={currentUser}
               onOpenAdminPortal={() => setCurrentModule('overview')}
@@ -1393,7 +1430,21 @@ export default function Home() {
               <div className="mt-4">
                 {activeTab === 'info' && (
                   <div className="space-y-4">
-                    <GeneralInfoSection report={report} onChange={handleReportChange} sites={sites} users={usersList} locked={!adminEditing} />
+                    <GeneralInfoSection
+                      report={report}
+                      onChange={handleReportChange}
+                      sites={sites}
+                      users={usersList}
+                      locked={!adminEditing}
+                      onChangeSite={
+                        !adminEditing && reportStatus(report) === 'DRAFT' && currentUser && can(currentUser.role, 'pm.perform')
+                          ? () => {
+                              setCurrentModule('landing');
+                              window.history.pushState(null, '', '/landing');
+                            }
+                          : undefined
+                      }
+                    />
                     <MaintenanceHistory
                       collapsible
                       key={report.site_id}

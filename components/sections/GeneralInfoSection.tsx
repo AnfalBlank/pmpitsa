@@ -18,6 +18,8 @@ interface GeneralInfoSectionProps {
    * BA gets the editable fields.
    */
   locked?: boolean;
+  /** Draft only: go back to choose another SPBU / activity */
+  onChangeSite?: () => void;
 }
 
 export const GeneralInfoSection: React.FC<GeneralInfoSectionProps> = ({
@@ -26,6 +28,7 @@ export const GeneralInfoSection: React.FC<GeneralInfoSectionProps> = ({
   sites,
   users = [],
   locked = true,
+  onChangeSite,
 }) => {
   const technicians = users
     .filter((u) => u.role === 'TECHNICIAN')
@@ -131,6 +134,15 @@ export const GeneralInfoSection: React.FC<GeneralInfoSectionProps> = ({
               {activeSites.find((s) => s.id === report.site_id)?.location || 'Lokasi SPBU PITSA'}
               {locked && ' · Dikunci sesuai SPBU yang dipilih saat memulai kegiatan.'}
             </span>
+            {locked && onChangeSite && (
+              <button
+                type="button"
+                onClick={onChangeSite}
+                className="mt-2 min-h-[40px] px-3 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-bold text-slate-800"
+              >
+                Ganti SPBU / Jenis Kegiatan
+              </button>
+            )}
           </div>
 
           <div>

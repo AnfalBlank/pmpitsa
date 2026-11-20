@@ -58,6 +58,9 @@ export const OverviewModule: React.FC<OverviewModuleProps> = ({
   onDataChanged,
 }) => {
   const activeSites = sites && sites.length > 0 ? sites : SAMPLE_SITES;
+  // Technician: SPBU for a new job (defaults to the SPBU of the current draft)
+  const [launchSiteId, setLaunchSiteId] = React.useState<number>(currentSite.id);
+  const launchSite = activeSites.find((s) => s.id === launchSiteId) || currentSite;
   const openTickets = tickets.filter(t => t.status !== 'Selesai (Resolved)');
   const emergencyTickets = tickets.filter(t => t.priority === 'Darurat' && t.status !== 'Selesai (Resolved)');
   const upcomingPlans = plans.filter(p => p.status !== 'Selesai');
@@ -528,58 +531,75 @@ export const OverviewModule: React.FC<OverviewModuleProps> = ({
           <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
             Mulai Pekerjaan Baru di SPBU
           </h3>
+          <div>
+            <label htmlFor="launch-site" className="block text-xs font-semibold text-slate-700 mb-1">
+              Pilih SPBU tujuan
+            </label>
+            <select
+              id="launch-site"
+              value={launchSite.id}
+              onChange={(e) => setLaunchSiteId(Number(e.target.value))}
+              className="w-full sm:max-w-md min-h-[44px] px-3 bg-white border border-slate-300 rounded-lg text-sm font-semibold text-slate-900"
+            >
+              {activeSites.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.site_code} · {s.site_name}
+                </option>
+              ))}
+            </select>
+          </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
 {currentUser.division === 'TEKNIK' ? (
             <>
             <button
               type="button"
-              onClick={() => onStartExecution(currentSite, 'MECHANICAL_PM', 'POS-01')}
+              onClick={() => onStartExecution(launchSite, 'MECHANICAL_PM', 'POS-01')}
               className="p-4 rounded-xl border border-slate-200 bg-white hover:border-slate-300 text-left transition-all shadow-2xs group flex flex-col justify-between min-h-[140px]"
             >
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <div className="w-9 h-9 rounded-lg bg-orange-600 text-white flex items-center justify-center font-bold">
+                  <div className="w-9 h-9 rounded-lg bg-[#0B2545] text-white flex items-center justify-center font-bold">
                     <Fuel className="w-4 h-4" />
                   </div>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-orange-50 text-orange-900 border border-orange-200">
-                    Divisi Teknik
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-800 border border-slate-200">
+                    SOP Rutin
                   </span>
                 </div>
-                <h4 className="text-sm font-bold text-slate-900 group-hover:text-orange-700 transition-colors">
+                <h4 className="text-sm font-bold text-slate-900 group-hover:text-red-600 transition-colors">
                   PM Teknik (Dispenser & Tangki)
                 </h4>
                 <p className="text-xs text-slate-600 mt-1 leading-snug">
                   Nozzle, swivel, check valve, breakaway, sump dispenser, STP, dan PV vent.
                 </p>
               </div>
-              <div className="mt-3 flex items-center gap-1 text-xs font-bold text-orange-700">
+              <div className="mt-3 flex items-center gap-1 text-xs font-bold text-red-600">
                 <span>Buka Form PM Teknik</span>
                 <ArrowRight className="w-3 h-3" />
               </div>
             </button>
             <button
               type="button"
-              onClick={() => onStartExecution(currentSite, 'MECHANICAL_CHECK', 'POS-01')}
+              onClick={() => onStartExecution(launchSite, 'MECHANICAL_CHECK', 'POS-01')}
               className="p-4 rounded-xl border border-slate-200 bg-white hover:border-slate-300 text-left transition-all shadow-2xs group flex flex-col justify-between min-h-[140px]"
             >
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <div className="w-9 h-9 rounded-lg bg-amber-600 text-white flex items-center justify-center font-bold">
+                  <div className="w-9 h-9 rounded-lg bg-slate-800 text-white flex items-center justify-center font-bold">
                     <Activity className="w-4 h-4" />
                   </div>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-orange-50 text-orange-900 border border-orange-200">
-                    Cepat
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-800 border border-slate-200">
+                    5 Menit
                   </span>
                 </div>
-                <h4 className="text-sm font-bold text-slate-900 group-hover:text-amber-700 transition-colors">
-                  Pengecekan Teknik
+                <h4 className="text-sm font-bold text-slate-900 group-hover:text-blue-900 transition-colors">
+                  Pengecekan Teknik (Forecourt & Tangki)
                 </h4>
                 <p className="text-xs text-slate-600 mt-1 leading-snug">
                   Cek cepat dispenser, sump, STP, PV vent, area tangki, spill kit & APAR.</p>
               </div>
-              <div className="mt-3 flex items-center gap-1 text-xs font-bold text-amber-700">
-                <span>Buka Form Pengecekan</span>
+              <div className="mt-3 flex items-center gap-1 text-xs font-bold text-[#0B2545]">
+                <span>Buka Form Cek Teknik</span>
                 <ArrowRight className="w-3 h-3" />
               </div>
             </button>
@@ -588,7 +608,7 @@ export const OverviewModule: React.FC<OverviewModuleProps> = ({
             <>
             <button
               type="button"
-              onClick={() => onStartExecution(currentSite, 'PREVENTIVE_MAINTENANCE', 'POS-01')}
+              onClick={() => onStartExecution(launchSite, 'PREVENTIVE_MAINTENANCE', 'POS-01')}
               className="p-4 rounded-xl border border-slate-200 bg-white hover:border-slate-300 text-left transition-all shadow-2xs group flex flex-col justify-between min-h-[140px]"
             >
               <div>
@@ -615,7 +635,7 @@ export const OverviewModule: React.FC<OverviewModuleProps> = ({
 
             <button
               type="button"
-              onClick={() => onStartExecution(currentSite, 'QUICK_CHECK', 'POS-01')}
+              onClick={() => onStartExecution(launchSite, 'QUICK_CHECK', 'POS-01')}
               className="p-4 rounded-xl border border-slate-200 bg-white hover:border-slate-300 text-left transition-all shadow-2xs group flex flex-col justify-between min-h-[140px]"
             >
               <div>
@@ -644,7 +664,7 @@ export const OverviewModule: React.FC<OverviewModuleProps> = ({
             )}
             <button
               type="button"
-              onClick={() => onStartExecution(currentSite, 'CORRECTIVE_REPAIR', 'POS-01')}
+              onClick={() => onStartExecution(launchSite, 'CORRECTIVE_REPAIR', 'POS-01')}
               className="p-4 rounded-xl border border-slate-200 bg-white hover:border-slate-300 text-left transition-all shadow-2xs group flex flex-col justify-between min-h-[140px]"
             >
               <div>
