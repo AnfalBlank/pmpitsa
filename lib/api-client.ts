@@ -1,4 +1,5 @@
 import { PMReport, SPBUTicket, MaintenancePlan, UserSession, Site, GDriveArchiveInfo } from './types';
+import { fitReportForUpload } from './image-compress';
 
 export const SESSION_EXPIRED_EVENT = 'pm:session-expired';
 
@@ -9,6 +10,35 @@ export async function apiFetch(input: string, init?: RequestInit): Promise<Respo
     window.dispatchEvent(new CustomEvent(SESSION_EXPIRED_EVENT));
   }
   return res;
+}
+
+/**
+ * Reads a JSON response safely. When the server (or the hosting platform) answers
+ * with HTML / plain text — e.g. "Request Entity Too Large" — return a clear
+ * { success: false } instead of throwing Safari's "The string did not match the
+ * expected pattern".
+ */
+export async function readJson(res: Response): Promise<any> {
+  const text = await res.text();
+  try {
+    return JSON.parse(text);
+  } catch {
+    if (res.status === 413 || /too large|payload/i.test(text)) {
+      return {
+        success: false,
+        code: 'TOO_LARGE',
+        message: 'Ukuran Berita Acara (foto) terlalu besar untuk dikirim. Kurangi jumlah foto lalu coba lagi.',
+      };
+    }
+    if (res.status === 504 || res.status === 408) {
+      return { success: false, code: 'TIMEOUT', message: 'Server terlalu lama merespons. Periksa koneksi lalu coba lagi.' };
+    }
+    return {
+      success: false,
+      code: `HTTP_${res.status}`,
+      message: `Server mengembalikan respons tidak terduga (kode ${res.status}). Coba lagi beberapa saat lagi.`,
+    };
+  }
 }
 
 export async function logoutApi(): Promise<void> {
@@ -29,7 +59,7 @@ export async function checkSessionApi(): Promise<boolean> {
 export async function fetchUsersApi(): Promise<any[] | null> {
   try {
     const res = await apiFetch('/api/users');
-    const data = await res.json();
+    const data = await readJson(res);
     if (data.success && Array.isArray(data.users)) return data.users;
   } catch {}
   return null;
@@ -38,7 +68,7 @@ export async function fetchUsersApi(): Promise<any[] | null> {
 export async function setUserDivisionApi(id: string, division: 'IT' | 'TEKNIK'): Promise<{ success: boolean; message?: string }> {
   try {
     const res = await apiFetch('/api/users', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, division }) });
-    return await res.json();
+    return await readJson(res);
   } catch (err: any) {
     return { success: false, message: 'Gagal terhubung ke server: ' + err.message };
   }
@@ -51,7 +81,7 @@ export async function createUserApi(payload: any): Promise<{ success: boolean; m
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
-    return await res.json();
+    return await readJson(res);
   } catch (err: any) {
     return { success: false, message: 'Gagal terhubung ke server: ' + err.message };
   }
@@ -64,7 +94,7 @@ export async function loginApi(username: string, password: string): Promise<{ su
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, password }),
     });
-    return await res.json();
+    return await readJson(res);
   } catch (err: any) {
     return { success: false, message: 'Gagal terhubung ke server login: ' + err.message };
   }
@@ -75,7 +105,7 @@ export async function fetchReportsApi(siteId?: number | 'ALL'): Promise<PMReport
   try {
     const url = siteId && siteId !== 'ALL' ? `/api/reports?site_id=${siteId}` : '/api/reports';
     const res = await apiFetch(url);
-    const data = await res.json();
+    const data = await readJson(res);
     if (data.success && Array.isArray(data.reports)) {
       return data.reports;
     }
@@ -89,7 +119,7 @@ export async function fetchReportsApi(siteId?: number | 'ALL'): Promise<PMReport
 export async function fetchReportByIdApi(id: string): Promise<{ success: boolean; report?: PMReport; message?: string; code?: string }> {
   try {
     const res = await apiFetch(`/api/reports?id=${encodeURIComponent(id)}`, { cache: 'no-store' });
-    return await res.json();
+    return await readJson(res);
   } catch (err: any) {
     return { success: false, message: 'Gagal terhubung ke server: ' + err.message };
   }
@@ -105,7 +135,7 @@ export async function approveReportApi(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id }),
     });
-    return await res.json();
+    return await readJson(res);
   } catch (err: any) {
     return { success: false, message: 'Gagal terhubung ke server: ' + err.message };
   }
@@ -113,12 +143,20 @@ export async function approveReportApi(
 
 export async function saveReportApi(report: PMReport): Promise<{ success: boolean; report?: PMReport; message?: string }> {
   try {
+    // Photos make up most of a BA: shrink them until the request fits the hosting limit
+    const fitted = await fitReportForUpload(report);
+    if (!fitted.fits) {
+      return {
+        success: false,
+        message: `Ukuran Berita Acara ${(fitted.bytes / 1024 / 1024).toFixed(1)} MB masih terlalu besar meski foto sudah dikecilkan. Hapus beberapa foto lalu coba lagi.`,
+      };
+    }
     const res = await apiFetch('/api/reports', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(report),
+      body: JSON.stringify(fitted.report),
     });
-    return await res.json();
+    return await readJson(res);
   } catch (err: any) {
     return { success: false, message: err.message };
   }
@@ -137,11 +175,11 @@ export async function downloadBaPdfApi(
       ? await apiFetch('/api/reports/pdf', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(report),
+          body: JSON.stringify((await fitReportForUpload(report)).report),
         })
       : await apiFetch(`/api/reports/pdf?id=${encodeURIComponent(report.id)}`);
     if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
+      const data = await readJson(res).catch(() => ({}));
       return { success: false, code: data.code, message: data.message || `Server mengembalikan status ${res.status}` };
     }
     const blob = await res.blob();
@@ -164,7 +202,7 @@ export async function downloadBaPdfApi(
 export async function driveStatusApi(): Promise<boolean | null> {
   try {
     const res = await apiFetch('/api/reports/drive', { cache: 'no-store' });
-    const data = await res.json();
+    const data = await readJson(res);
     return data.success ? !!data.configured : null;
   } catch {
     return null;
@@ -181,7 +219,7 @@ export async function uploadBaToDriveApi(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: reportId }),
     });
-    return await res.json();
+    return await readJson(res);
   } catch (err: any) {
     return { success: false, message: 'Gagal terhubung ke server: ' + err.message };
   }
@@ -190,7 +228,7 @@ export async function uploadBaToDriveApi(
 export async function cleanDummyDataApi(): Promise<{ success: boolean; message?: string; retained?: any }> {
   try {
     const res = await apiFetch('/api/admin/clean-dummy-data', { method: 'POST' });
-    return await res.json();
+    return await readJson(res);
   } catch (err: any) {
     return { success: false, message: err.message };
   }
@@ -201,7 +239,7 @@ export async function deleteReportApi(reportId: string): Promise<{ success: bool
     const res = await apiFetch(`/api/reports?id=${encodeURIComponent(reportId)}`, {
       method: 'DELETE',
     });
-    return await res.json();
+    return await readJson(res);
   } catch (err: any) {
     return { success: false, message: err.message };
   }
@@ -215,7 +253,7 @@ export async function fetchTicketsApi(filters?: { site_id?: number | 'ALL'; stat
     if (filters?.search) params.set('search', filters.search);
 
     const res = await apiFetch(`/api/tickets?${params.toString()}`);
-    const data = await res.json();
+    const data = await readJson(res);
     if (data.success && Array.isArray(data.tickets)) {
       return data.tickets;
     }
@@ -232,7 +270,7 @@ export async function createTicketApi(ticket: Partial<SPBUTicket>): Promise<{ su
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(ticket),
     });
-    return await res.json();
+    return await readJson(res);
   } catch (err: any) {
     return { success: false, message: err.message };
   }
@@ -245,7 +283,7 @@ export async function updateTicketApi(id: string, status?: string, resolution_no
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, status, resolution_notes, assigned_to }),
     });
-    return await res.json();
+    return await readJson(res);
   } catch (err: any) {
     return { success: false, message: err.message };
   }
@@ -256,7 +294,7 @@ export async function deleteTicketApi(id: string): Promise<{ success: boolean; m
     const res = await apiFetch(`/api/tickets?id=${encodeURIComponent(id)}`, {
       method: 'DELETE',
     });
-    return await res.json();
+    return await readJson(res);
   } catch (err: any) {
     return { success: false, message: err.message };
   }
@@ -269,7 +307,7 @@ export async function fetchPlansApi(filters?: { site_id?: number | 'ALL'; status
     if (filters?.status && filters.status !== 'ALL') params.set('status', filters.status);
 
     const res = await apiFetch(`/api/plans?${params.toString()}`);
-    const data = await res.json();
+    const data = await readJson(res);
     if (data.success && Array.isArray(data.plans)) {
       return data.plans;
     }
@@ -286,7 +324,7 @@ export async function createPlanApi(plan: Partial<MaintenancePlan>): Promise<{ s
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(plan),
     });
-    return await res.json();
+    return await readJson(res);
   } catch (err: any) {
     return { success: false, message: err.message };
   }
@@ -299,7 +337,7 @@ export async function updatePlanApi(id: string, status?: string, notes?: string)
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, status, notes }),
     });
-    return await res.json();
+    return await readJson(res);
   } catch (err: any) {
     return { success: false, message: err.message };
   }
@@ -310,7 +348,7 @@ export async function deletePlanApi(id: string): Promise<{ success: boolean; mes
     const res = await apiFetch(`/api/plans?id=${encodeURIComponent(id)}`, {
       method: 'DELETE',
     });
-    return await res.json();
+    return await readJson(res);
   } catch (err: any) {
     return { success: false, message: err.message };
   }
@@ -319,7 +357,7 @@ export async function deletePlanApi(id: string): Promise<{ success: boolean; mes
 export async function fetchSitesApi(): Promise<Site[]> {
   try {
     const res = await apiFetch('/api/sites');
-    const data = await res.json();
+    const data = await readJson(res);
     if (data.success && Array.isArray(data.sites)) {
       return data.sites;
     }
@@ -336,7 +374,7 @@ export async function createSiteApi(site: Partial<Site>): Promise<{ success: boo
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(site),
     });
-    return await res.json();
+    return await readJson(res);
   } catch (err: any) {
     return { success: false, message: err.message };
   }
@@ -349,7 +387,7 @@ export async function updateSiteApi(site: Site): Promise<{ success: boolean; mes
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(site),
     });
-    return await res.json();
+    return await readJson(res);
   } catch (err: any) {
     return { success: false, message: err.message };
   }
@@ -360,7 +398,7 @@ export async function deleteSiteApi(id: number): Promise<{ success: boolean; mes
     const res = await apiFetch(`/api/sites?id=${id}`, {
       method: 'DELETE',
     });
-    return await res.json();
+    return await readJson(res);
   } catch (err: any) {
     return { success: false, message: err.message };
   }
@@ -377,7 +415,7 @@ export async function updateSiteForecourtApi(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: siteId, forecourt }),
     });
-    return await res.json();
+    return await readJson(res);
   } catch (err: any) {
     return { success: false, message: 'Gagal terhubung ke server: ' + err.message };
   }
@@ -397,7 +435,7 @@ export interface AppNotification {
 export async function fetchNotificationsApi(): Promise<{ notifications: AppNotification[]; unread: number } | null> {
   try {
     const res = await apiFetch('/api/notifications', { cache: 'no-store' });
-    const data = await res.json();
+    const data = await readJson(res);
     if (data.success) return { notifications: data.notifications, unread: data.unread };
   } catch {}
   return null;
@@ -410,7 +448,7 @@ export async function markNotificationsReadApi(payload: { ids?: string[]; all?: 
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
-    return (await res.json()).success === true;
+    return (await readJson(res)).success === true;
   } catch {
     return false;
   }
@@ -438,7 +476,7 @@ export async function fetchAuditApi(params: Record<string, string | number | und
     const q = new URLSearchParams();
     Object.entries(params).forEach(([k, v]) => v !== undefined && v !== '' && q.set(k, String(v)));
     const res = await apiFetch(`/api/audit?${q.toString()}`, { cache: 'no-store' });
-    const data = await res.json();
+    const data = await readJson(res);
     if (data.success) return { items: data.items, total: data.total };
   } catch {}
   return null;
@@ -447,7 +485,7 @@ export async function fetchAuditApi(params: Record<string, string | number | und
 export async function fetchDailyChecksApi(date?: string): Promise<{ date: string; checks: import('./daily-checklist').DailyCheck[] } | null> {
   try {
     const res = await apiFetch(`/api/daily-checks${date ? `?date=${date}` : ''}`, { cache: 'no-store' });
-    const data = await res.json();
+    const data = await readJson(res);
     if (data.success) return { date: data.date, checks: data.checks };
   } catch {}
   return null;
@@ -463,7 +501,7 @@ export async function submitDailyCheckApi(payload: {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
-    return await res.json();
+    return await readJson(res);
   } catch (err: any) {
     return { success: false, message: 'Gagal terhubung ke server: ' + err.message };
   }
@@ -479,7 +517,7 @@ export async function fetchMasterConfigApi(): Promise<{
 }> {
   try {
     const res = await apiFetch('/api/config');
-    const data = await res.json();
+    const data = await readJson(res);
     if (data.success) {
       return data;
     }
@@ -503,7 +541,7 @@ export async function saveMasterConfigApi(section: 'settings' | 'product' | 'atg
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ section, ...payload }),
     });
-    return await res.json();
+    return await readJson(res);
   } catch (err: any) {
     return { success: false, message: err.message };
   }
@@ -514,7 +552,7 @@ export async function deleteMasterConfigItemApi(section: 'product' | 'atg' | 'di
     const res = await apiFetch(`/api/config?section=${section}&id=${encodeURIComponent(id)}`, {
       method: 'DELETE',
     });
-    return await res.json();
+    return await readJson(res);
   } catch (err: any) {
     return { success: false, message: err.message };
   }
