@@ -117,9 +117,16 @@ export const DailyChecklistCard: React.FC<{ siteName: string; onSubmitted?: () =
               const a = existing.items.find((i) => i.key === d.key);
               return (
                 <li key={d.key} className="flex items-start gap-2">
-                  {a?.ok ? <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" /> : <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0" />}
-                  <span className="text-slate-700">
+                  {!a ? (
+                    <span className="w-4 h-4 rounded-full border-2 border-slate-300 flex-shrink-0" aria-hidden />
+                  ) : a.ok ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                  ) : (
+                    <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                  )}
+                  <span className={a ? 'text-slate-700' : 'text-slate-400'}>
                     {d.label}
+                    {!a && <span className="block text-[11px]">Belum dicek (item baru, tekan Ubah / Submit Ulang)</span>}
                     {a?.note && <span className="block text-slate-500">Catatan: {a.note}</span>}
                   </span>
                 </li>
@@ -140,6 +147,7 @@ export const DailyChecklistCard: React.FC<{ siteName: string; onSubmitted?: () =
                 <p className="text-xs font-semibold text-slate-800">
                   {i + 1}. {d.label}
                 </p>
+                {d.hint && <p className="text-[11px] text-slate-500 mt-0.5">{d.hint}</p>}
                 <div className="grid grid-cols-2 gap-2 mt-2" role="radiogroup" aria-label={d.label}>
                   <button
                     type="button"
