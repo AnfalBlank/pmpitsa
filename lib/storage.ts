@@ -172,7 +172,9 @@ export function getCurrentReport(): PMReport {
 export function saveCurrentReport(report: PMReport): void {
   if (typeof window === 'undefined') return;
   report.updated_at = new Date().toISOString();
-  localStorage.setItem(STORAGE_KEY_CURRENT, JSON.stringify(report));
+  if (!setItemWithRoom(STORAGE_KEY_CURRENT, JSON.stringify(report))) {
+    throw new Error('Penyimpanan perangkat penuh');
+  }
 }
 
 export function getAllReports(): PMReport[] {
@@ -189,9 +191,47 @@ export function getAllReports(): PMReport[] {
   return [];
 }
 
+const isQuotaError = (e: any) =>
+  !!e && (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED' || e.code === 22 || e.code === 1014 || /quota/i.test(String(e.message || '')));
+
+/**
+ * BA that are already FINAL live on the server: the device copy only needs the summary.
+ * Dropping their photos / signatures frees most of the (≈5 MB) browser storage.
+ */
+function compactReports(list: PMReport[]): PMReport[] {
+  return list.map((r) =>
+    r.status === 'FINAL' || (!r.status && r.synced_to_server)
+      ? { ...r, attachments: [], technician_signature: undefined, supervisor_signature: undefined, _summary: true, _attachments_count: r._attachments_count ?? (r.attachments || []).length }
+      : r
+  );
+}
+
+/** localStorage.setItem that frees space (compacts final BA copies) and retries once when storage is full. */
+function setItemWithRoom(key: string, value: string): boolean {
+  try {
+    localStorage.setItem(key, value);
+    return true;
+  } catch (e) {
+    if (!isQuotaError(e)) throw e;
+  }
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_REPORTS);
+    const list: PMReport[] = raw ? JSON.parse(raw) : [];
+    if (key !== STORAGE_KEY_REPORTS) localStorage.setItem(STORAGE_KEY_REPORTS, JSON.stringify(compactReports(list)));
+  } catch {
+    // ignore: try the write anyway
+  }
+  try {
+    localStorage.setItem(key, key === STORAGE_KEY_REPORTS ? JSON.stringify(compactReports(JSON.parse(value))) : value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function saveAllReports(reports: PMReport[]): void {
   if (typeof window === 'undefined') return;
-  localStorage.setItem(STORAGE_KEY_REPORTS, JSON.stringify(reports));
+  setItemWithRoom(STORAGE_KEY_REPORTS, JSON.stringify(reports));
 }
 
 /** Insert/replace a report in the local list and as the open report (no status change). */
@@ -200,13 +240,14 @@ export function upsertLocalReport(report: PMReport): PMReport {
   const all = getAllReports();
   const idx = all.findIndex(r => r.id === report.id);
   const list = idx >= 0 ? all.map(r => (r.id === report.id ? report : r)) : [report, ...all];
-  localStorage.setItem(STORAGE_KEY_REPORTS, JSON.stringify(list));
-  const curRaw = localStorage.getItem(STORAGE_KEY_CURRENT);
+  setItemWithRoom(STORAGE_KEY_REPORTS, JSON.stringify(list));
+  let curId: string | undefined;
   try {
-    if (!curRaw || JSON.parse(curRaw).id === report.id) localStorage.setItem(STORAGE_KEY_CURRENT, JSON.stringify(report));
+    curId = JSON.parse(localStorage.getItem(STORAGE_KEY_CURRENT) || 'null')?.id;
   } catch {
-    localStorage.setItem(STORAGE_KEY_CURRENT, JSON.stringify(report));
+    curId = undefined;
   }
+  if (!curId || curId === report.id) setItemWithRoom(STORAGE_KEY_CURRENT, JSON.stringify(report));
   return report;
 }
 
@@ -218,8 +259,35 @@ export function submitReport(report: PMReport): PMReport {
     updated_at: new Date().toISOString(),
     status: report.status === 'FINAL' ? 'FINAL' : 'PENDING_SYNC',
   };
-  localStorage.setItem(STORAGE_KEY_CURRENT, JSON.stringify(updated));
+  setItemWithRoom(STORAGE_KEY_CURRENT, JSON.stringify(updated));
   return upsertLocalReport(updated);
+}
+
+/** True when the device copy of this BA was saved (false: storage still full). */
+export function persistLockedReport(report: PMReport): boolean {
+  if (typeof window === 'undefined') return true;
+  const okCurrent = setItemWithRoom(STORAGE_KEY_CURRENT, JSON.stringify(report));
+  const all = getAllReports();
+  const put = (entry: PMReport) =>
+    setItemWithRoom(STORAGE_KEY_REPORTS, JSON.stringify(all.some((r) => r.id === report.id) ? all.map((r) => (r.id === report.id ? entry : r)) : [entry, ...all]));
+  let okList = put(report);
+  if (!okList && okCurrent) {
+    // Not enough room for a second copy of the photos: keep a pointer to the open BA instead
+    okList = put({ ...report, attachments: [], _photos_in_current: true, _attachments_count: (report.attachments || []).length });
+  }
+  return okCurrent && okList;
+}
+
+/** The full device copy of a BA whose stored list entry points to the open BA (photos). Null when it is gone. */
+export function withDevicePhotos(r: PMReport): PMReport | null {
+  if (!r._photos_in_current) return r;
+  if (typeof window === 'undefined') return null;
+  try {
+    const cur: PMReport | null = JSON.parse(localStorage.getItem(STORAGE_KEY_CURRENT) || 'null');
+    return cur && cur.id === r.id ? { ...cur, _photos_in_current: undefined } : null;
+  } catch {
+    return null;
+  }
 }
 
 export function getAllTickets(): SPBUTicket[] {

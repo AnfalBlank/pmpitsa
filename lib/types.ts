@@ -381,6 +381,8 @@ export interface PMReport {
 
   /** List rows from the server are summaries (no photos/signatures); load the full BA before use */
   _summary?: boolean;
+  /** Device-only: this list entry has no photos; the full copy is the open BA (storage was full) */
+  _photos_in_current?: boolean;
   _attachments_count?: number;
   _has_technician_signature?: boolean;
   _has_supervisor_signature?: boolean;

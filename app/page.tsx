@@ -53,6 +53,8 @@ import {
   getCurrentReport, 
   saveCurrentReport, 
   submitReport, 
+  persistLockedReport,
+  withDevicePhotos,
   upsertLocalReport,
   blankDraft,
   setSelectedSiteId, 
@@ -669,10 +671,24 @@ export default function Home() {
       danger: true,
     });
     if (!ok) return;
-    const saved = submitReport({ ...report, attachments: report.attachments.filter((a) => a.id !== attId) });
-    setReport(saved);
-    setReports((prev) => prev.map((r) => (r.id === saved.id ? saved : r)));
-    showToast('Foto dihapus. Tekan "Kirim Ulang ke Server" untuk mengirim BA.');
+    // Update the screen first, then the device copy (which may be short of space)
+    const next: PMReport = {
+      ...report,
+      attachments: report.attachments.filter((a) => a.id !== attId),
+      status: 'PENDING_SYNC',
+      updated_at: new Date().toISOString(),
+    };
+    setReport(next);
+    setReports((prev) => (prev.some((r) => r.id === next.id) ? prev.map((r) => (r.id === next.id ? next : r)) : [next, ...prev]));
+    if (persistLockedReport(next)) {
+      showToast('Foto dihapus. Tekan "Kirim Ulang ke Server" untuk mengirim BA.');
+    } else {
+      feedback.notify({
+        variant: 'warning',
+        title: 'Foto Dihapus, Penyimpanan HP Penuh',
+        message: 'Perubahan sudah berlaku di layar tetapi belum tersimpan di HP. Segera tekan "Kirim Ulang ke Server" tanpa menutup aplikasi.',
+      });
+    }
   };
 
   const handleSubmitFinal = async () => {
@@ -707,7 +723,14 @@ export default function Home() {
     if (!currentUser || !can(currentUser.role, 'report.sync')) return;
     const resend = async () => {
       if (resendingRef.current || (typeof navigator !== 'undefined' && !navigator.onLine)) return;
-      const pending = getAllReports().filter((r) => reportStatus(r) === 'PENDING_SYNC');
+      // Entries that only point to the open BA take its photos; never send a BA whose photos are missing
+      const pending = getAllReports()
+        .filter((r) => reportStatus(r) === 'PENDING_SYNC')
+        .map((r) => withDevicePhotos(r))
+        .filter((r): r is PMReport => !!r);
+      // The open BA may be pending without being in the stored list (device storage was full)
+      const open = getCurrentReport();
+      if (reportStatus(open) === 'PENDING_SYNC' && !pending.some((r) => r.id === open.id)) pending.push(open);
       if (!pending.length) return;
       resendingRef.current = true;
       let sent = 0;
@@ -906,7 +929,9 @@ export default function Home() {
     return full;
   };
 
-  const handleSelectPastReport = async (pastReport: PMReport) => {
+  const handleSelectPastReport = async (pastIn: PMReport) => {
+    // A pending BA saved without photos (device storage full) opens from its full device copy
+    const pastReport = pastIn._photos_in_current ? withDevicePhotos(pastIn) || pastIn : pastIn;
     openReportIdRef.current = pastReport.id;
     setReport(pastReport);
     setCurrentModule('preview');
