@@ -10,6 +10,7 @@ export function forecourtSummary(f?: SiteForecourtConfig): string {
   if (!f) return 'Belum dikonfigurasi';
   const nozzles = f.pumps.reduce((n, p) => n + p.nozzles.length, 0);
   const parts = [`${f.pumps.length} pump`, `${nozzles} nozzle`, `${f.tanks.length} tangki`];
+  if (f.dispensers?.length) parts.push(`${f.dispensers.length} unit dispenser`);
   return parts.join(' · ');
 }
 

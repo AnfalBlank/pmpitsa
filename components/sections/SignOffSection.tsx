@@ -1,5 +1,6 @@
 'use client';
 
+import { WORK_TYPE_SHORT } from '@/lib/work-type';
 import React, { useRef, useEffect, useCallback } from 'react';
 import { PMReport } from '@/lib/types';
 import { PenTool, RotateCcw, CheckCircle2, ShieldCheck, UserCheck, AlertTriangle } from 'lucide-react';
@@ -174,7 +175,7 @@ export const SignOffSection: React.FC<SignOffSectionProps> = ({
             </h4>
             <p className="text-xs mt-0.5">
               {hasBothSignatures
-                ? 'Laporan PM telah lengkap dan siap difinalisasi menjadi Berita Acara resmi format PDF Pertamina International.'
+                ? `Laporan ${WORK_TYPE_SHORT[report.work_type] || 'BA'} telah lengkap dan siap difinalisasi menjadi Berita Acara resmi format PDF Pertamina International.`
                 : 'Pastikan teknisi dan supervisor telah membubuhkan tanda tangan digital sebelum menekan tombol Finalisasi Laporan.'}
             </p>
           </div>

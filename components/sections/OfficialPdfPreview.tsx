@@ -8,7 +8,7 @@ import { featuredPhotoIndexes, photoFileName } from '@/lib/photos';
 import { CHECK_ITEMS, DISPENSER_ITEMS, TANK_ITEMS, MechItemDef, normalizeMechanical, normalizeMechanicalCheck } from '@/lib/mechanical';
 import { LoadingBlock } from '@/components/ui/Loading';
 import { DocumentHistory } from '@/components/audit/DocumentHistory';
-import { WORK_TYPE_TITLE, baNumber } from '@/lib/work-type';
+import { WORK_TYPE_TITLE, WORK_TYPE_COPY, baNumber } from '@/lib/work-type';
 import { useFeedback } from '@/components/feedback/FeedbackProvider';
 import { Printer, Cloud, Download, ExternalLink, ArrowLeft, FileDown, FolderOpen, HardDriveUpload, Lock, PencilLine, Clock, BadgeCheck, Loader2 } from 'lucide-react';
 
@@ -484,14 +484,14 @@ export const OfficialPdfPreview: React.FC<OfficialPdfPreviewProps> = ({
               <tr>
                 <td className="w-1/4 p-2 bg-slate-50 font-semibold border border-slate-300">Nama Site / SPBU</td>
                 <td className="w-1/4 p-2 font-bold border border-slate-300">{report.site_name}</td>
-                <td className="w-1/4 p-2 bg-slate-50 font-semibold border border-slate-300">Terminal POS ID</td>
-                <td className="w-1/4 p-2 font-mono font-bold border border-slate-300">{report.terminal_id}</td>
+                <td className="w-1/4 p-2 bg-slate-50 font-semibold border border-slate-300">{WORK_TYPE_COPY[report.work_type]?.terminalLabel || 'Terminal POS ID'}</td>
+                <td className="w-1/4 p-2 font-mono font-bold border border-slate-300">{report.terminal_id || '-'}</td>
               </tr>
               <tr>
                 <td className="p-2 bg-slate-50 font-semibold border border-slate-300">Kode Site</td>
                 <td className="p-2 font-mono border border-slate-300">{report.site_code}</td>
-                <td className="p-2 bg-slate-50 font-semibold border border-slate-300">{isPM ? 'Siklus PM Berikutnya' : 'Status Akhir'}</td>
-                <td className="p-2 border border-slate-300">{isPM ? report.next_pm_recommendation_date : report.overall_status}</td>
+                <td className="p-2 bg-slate-50 font-semibold border border-slate-300">{isPM || isMech ? `Siklus ${isMech ? 'PM Teknik' : 'PM'} Berikutnya` : 'Status Akhir'}</td>
+                <td className="p-2 border border-slate-300">{isPM || isMech ? report.next_pm_recommendation_date : report.overall_status}</td>
               </tr>
               <tr>
                 <td className="p-2 bg-slate-50 font-semibold border border-slate-300">Teknisi Pelaksana</td>
@@ -977,7 +977,7 @@ export const OfficialPdfPreview: React.FC<OfficialPdfPreviewProps> = ({
             
             {/* Teknisi */}
             <div>
-              <p className="font-semibold text-slate-700 mb-2">Pelaksana Inspeksi (Teknisi Lapangan)</p>
+              <p className="font-semibold text-slate-700 mb-2">Teknisi Pelaksana</p>
               <div className="h-20 flex items-center justify-center border-b border-slate-300 pb-1 mb-2">
                 {report.technician_signature ? (
                   // eslint-disable-next-line @next/next/no-img-element

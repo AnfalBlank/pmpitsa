@@ -64,7 +64,7 @@ export const ProfileMenu: React.FC<ProfileMenuProps> = ({ currentUser, assignedS
         </span>
         {!compact && (
           <span className="flex flex-col items-start leading-tight text-left">
-            <span className="text-xs font-bold text-slate-900 max-w-[140px] truncate">{currentUser.name.split(' ')[0]}</span>
+            <span className="text-xs font-bold text-slate-900 max-w-[160px] truncate" title={currentUser.name}>{currentUser.name}</span>
             <span className="text-[10px] font-semibold text-slate-500">{ROLE_LABEL[currentUser.role]}</span>
           </span>
         )}

@@ -34,7 +34,8 @@ function section(title: string): Content {
     table: { widths: ['*'], body: [[{ text: title, bold: true, color: '#FFFFFF', fontSize: 8.5 }]] },
     layout: { fillColor: () => NAVY, hLineWidth: () => 0, vLineWidth: () => 0, paddingTop: () => 4, paddingBottom: () => 4 },
     margin: [0, 10, 0, 0],
-  };
+    headlineLevel: 1,
+  } as Content;
 }
 
 function detailTable(type: LaporanType, rows: LaporanRow[]): Content {
@@ -239,6 +240,12 @@ export function buildLaporanDoc(opts: {
       ],
     }),
     content: body,
+    // Section titles never stay alone at the bottom of a page
+    pageBreakBefore: (current: any) => {
+      if (current.headlineLevel !== 1 || !current.startPosition) return false;
+      const sp = current.startPosition;
+      return (1 - sp.verticalRatio) * sp.pageInnerHeight < 75;
+    },
     defaultStyle: { font: 'Roboto', fontSize: 8, lineHeight: 1.12, color: '#0F172A' },
   };
 }

@@ -59,13 +59,18 @@ export const DailyChecklistAdminPanel: React.FC<{ sites: Site[]; refreshKey?: nu
           <Spinner size={18} /> Memuat checklist...
         </div>
       ) : (
-        <ul className="divide-y divide-slate-100">
+        <ul className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 p-3 sm:p-4">
           {sites.map((s) => {
             const c = byId.get(s.id);
             const bad = c ? c.items.filter((i) => !i.ok) : [];
             return (
-              <li key={s.id} className="p-4 flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-4">
-                <div className="sm:w-56 flex-shrink-0">
+              <li
+                key={s.id}
+                className={`rounded-lg border p-3 flex flex-col gap-2 ${
+                  !c ? 'border-slate-200 bg-white' : c.status === 'OK' ? 'border-emerald-200 bg-emerald-50/40' : 'border-amber-300 bg-amber-50/40'
+                }`}
+              >
+                <div>
                   <div className="text-xs font-bold text-slate-900">{s.site_code}</div>
                   <div className="text-[11px] text-slate-500 break-words">{s.site_name}</div>
                 </div>

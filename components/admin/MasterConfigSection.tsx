@@ -749,7 +749,7 @@ export const MasterConfigSection: React.FC = () => {
             <button
               type="button"
               onClick={handleOpenAddSite}
-              className="min-h-[44px] px-4 py-2 bg-[#ED1C24] hover:bg-red-700 text-white rounded-lg text-xs font-bold flex items-center gap-2 shadow-xs transition-colors self-start sm:self-auto"
+              className="min-h-[44px] px-4 py-2 bg-[#ED1C24] hover:bg-red-700 text-white rounded-lg text-xs font-bold flex items-center gap-2 shadow-xs transition-colors self-start sm:self-auto whitespace-nowrap flex-shrink-0"
             >
               <Plus className="w-4 h-4" />
               <span>Tambah SPBU Baru</span>
@@ -799,7 +799,11 @@ export const MasterConfigSection: React.FC = () => {
                           )}
                         </p>
                       ) : (
-                        <p className="font-semibold text-amber-700">Belum dikonfigurasi — teknisi harus menambah pump/tangki manual</p>
+                        <p className="font-semibold text-amber-700">
+                          {site.forecourt?.dispensers?.length
+                            ? `${site.forecourt.dispensers.length} unit dispenser terdaftar · pump/nozzle/tangki belum dikonfigurasi`
+                            : 'Belum dikonfigurasi — teknisi harus menambah pump/tangki manual'}
+                        </p>
                       )}
                     </div>
                   </div>
@@ -852,7 +856,7 @@ export const MasterConfigSection: React.FC = () => {
             <button
               type="button"
               onClick={handleOpenAddProduct}
-              className="min-h-[44px] px-4 py-2 bg-[#ED1C24] hover:bg-red-700 text-white rounded-lg text-xs font-bold flex items-center gap-2 shadow-xs transition-colors self-start sm:self-auto"
+              className="min-h-[44px] px-4 py-2 bg-[#ED1C24] hover:bg-red-700 text-white rounded-lg text-xs font-bold flex items-center gap-2 shadow-xs transition-colors self-start sm:self-auto whitespace-nowrap flex-shrink-0"
             >
               <Plus className="w-4 h-4" />
               <span>Tambah Produk BBM</span>
@@ -861,7 +865,7 @@ export const MasterConfigSection: React.FC = () => {
 
           <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs">
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs sm:text-sm">
+              <table className="w-full min-w-[860px] text-left text-xs sm:text-sm">
                 <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200 uppercase text-[11px] tracking-wider">
                   <tr>
                     <th className="p-3.5">Kode & Warna</th>
@@ -947,7 +951,7 @@ export const MasterConfigSection: React.FC = () => {
             <button
               type="button"
               onClick={handleOpenAddAtg}
-              className="min-h-[44px] px-4 py-2 bg-[#ED1C24] hover:bg-red-700 text-white rounded-lg text-xs font-bold flex items-center gap-2 shadow-xs transition-colors self-start sm:self-auto"
+              className="min-h-[44px] px-4 py-2 bg-[#ED1C24] hover:bg-red-700 text-white rounded-lg text-xs font-bold flex items-center gap-2 shadow-xs transition-colors self-start sm:self-auto whitespace-nowrap flex-shrink-0"
             >
               <Plus className="w-4 h-4" />
               <span>Tambah Brand ATG</span>
@@ -1045,7 +1049,7 @@ export const MasterConfigSection: React.FC = () => {
             <button
               type="button"
               onClick={handleOpenAddDispenser}
-              className="min-h-[44px] px-4 py-2 bg-[#ED1C24] hover:bg-red-700 text-white rounded-lg text-xs font-bold flex items-center gap-2 shadow-xs transition-colors self-start sm:self-auto"
+              className="min-h-[44px] px-4 py-2 bg-[#ED1C24] hover:bg-red-700 text-white rounded-lg text-xs font-bold flex items-center gap-2 shadow-xs transition-colors self-start sm:self-auto whitespace-nowrap flex-shrink-0"
             >
               <Plus className="w-4 h-4" />
               <span>Tambah Brand Dispenser</span>
@@ -1126,7 +1130,7 @@ export const MasterConfigSection: React.FC = () => {
             <button
               type="button"
               onClick={handleOpenAddHw}
-              className="min-h-[44px] px-4 py-2 bg-[#ED1C24] hover:bg-red-700 text-white rounded-lg text-xs font-bold flex items-center gap-2 shadow-xs transition-colors self-start sm:self-auto"
+              className="min-h-[44px] px-4 py-2 bg-[#ED1C24] hover:bg-red-700 text-white rounded-lg text-xs font-bold flex items-center gap-2 shadow-xs transition-colors self-start sm:self-auto whitespace-nowrap flex-shrink-0"
             >
               <Plus className="w-4 h-4" />
               <span>Tambah Master Hardware</span>

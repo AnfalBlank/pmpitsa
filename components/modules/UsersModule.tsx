@@ -184,7 +184,7 @@ export const UsersModule: React.FC<UsersModuleProps> = ({
         <button
           type="button"
           onClick={() => setIsNewUserModalOpen(true)}
-          className="min-h-[44px] px-4 py-2 bg-[#0B2545] hover:bg-slate-800 text-white rounded-lg text-xs sm:text-sm font-bold flex items-center justify-center gap-2 shadow-xs transition-colors self-start sm:self-auto flex-shrink-0"
+          className="min-h-[44px] px-4 py-2 bg-[#0B2545] hover:bg-slate-800 text-white rounded-lg text-xs sm:text-sm font-bold flex items-center justify-center gap-2 shadow-xs transition-colors self-start sm:self-auto flex-shrink-0 whitespace-nowrap"
         >
           <Plus className="w-4 h-4 text-slate-200" />
           <span>Tambah Akun Petugas Baru</span>
@@ -279,9 +279,9 @@ export const UsersModule: React.FC<UsersModuleProps> = ({
       </div>
 
       {/* Mobile: one card per user (a 5-column table doesn't fit a phone) */}
-      <div className="md:hidden space-y-2.5">
+      <div className="xl:hidden grid grid-cols-1 md:grid-cols-2 gap-2.5">
         {filteredUsers.length === 0 && (
-          <div className="bg-white rounded-xl border border-slate-200 p-6 text-center text-xs text-slate-500">
+          <div className="md:col-span-2 bg-white rounded-xl border border-slate-200 p-6 text-center text-xs text-slate-500">
             {loadState === 'loading'
               ? 'Memuat daftar pengguna...'
               : usersList.length === 0
@@ -338,7 +338,7 @@ export const UsersModule: React.FC<UsersModuleProps> = ({
         })}
       </div>
 
-      <div className="hidden md:block bg-white rounded-xl shadow-xs border border-slate-200 overflow-hidden">
+      <div className="hidden xl:block bg-white rounded-xl shadow-xs border border-slate-200 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead>

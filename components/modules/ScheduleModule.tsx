@@ -201,7 +201,7 @@ export const ScheduleModule: React.FC<ScheduleModuleProps> = ({
         <button
           type="button"
           onClick={() => setIsNewPlanModalOpen(true)}
-          className="min-h-[44px] px-4 py-2 bg-[#0B2545] hover:bg-slate-800 text-white rounded-lg text-xs sm:text-sm font-bold flex items-center justify-center gap-2 shadow-xs transition-colors self-start sm:self-auto flex-shrink-0"
+          className="min-h-[44px] px-4 py-2 bg-[#0B2545] hover:bg-slate-800 text-white rounded-lg text-xs sm:text-sm font-bold flex items-center justify-center gap-2 shadow-xs transition-colors self-start sm:self-auto flex-shrink-0 whitespace-nowrap"
         >
           <Plus className="w-4 h-4 text-slate-200" />
           <span>Jadwalkan Kunjungan PM Baru</span>
@@ -247,9 +247,8 @@ export const ScheduleModule: React.FC<ScheduleModuleProps> = ({
 
       {/* Filter Toolbar */}
       <div className="bg-white p-4 sm:p-5 rounded-xl border border-slate-200 shadow-2xs space-y-3">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          
-          <div className="relative">
+        <div className="grid grid-cols-1 sm:grid-cols-3 xl:grid-cols-4 gap-3">
+          <div className="relative sm:col-span-3 xl:col-span-1">
             <Search className="w-4 h-4 absolute left-3 top-3.5 text-slate-400" />
             <input
               type="text"
@@ -287,9 +286,6 @@ export const ScheduleModule: React.FC<ScheduleModuleProps> = ({
             </select>
           </div>
 
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
           <div>
             <select
               value={planStatusFilter}
@@ -304,19 +300,20 @@ export const ScheduleModule: React.FC<ScheduleModuleProps> = ({
             </select>
           </div>
 
-          <div className="col-span-2 sm:col-span-1 flex items-center gap-2 empty:hidden">
-            {isFilterActive && (
-              <button
-                type="button"
-                onClick={handleResetFilters}
-                className="min-h-[44px] w-full px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-colors border border-slate-300 shadow-2xs"
-              >
-                <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
-                <span>Reset Filter</span>
-              </button>
-            )}
-          </div>
         </div>
+
+        {isFilterActive && (
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={handleResetFilters}
+              className="min-h-[40px] px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-colors border border-slate-300 shadow-2xs"
+            >
+              <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
+              <span>Reset Filter</span>
+            </button>
+          </div>
+        )}
 
         {planPeriodFilter === 'CUSTOM' && (
           <div className="p-3 bg-blue-50/60 rounded-lg border border-blue-200 flex flex-col sm:flex-row items-center gap-3 text-xs animate-in fade-in duration-150">

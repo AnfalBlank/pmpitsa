@@ -8,7 +8,7 @@ import { LOGO_DATA_URL } from './logo';
 import { baFileBase, featuredPhotoIndexes, photoFileName } from '@/lib/photos';
 import { CLEANING_ITEMS } from '@/lib/cleaning';
 import { CHECK_ITEMS, DISPENSER_ITEMS, TANK_ITEMS, MechItemDef, normalizeMechanical, normalizeMechanicalCheck } from '@/lib/mechanical';
-import { WORK_TYPE_TITLE, WORK_TYPE_SHORT, baNumber } from '@/lib/work-type';
+import { WORK_TYPE_TITLE, WORK_TYPE_SHORT, WORK_TYPE_COPY, baNumber } from '@/lib/work-type';
 
 const NAVY = '#0B2545';
 const RED = '#C8102E';
@@ -57,7 +57,8 @@ function sectionTitle(text: string): Content {
     table: { widths: ['*'], body: [[{ text, style: 'sectionTitle' }]] },
     layout: { fillColor: () => NAVY, hLineWidth: () => 0, vLineWidth: () => 0, paddingTop: () => 4, paddingBottom: () => 4 },
     margin: [0, 10, 0, 0],
-  };
+    headlineLevel: 1,
+  } as Content;
 }
 
 const gridLayout = {
@@ -131,10 +132,10 @@ function isEmbeddableImage(dataUrl?: string): boolean {
 function generalSection(r: PMReport): Content[] {
   const rows: [string, unknown, string, unknown][] = [
     ['Nama SPBU', r.site_name, 'Kode Site', r.site_code],
-    ['Terminal POS ID', r.terminal_id, 'Tanggal / Jam', `${v(r.execution_date)} ${r.execution_time || ''}`.trim()],
+    [WORK_TYPE_COPY[r.work_type]?.terminalLabel || 'Terminal POS ID', r.terminal_id || '-', 'Tanggal / Jam', `${v(r.execution_date)} ${r.execution_time || ''}`.trim()],
     ['Teknisi Pelaksana', `${v(r.technician_name)}${r.technician_phone ? ` (${r.technician_phone})` : ''}`, 'Pengawas SPBU', r.supervisor_name],
-    r.work_type === 'PREVENTIVE_MAINTENANCE'
-      ? ['Status Akhir', r.overall_status, 'PM Berikutnya', r.next_pm_recommendation_date]
+    r.work_type === 'PREVENTIVE_MAINTENANCE' || r.work_type === 'MECHANICAL_PM'
+      ? ['Status Akhir', r.overall_status, r.work_type === 'MECHANICAL_PM' ? 'PM Teknik Berikutnya' : 'PM Berikutnya', r.next_pm_recommendation_date]
       : ['Status Akhir', r.overall_status, 'Jenis Pekerjaan', WORK_TYPE_SHORT[r.work_type]],
   ];
   if (r.ticket_number) rows.push(['Nomor Tiket', r.ticket_number, '', '']);
@@ -179,7 +180,7 @@ function repairSection(r: PMReport): Content[] {
       },
       layout: gridLayout,
     },
-    { text: 'Barang yang diganti (serial number lama dan baru)', bold: true, fontSize: 8, margin: [0, 5, 0, 2] },
+    { text: 'Barang yang diganti (serial number lama dan baru)', bold: true, fontSize: 8, margin: [0, 5, 0, 2], headlineLevel: 2 } as Content,
     {
       table: {
         headerRows: 1,
@@ -225,6 +226,7 @@ function mechanicalSection(r: PMReport): Content[] {
       text: [{ text: d.label, bold: true }, `  ·  Model: ${v(d.model)}  ·  SN: ${v(d.serial_number)}`],
       fontSize: 8.5,
       margin: [0, 6, 0, 2],
+      headlineLevel: 2,
     });
     out.push(checkTable(mechRows(DISPENSER_ITEMS, d.items)));
     if (d.notes) out.push({ text: [{ text: 'Catatan: ', bold: true }, d.notes], margin: [0, 2, 0, 0] });
@@ -282,7 +284,7 @@ function hardwareSection(r: PMReport, no: string): Content[] {
       ['Kondisi Heatsink', h.heatsink_condition, ''],
       ['Sirkulasi Udara', h.airflow_condition, h.notes],
     ]),
-    { text: 'Checklist Pembersihan', bold: true, fontSize: 8, margin: [0, 5, 0, 2] },
+    { text: 'Checklist Pembersihan', bold: true, fontSize: 8, margin: [0, 5, 0, 2], headlineLevel: 2 } as Content,
     {
       table: {
         widths: ['*', 70],
@@ -496,21 +498,95 @@ function signatureBlock(title: string, name: string, signature?: string, signedA
 }
 
 function signOffSection(r: PMReport, no: string): Content[] {
+  // Title, statement, both signatures and the Pengawas validation stamp always stay on ONE page
+  const title = sectionTitle(`${no}. LEMBAR PENGESAHAN`) as unknown as Record<string, unknown>;
+  delete title.headlineLevel;
   return [
-    sectionTitle(`${no}. LEMBAR PENGESAHAN`),
     {
-      text: 'Dengan ini kedua belah pihak menyatakan bahwa pekerjaan di atas telah dilaksanakan dan diperiksa sesuai kondisi sebenarnya.',
-      margin: [0, 6, 0, 10],
-      fontSize: 8.5,
-    },
-    {
-      columns: [
-        signatureBlock('Teknisi Pelaksana', r.technician_name, r.technician_signature, r.technician_signed_at),
-        signatureBlock('Pengawas SPBU', r.supervisor_name, r.supervisor_signature, r.supervisor_signed_at, r.approval),
+      unbreakable: true,
+      stack: [
+        title,
+        {
+          text: 'Dengan ini kedua belah pihak menyatakan bahwa pekerjaan di atas telah dilaksanakan dan diperiksa sesuai kondisi sebenarnya.',
+          margin: [0, 6, 0, 10],
+          fontSize: 8.5,
+        },
+        {
+          columns: [
+            signatureBlock('Teknisi Pelaksana', r.technician_name, r.technician_signature, r.technician_signed_at),
+            signatureBlock('Pengawas SPBU', r.supervisor_name, r.supervisor_signature, r.supervisor_signed_at, r.approval),
+          ],
+          columnGap: 20,
+        },
       ],
-      columnGap: 20,
-    },
+    } as unknown as Content,
   ];
+}
+
+/** Rough height of a node in text lines (to know whether it fits on one page). */
+function estimateLines(node: unknown): number {
+  if (node == null) return 0;
+  if (typeof node === 'string') return node.split('\n').reduce((n, l) => n + Math.max(1, Math.ceil(l.length / 80)), 0);
+  if (Array.isArray(node)) return node.reduce((n, x) => n + estimateLines(x), 0);
+  if (typeof node !== 'object') return 1;
+  const n = node as Record<string, any>;
+  if (n.image || n.qr) return 14;
+  if (n.table) return (n.table.body || []).reduce((sum: number, row: unknown[]) => sum + 1 + Math.max(1, ...row.map((c) => estimateLines(c))), 0);
+  if (n.columns) return Math.max(0, ...n.columns.map((c: unknown) => estimateLines(c)));
+  if (n.stack) return estimateLines(n.stack);
+  if (n.text !== undefined) return estimateLines(typeof n.text === 'string' ? n.text : Array.isArray(n.text) ? n.text.map((t: any) => (typeof t === 'string' ? t : t?.text || '')).join('') : '');
+  return 1;
+}
+
+/**
+ * Keep every section title together with its first block (table / sub-heading) when that block
+ * fits on a page, so a title is never left alone at the bottom of a page.
+ */
+function keepTitlesWithContent(body: Content[]): Content[] {
+  const out: Content[] = [];
+  const isHeading = (n: unknown) => !!(n && typeof n === 'object' && (n as Record<string, any>).headlineLevel);
+  for (let i = 0; i < body.length; i++) {
+    if (!isHeading(body[i])) {
+      out.push(body[i]);
+      continue;
+    }
+    // heading (+ directly following sub-headings) + the first real block
+    let j = i;
+    while (j + 1 < body.length && isHeading(body[j + 1])) j++;
+    const next = body[j + 1] as Record<string, any> | undefined;
+    const group = body.slice(i, j + 1);
+    if (next && !next.pageBreak && estimateLines(next) <= 42) {
+      group.push(next as unknown as Content);
+      j++;
+    }
+    if (group.length > 1) {
+      // pdfmake breaks (blank pages / lost blocks) when a node with a page-break rule sits inside an
+      // unbreakable block, so grouped headings drop their headlineLevel: the group itself moves as a whole.
+      const plain = group.map((g) => {
+        if (!g || typeof g !== 'object' || Array.isArray(g)) return g;
+        const { headlineLevel: _drop, ...rest } = g as Record<string, any>;
+        return rest as Content;
+      });
+      out.push({ stack: plain, unbreakable: true } as unknown as Content);
+    } else out.push(body[i]);
+    i = j;
+  }
+  return out;
+}
+
+/** Rows of a table stay whole (not split across two pages), except very tall free-text rows. */
+function keepRowsWhole(node: unknown): void {
+  if (Array.isArray(node)) return node.forEach(keepRowsWhole);
+  if (!node || typeof node !== 'object') return;
+  const n = node as Record<string, any>;
+  if (n.table && typeof n.table === 'object') {
+    // Normal rows stay whole; a very tall row (long free-text notes) may continue on the next page
+    // instead of jumping there entirely and leaving its section title behind.
+    const tallest = Math.max(0, ...(n.table.body || []).map((row: unknown[]) => Math.max(0, ...row.map((c) => estimateLines(c)))));
+    n.table.dontBreakRows = tallest <= 15;
+    (n.table.body || []).forEach((row: unknown) => keepRowsWhole(row));
+  }
+  ['stack', 'columns', 'ul', 'ol'].forEach((k) => n[k] && keepRowsWhole(n[k]));
 }
 
 function photosSection(r: PMReport): Content[] {
@@ -665,7 +741,15 @@ export function buildBaDocDefinition(report: PMReport): TDocumentDefinitions {
         { text: `Halaman ${currentPage} dari ${pageCount}`, alignment: 'right', fontSize: 7, color: '#64748B' },
       ],
     }),
-    content: body,
+    content: (keepRowsWhole(body), keepTitlesWithContent(body)),
+    // A section title / sub-heading never stays alone at the bottom of a page:
+    // move it to the next page when too little room is left below it for its first rows.
+    pageBreakBefore: (current: any) => {
+      if (!current.headlineLevel || !current.startPosition) return false;
+      const sp = current.startPosition;
+      const roomLeft = (1 - sp.verticalRatio) * sp.pageInnerHeight;
+      return roomLeft < (current.headlineLevel === 1 ? 75 : 45);
+    },
     defaultStyle: { font: 'Roboto', fontSize: 8.5, lineHeight: 1.15, color: '#0F172A' },
     styles: {
       sectionTitle: { bold: true, color: '#FFFFFF', fontSize: 8.5, margin: [2, 0, 0, 0] },

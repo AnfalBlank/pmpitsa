@@ -1,5 +1,6 @@
 'use client';
 
+import { WORK_TYPE_COPY } from '@/lib/work-type';
 import React from 'react';
 import { MasterSelect } from '@/components/ui/MasterSelect';
 import { siteSupervisorNames } from '@/lib/user-options';
@@ -30,6 +31,8 @@ export const GeneralInfoSection: React.FC<GeneralInfoSectionProps> = ({
   locked = true,
   onChangeSite,
 }) => {
+  const copy = WORK_TYPE_COPY[report.work_type] || WORK_TYPE_COPY.PREVENTIVE_MAINTENANCE;
+  const hasNextPm = report.work_type === 'PREVENTIVE_MAINTENANCE' || report.work_type === 'MECHANICAL_PM';
   const technicians = users
     .filter((u) => u.role === 'TECHNICIAN')
     .map((u) => ({ value: u.employeeId ? `${u.name} (${u.employeeId})` : u.name, phone: u.phone }));
@@ -66,10 +69,10 @@ export const GeneralInfoSection: React.FC<GeneralInfoSectionProps> = ({
           <Building2 className="w-5 h-5 text-red-600 flex-shrink-0" />
           <div>
             <h2 className="text-base font-bold text-slate-900">
-              Informasi Site SPBU & Terminal POS
+              {copy.siteTitle}
             </h2>
             <p className="text-xs text-slate-500">
-              Lokasi pengerjaan inspeksi rutin sistem POS PINSYST & FMS
+              {copy.siteSubtitle}
             </p>
           </div>
         </div>
@@ -150,15 +153,15 @@ export const GeneralInfoSection: React.FC<GeneralInfoSectionProps> = ({
               htmlFor="terminal-id-input"
               className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1"
             >
-              ID Terminal / POS <span className="text-red-500">*</span>
+              {copy.terminalLabel} {copy.terminalRequired && <span className="text-red-500">*</span>}
             </label>
             <input
               id="terminal-id-input"
               type="text"
-              required
+              required={copy.terminalRequired}
               value={report.terminal_id}
               onChange={(e) => updateField('terminal_id', e.target.value)}
-              placeholder="Contoh: POS-01"
+              placeholder={copy.terminalPlaceholder}
               className="w-full min-h-[44px] px-3 py-2 bg-white border border-slate-300 rounded-md text-sm font-mono font-bold text-slate-900 focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
             />
           </div>
@@ -168,7 +171,7 @@ export const GeneralInfoSection: React.FC<GeneralInfoSectionProps> = ({
               htmlFor="execution-date-input"
               className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1"
             >
-              Tanggal Pemeriksaan <span className="text-red-500">*</span>
+              {copy.dateLabel} <span className="text-red-500">*</span>
             </label>
             <div className="relative">
               <input
@@ -292,10 +295,10 @@ export const GeneralInfoSection: React.FC<GeneralInfoSectionProps> = ({
           <ShieldCheck className="w-5 h-5 text-emerald-600 flex-shrink-0" />
           <div>
             <h2 className="text-base font-bold text-slate-900">
-              {report.work_type === 'PREVENTIVE_MAINTENANCE' ? 'Status Keseluruhan & Rekomendasi Siklus' : 'Status Keseluruhan'}
+              {hasNextPm ? 'Status Keseluruhan & Rekomendasi Siklus' : 'Status Keseluruhan'}
             </h2>
             <p className="text-xs text-slate-500">
-              Klasifikasi kondisi terminal POS saat selesai dilakukan inspeksi berkala
+              {copy.statusSubtitle}
             </p>
           </div>
         </div>
@@ -303,13 +306,7 @@ export const GeneralInfoSection: React.FC<GeneralInfoSectionProps> = ({
         <div className="space-y-4">
           <div>
             <span className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">
-              {report.work_type === 'CORRECTIVE_REPAIR'
-                ? 'Status Setelah Perbaikan'
-                : report.work_type === 'QUICK_CHECK'
-                ? 'Kesimpulan Hasil Pengecekan'
-                : report.work_type === 'MECHANICAL_PM'
-                ? 'Klasifikasi Kondisi Hasil PM Teknik'
-                : 'Klasifikasi Kondisi Hasil PM'}
+              {copy.statusLabel}
             </span>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
               {statusOptions.map((status) => {
@@ -343,13 +340,13 @@ export const GeneralInfoSection: React.FC<GeneralInfoSectionProps> = ({
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-            {report.work_type === 'PREVENTIVE_MAINTENANCE' && (
+            {hasNextPm && (
             <div>
               <label 
                 htmlFor="next-pm-date-input"
                 className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1"
               >
-                Rekomendasi Jadwal PM Berikutnya
+                Rekomendasi Jadwal {report.work_type === 'MECHANICAL_PM' ? 'PM Teknik' : 'PM'} Berikutnya
               </label>
               <input
                 id="next-pm-date-input"
@@ -359,7 +356,7 @@ export const GeneralInfoSection: React.FC<GeneralInfoSectionProps> = ({
                 className="w-full min-h-[44px] px-3 py-2 bg-white border border-slate-300 rounded-md text-sm text-slate-900 focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
               />
               <span className="text-[11px] text-slate-500 mt-1 block">
-                Standar siklus PM rutin Pertamina: 30 hari sekali
+                {report.work_type === 'MECHANICAL_PM' ? 'Isi sesuai siklus PM Teknik dispenser & tangki SPBU' : 'Standar siklus PM rutin Pertamina: 30 hari sekali'}
               </span>
             </div>
             )}
@@ -367,7 +364,7 @@ export const GeneralInfoSection: React.FC<GeneralInfoSectionProps> = ({
             <div className="bg-slate-50 p-3 rounded-md border border-slate-200 flex items-start gap-2 text-xs text-slate-600">
               <AlertCircle className="w-4 h-4 text-blue-700 flex-shrink-0 mt-0.5" />
               <span>
-                Data header ini menjadi identitas utama dokumen Berita Acara PM dan indeks database Turso Serverless. Pastikan Terminal ID sesuai stiker fisik pada mesin kasir.
+                {copy.note}
               </span>
             </div>
           </div>

@@ -262,7 +262,7 @@ export const TicketsModule: React.FC<TicketsModuleProps> = ({
         <button
           type="button"
           onClick={() => setIsNewTicketModalOpen(true)}
-          className="min-h-[44px] px-4 py-2 bg-[#ED1C24] hover:bg-red-700 text-white rounded-lg text-xs sm:text-sm font-bold flex items-center justify-center gap-2 shadow-xs transition-colors self-start sm:self-auto flex-shrink-0"
+          className="min-h-[44px] px-4 py-2 bg-[#ED1C24] hover:bg-red-700 text-white rounded-lg text-xs sm:text-sm font-bold flex items-center justify-center gap-2 shadow-xs transition-colors self-start sm:self-auto flex-shrink-0 whitespace-nowrap"
         >
           <Plus className="w-4 h-4" />
           <span>Buat Tiket Kendala Baru</span>

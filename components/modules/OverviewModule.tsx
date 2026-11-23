@@ -91,7 +91,7 @@ export const OverviewModule: React.FC<OverviewModuleProps> = ({
 
       {/* Module Action Toolbar (Clean & Aligned, No Duplicate Header Card) */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
-        <div>
+        <div className="min-w-0">
           <h2 className="text-base font-extrabold text-[#0B2545]">
             {currentUser.role === 'ADMIN' 
               ? 'Monitoring Operasional Forecourt SPBU' 
@@ -109,7 +109,7 @@ export const OverviewModule: React.FC<OverviewModuleProps> = ({
         </div>
 
         {/* Action Buttons */}
-        <div className="flex items-center gap-2 flex-wrap self-start sm:self-auto">
+        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap flex-shrink-0 self-start sm:self-auto">
           {currentUser.role === 'ADMIN' && (
             <>
               <button
@@ -319,12 +319,13 @@ export const OverviewModule: React.FC<OverviewModuleProps> = ({
 
               return (
                 <div key={site.id} className="p-4 sm:p-5 hover:bg-slate-50/60 transition-colors">
-                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                  {/* Wide screens: info | status | actions in fixed columns; narrower: stacked */}
+                  <div className="flex flex-col gap-3 xl:grid xl:grid-cols-[minmax(0,1fr)_minmax(320px,380px)_auto] xl:items-center xl:gap-5">
                     
                     {/* Site Info */}
-                    <div className="space-y-1 max-w-md">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-xs font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                    <div className="space-y-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-mono text-xs font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded border border-slate-200 whitespace-nowrap">
                           {site.site_code}
                         </span>
                         <span className="text-[11px] font-semibold text-slate-500">
@@ -345,7 +346,7 @@ export const OverviewModule: React.FC<OverviewModuleProps> = ({
                     </div>
 
                     {/* Middle: Equipment Health Chips */}
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 bg-slate-50 p-2.5 rounded-lg border border-slate-200 text-xs">
+                    <div className="grid grid-cols-3 gap-2.5 bg-slate-50 p-2.5 rounded-lg border border-slate-200 text-xs">
                       <div>
                         <span className="text-slate-400 block text-[10px] uppercase font-bold">POS & PINSYST</span>
                         <span className="font-bold text-emerald-800 flex items-center gap-1 mt-0.5">
@@ -369,16 +370,16 @@ export const OverviewModule: React.FC<OverviewModuleProps> = ({
                         )}
                       </div>
 
-                      <div className="col-span-2 sm:col-span-1">
+                      <div>
                         <span className="text-slate-400 block text-[10px] uppercase font-bold">Jadwal PM Terdekat</span>
-                        <span className="font-medium text-slate-800 mt-0.5 block truncate">
+                        <span className="font-medium text-slate-800 mt-0.5 block">
                           {nextPlan ? `${nextPlan.scheduled_date}` : 'Belum Terjadwal'}
                         </span>
                       </div>
                     </div>
 
                     {/* Right Actions */}
-                    <div className="flex items-center gap-2 self-start lg:self-center flex-wrap">
+                    <div className="flex items-center gap-2 flex-wrap xl:flex-nowrap xl:justify-end">
                       <button
                         type="button"
                         onClick={() => onOpenCreateTicket(site.id)}

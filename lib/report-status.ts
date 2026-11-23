@@ -1,5 +1,6 @@
 /** Lifecycle helpers for Berita Acara (shared by UI and API). */
 import type { PMAttachment, PMReport, ReportStatus } from './types';
+import { WORK_TYPE_COPY } from './work-type';
 
 export function reportStatus(r: Pick<PMReport, 'status' | 'synced_to_server'> | null | undefined): ReportStatus {
   if (!r) return 'DRAFT';
@@ -29,7 +30,7 @@ const hasPhoto = (r: PMReport, c: PMAttachment['category']) => (r.attachments ||
 export function missingForFinalize(r: PMReport): string[] {
   const miss: string[] = [];
   if (!filled(r.site_name) || !r.site_id) miss.push('Lokasi SPBU');
-  if (r.work_type !== 'MECHANICAL_PM' && r.work_type !== 'MECHANICAL_CHECK' && !filled(r.terminal_id)) miss.push('Terminal POS ID');
+  if (WORK_TYPE_COPY[r.work_type]?.terminalRequired !== false && !filled(r.terminal_id)) miss.push(WORK_TYPE_COPY[r.work_type]?.terminalLabel || 'Terminal POS ID');
   if (!filled(r.technician_name)) miss.push('Nama teknisi');
   if (!filled(r.supervisor_name)) miss.push('Nama pengawas SPBU');
 

@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 import { UserSession, Site, PMReport } from '@/lib/types';
 import { reportStatus, awaitingApproval } from '@/lib/report-status';
-import { baNumber } from '@/lib/work-type';
+import { baNumber, WORK_TYPE_LABEL } from '@/lib/work-type';
 import { SAMPLE_SITES } from '@/lib/sample-data';
 import { useFeedback } from '@/components/feedback/FeedbackProvider';
 import { can } from '@/lib/rbac';
@@ -109,8 +109,9 @@ export const ReportsModule: React.FC<ReportsModuleProps> = ({
     (r) => awaitingApproval(r) && (currentUser.role !== 'SUPERVISOR' || r.site_id === currentUser.assignedSiteId)
   );
 
-  const pmCount = reports.filter(r => r.work_type === 'PREVENTIVE_MAINTENANCE').length;
-  const quickCount = reports.filter(r => r.work_type === 'QUICK_CHECK').length;
+  // IT + Teknik counted together per kind of work
+  const pmCount = reports.filter(r => r.work_type === 'PREVENTIVE_MAINTENANCE' || r.work_type === 'MECHANICAL_PM').length;
+  const quickCount = reports.filter(r => r.work_type === 'QUICK_CHECK' || r.work_type === 'MECHANICAL_CHECK').length;
   const repairCount = reports.filter(r => r.work_type === 'CORRECTIVE_REPAIR').length;
 
   const feedback = useFeedback();
@@ -248,38 +249,37 @@ export const ReportsModule: React.FC<ReportsModuleProps> = ({
 
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">PM Rutin Lengkap</span>
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">PM (IT & Teknik)</span>
             <span className="w-2 h-2 rounded-full bg-blue-500" />
           </div>
           <div className="text-2xl sm:text-3xl font-extrabold text-[#0B2545] mt-1">{pmCount}</div>
-          <span className="text-[11px] text-blue-700 font-medium mt-0.5 block">10 Modul PINSYST & FMS</span>
+          <span className="text-[11px] text-blue-700 font-medium mt-0.5 block">PM POS PINSYST & PM Teknik</span>
         </div>
 
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Pengecekan Cepat</span>
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Pengecekan</span>
             <span className="w-2 h-2 rounded-full bg-emerald-500" />
           </div>
           <div className="text-2xl sm:text-3xl font-extrabold text-[#0B2545] mt-1">{quickCount}</div>
-          <span className="text-[11px] text-emerald-700 font-medium mt-0.5 block">Audit operasional 5 menit</span>
+          <span className="text-[11px] text-emerald-700 font-medium mt-0.5 block">Pengecekan IT & Teknik</span>
         </div>
 
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Tindakan Perbaikan</span>
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Corrective (CM)</span>
             <span className="w-2 h-2 rounded-full bg-amber-500" />
           </div>
           <div className="text-2xl sm:text-3xl font-extrabold text-[#0B2545] mt-1">{repairCount}</div>
-          <span className="text-[11px] text-amber-700 font-medium mt-0.5 block">Servis & sparepart hardware</span>
+          <span className="text-[11px] text-amber-700 font-medium mt-0.5 block">Perbaikan & penggantian part</span>
         </div>
       </div>
 
       {/* Filter Toolbar */}
       <div className="bg-white p-4 sm:p-5 rounded-xl border border-slate-200 shadow-2xs space-y-3">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
           {/* Search Box */}
-          <div className="relative">
+          <div className="relative sm:col-span-2 xl:col-span-4">
             <Search className="w-4 h-4 absolute left-3 top-3.5 text-slate-400" />
             <input
               type="text"
@@ -319,10 +319,6 @@ export const ReportsModule: React.FC<ReportsModuleProps> = ({
             </select>
           </div>
 
-        </div>
-
-        {/* Secondary Filter Row: Work Type, Sign Status, & Reset */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 pt-1">
           <div>
             <select
               value={reportTypeFilter}
@@ -331,9 +327,9 @@ export const ReportsModule: React.FC<ReportsModuleProps> = ({
               className="w-full min-h-[44px] px-3 text-xs bg-slate-50 border border-slate-300 rounded-lg font-medium text-slate-800 focus:ring-2 focus:ring-blue-600 focus:outline-none"
             >
               <option value="ALL">Semua Jenis Pekerjaan</option>
-              <option value="PREVENTIVE_MAINTENANCE">Preventive Maintenance (PM)</option>
-              <option value="QUICK_CHECK">Pengecekan Cepat</option>
-              <option value="CORRECTIVE_REPAIR">Perbaikan (Repair)</option>
+              {(['PREVENTIVE_MAINTENANCE', 'MECHANICAL_PM', 'CORRECTIVE_REPAIR', 'QUICK_CHECK', 'MECHANICAL_CHECK'] as const).map((t) => (
+                <option key={t} value={t}>{WORK_TYPE_LABEL[t]}</option>
+              ))}
             </select>
           </div>
 
@@ -350,19 +346,20 @@ export const ReportsModule: React.FC<ReportsModuleProps> = ({
             </select>
           </div>
 
-          <div className="col-span-2 sm:col-span-1 flex items-center gap-2 empty:hidden">
-            {isFilterActive && (
-              <button
-                type="button"
-                onClick={handleResetFilters}
-                className="min-h-[44px] w-full px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-colors border border-slate-300 shadow-2xs"
-              >
-                <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
-                <span>Reset Filter</span>
-              </button>
-            )}
-          </div>
         </div>
+
+        {isFilterActive && (
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={handleResetFilters}
+              className="min-h-[40px] px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-colors border border-slate-300 shadow-2xs"
+            >
+              <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
+              <span>Reset Filter</span>
+            </button>
+          </div>
+        )}
 
         {/* Custom Date Range Picker when CUSTOM is selected */}
         {reportPeriodFilter === 'CUSTOM' && (
@@ -448,7 +445,7 @@ export const ReportsModule: React.FC<ReportsModuleProps> = ({
                         {r.execution_date}
                       </span>
                       <span className="text-xs font-bold text-slate-800 bg-slate-100 px-2.5 py-0.5 rounded">
-                        {r.work_type === 'PREVENTIVE_MAINTENANCE' ? 'Preventive Maintenance (PM)' : r.work_type === 'QUICK_CHECK' ? 'Pengecekan' : 'Corrective Maintenance (CM)'}
+                        {WORK_TYPE_LABEL[r.work_type] || r.work_type}
                       </span>
                       <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${
                         r.overall_status === 'Selesai (Normal)'

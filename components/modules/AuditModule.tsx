@@ -77,7 +77,7 @@ export const AuditModule: React.FC<Props> = ({ sites, usersList }) => {
         </p>
         <a
           href={csvHref}
-          className="min-h-[44px] px-4 rounded-lg bg-[#0B2545] hover:bg-slate-800 text-white text-xs font-bold flex items-center justify-center gap-2 self-start sm:self-auto"
+          className="min-h-[44px] px-4 rounded-lg bg-[#0B2545] hover:bg-slate-800 text-white text-xs font-bold flex items-center justify-center gap-2 self-start sm:self-auto whitespace-nowrap flex-shrink-0"
         >
           <Download className="w-4 h-4" /> Export CSV
         </a>
@@ -96,7 +96,7 @@ export const AuditModule: React.FC<Props> = ({ sites, usersList }) => {
             className={`${inputCls} pl-9`}
           />
         </div>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6 gap-3 items-end">
           <select aria-label="Pengguna" value={user} onChange={(e) => setUser(e.target.value)} className={inputCls}>
             <option value="">Semua pengguna</option>
             {usersList.map((u: any) => (
