@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { resolveReportParts } from '@/lib/report-parts';
 import { audit } from '@/lib/audit';
 import { baNumber } from '@/lib/work-type';
 import { requireSession, forbidden } from '@/lib/session';
@@ -63,10 +64,13 @@ export async function POST(req: Request) {
   try {
     const auth = requireSession(req, 'pm.perform');
     if (auth.error) return auth.error;
-    const report: PMReport = await req.json();
-    if (!report?.id || !report.site_name) {
+    const incoming: PMReport = await req.json();
+    if (!incoming?.id || !incoming.site_name) {
       return NextResponse.json({ success: false, message: 'Data laporan tidak lengkap.' }, { status: 400 });
     }
+    // Photos may be uploaded as chunks first (see lib/report-parts.ts); they stay for the later submit
+    await ensureSchema();
+    const { report } = await resolveReportParts(getTursoClient(), incoming, auth.session.id);
     return pdfResponse(report, await renderBaPdf(report));
   } catch (err: any) {
     return NextResponse.json({ success: false, message: `Gagal membuat PDF: ${err.message}` }, { status: 500 });

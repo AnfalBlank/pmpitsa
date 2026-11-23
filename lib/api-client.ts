@@ -141,6 +141,77 @@ export async function approveReportApi(
   }
 }
 
+/* ---- Chunked upload of photos / signatures (keeps every request small) ---- */
+const PART_CHUNK = 240_000;
+
+async function uploadPart(reportId: string, partId: string, data: string): Promise<{ success: boolean; message?: string; code?: string }> {
+  const total = Math.max(1, Math.ceil(data.length / PART_CHUNK));
+  for (let idx = 0; idx < total; idx++) {
+    let last: any = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const res = await apiFetch('/api/reports/parts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ report_id: reportId, part_id: partId, idx, total, data: data.slice(idx * PART_CHUNK, (idx + 1) * PART_CHUNK) }),
+        });
+        last = await readJson(res);
+      } catch (err: any) {
+        last = { success: false, message: 'Gagal terhubung ke server: ' + err.message };
+      }
+      if (last?.success) break;
+      if (last?.code === 'UNAUTHENTICATED' || last?.code === 'FORBIDDEN') return last;
+      await new Promise((r) => setTimeout(r, 700 * (attempt + 1)));
+    }
+    if (!last?.success) return { success: false, code: last?.code, message: `Gagal mengunggah foto: ${last?.message || 'tidak ada respons'}` };
+  }
+  return { success: true };
+}
+
+/** Upload every photo / signature of the BA as chunks; returns the BA with "part:" references. */
+async function withUploadedParts(report: PMReport): Promise<{ report?: PMReport; error?: { success: false; message?: string; code?: string } }> {
+  const isData = (v: unknown): v is string => typeof v === 'string' && v.startsWith('data:');
+  const attachments = [];
+  for (const a of report.attachments || []) {
+    if (!isData(a.file_url)) {
+      attachments.push(a);
+      continue;
+    }
+    const partId = `att-${a.id}`;
+    const r = await uploadPart(report.id, partId, a.file_url);
+    if (!r.success) return { error: { success: false, message: r.message, code: r.code } };
+    attachments.push({ ...a, file_url: `part:${partId}` });
+  }
+  const sig = async (v: string | undefined, partId: string) => {
+    if (!isData(v)) return { ok: true as const, value: v };
+    const r = await uploadPart(report.id, partId, v);
+    return r.success ? { ok: true as const, value: `part:${partId}` } : { ok: false as const, error: r };
+  };
+  const tech = await sig(report.technician_signature, 'sig-technician');
+  if (!tech.ok) return { error: { success: false, message: tech.error.message, code: tech.error.code } };
+  const spv = await sig(report.supervisor_signature, 'sig-supervisor');
+  if (!spv.ok) return { error: { success: false, message: spv.error.message, code: spv.error.code } };
+  return { report: { ...report, attachments, technician_signature: tech.value, supervisor_signature: spv.value } };
+}
+
+/** Put the device's photos / signatures back on a BA the server returned without them. */
+function restoreHeavy(fromServer: PMReport, local: PMReport): PMReport {
+  const byId = new Map((local.attachments || []).map((a) => [a.id, a.file_url]));
+  return {
+    ...fromServer,
+    attachments: (fromServer.attachments || []).map((a) => ({ ...a, file_url: a.file_url || byId.get(a.id) || '' })),
+    technician_signature: fromServer.technician_signature || local.technician_signature,
+    supervisor_signature: fromServer.supervisor_signature || local.supervisor_signature,
+  };
+}
+
+/** Draft PDF request body: photos uploaded as chunks when possible, otherwise sent inline. */
+async function draftPdfBody(report: PMReport): Promise<PMReport> {
+  const fitted = (await fitReportForUpload(report)).report;
+  const up = await withUploadedParts(fitted);
+  return up.report || fitted;
+}
+
 export async function saveReportApi(report: PMReport): Promise<{ success: boolean; report?: PMReport; message?: string }> {
   try {
     // Photos make up most of a BA: shrink them until the request fits the hosting limit
@@ -153,12 +224,17 @@ export async function saveReportApi(report: PMReport): Promise<{ success: boolea
         message: `Ukuran Berita Acara ${(fitted.bytes / 1024 / 1024).toFixed(1)} MB masih terlalu besar meski foto sudah dikecilkan. Hapus beberapa foto lalu coba lagi.`,
       };
     }
+    // Photos & signatures first, in small chunks; then the (small) BA with references
+    const up = await withUploadedParts(fitted.report as PMReport);
+    if (!up.report) return up.error || { success: false, message: 'Gagal mengunggah dokumentasi.' };
     const res = await apiFetch('/api/reports', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(fitted.report),
+      body: JSON.stringify(up.report),
     });
-    return await readJson(res);
+    const data = await readJson(res);
+    if (data?.success && data.report && data.heavy_omitted) data.report = restoreHeavy(data.report, fitted.report as PMReport);
+    return data;
   } catch (err: any) {
     return { success: false, message: err.message };
   }
@@ -177,7 +253,7 @@ export async function downloadBaPdfApi(
       ? await apiFetch('/api/reports/pdf', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify((await fitReportForUpload(report)).report),
+          body: JSON.stringify(await draftPdfBody(report)),
         })
       : await apiFetch(`/api/reports/pdf?id=${encodeURIComponent(report.id)}`);
     if (!res.ok) {

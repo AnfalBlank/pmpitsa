@@ -241,6 +241,20 @@ async function createSchema(): Promise<void> {
     );
   `);
 
+  // Photos / signatures of a BA uploaded in small chunks before the (small) BA itself
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS report_parts (
+      report_id TEXT NOT NULL,
+      part_id TEXT NOT NULL,
+      idx INTEGER NOT NULL,
+      total INTEGER NOT NULL,
+      data TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      PRIMARY KEY (report_id, part_id, idx, user_id)
+    );
+  `);
+
   // Notifications per user / role (+ SPBU) and who has read them
   await db.execute(`
     CREATE TABLE IF NOT EXISTS notifications (

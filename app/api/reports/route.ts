@@ -7,6 +7,15 @@ import { can, siteScope } from '@/lib/rbac';
 import { missingForFinalize } from '@/lib/report-status';
 import { workTypesForDivision } from '@/lib/work-type';
 import { currentDivision } from '@/lib/user-division';
+import { cleanupReportParts, resolveReportParts } from '@/lib/report-parts';
+
+/** A BA without photo data / signatures (the client keeps its own copy). */
+const withoutHeavy = (r: PMReport): PMReport => ({
+  ...r,
+  attachments: (r.attachments || []).map((a) => ({ ...a, file_url: '' })),
+  technician_signature: undefined,
+  supervisor_signature: undefined,
+});
 import { canViewReport, OWN_REPORT_SQL, ownReportArgs } from '@/lib/report-access';
 import { getTursoClient, ensureSchema } from '@/lib/turso';
 import { PMReport } from '@/lib/types';
@@ -129,7 +138,22 @@ export async function POST(req: Request) {
     await ensureSchema();
     const db = getTursoClient();
 
-    const report: PMReport = await req.json();
+    const incoming: PMReport = await req.json();
+    if (!incoming?.id || !incoming.site_name) {
+      return NextResponse.json(
+        { success: false, message: 'Data laporan tidak lengkap (ID & Site Name wajib ada).' },
+        { status: 400 }
+      );
+    }
+    // Photos / signatures may arrive as references to chunks uploaded before (small requests)
+    const resolved = await resolveReportParts(db, incoming, session.id);
+    if (resolved.missing.length) {
+      return NextResponse.json(
+        { success: false, code: 'PARTS_MISSING', message: `${resolved.missing.length} foto/tanda tangan belum terunggah lengkap. Tekan "Kirim Ulang ke Server" lagi.` },
+        { status: 400 }
+      );
+    }
+    const report: PMReport = resolved.report;
 
     if (!report.id || !report.site_name) {
       return NextResponse.json(
@@ -253,11 +277,13 @@ export async function POST(req: Request) {
         site_id: Number(existing.site_id),
         summary: 'Mengirim ulang BA yang sudah final (tidak mengubah data)',
       });
+      await cleanupReportParts(db, report.id);
       return NextResponse.json({
         success: true,
         alreadyFinal: true,
+        heavy_omitted: true,
         message: 'Berita Acara ini sudah difinalisasi dan tersimpan di server. Perubahan hanya dapat dilakukan oleh Admin.',
-        report: { ...existing, status: 'FINAL', synced_to_server: true },
+        report: withoutHeavy({ ...existing, status: 'FINAL', synced_to_server: true }),
       });
     } else {
       return forbidden('Akses ditolak: Berita Acara yang sudah difinalisasi hanya dapat diubah oleh Admin.');
@@ -379,10 +405,13 @@ export async function POST(req: Request) {
       }
     }
 
+    await cleanupReportParts(db, report.id);
+    // The device already has the photos: answer without them (keeps the response small)
     return NextResponse.json({
       success: true,
+      heavy_omitted: true,
       message: existing ? 'Revisi Berita Acara tersimpan.' : 'Berita Acara difinalisasi dan tersimpan di server.',
-      report: updatedReport,
+      report: withoutHeavy(updatedReport),
     });
   } catch (err: any) {
     return NextResponse.json({ success: false, message: err.message }, { status: 500 });
