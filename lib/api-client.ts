@@ -144,7 +144,9 @@ export async function approveReportApi(
 export async function saveReportApi(report: PMReport): Promise<{ success: boolean; report?: PMReport; message?: string }> {
   try {
     // Photos make up most of a BA: shrink them until the request fits the hosting limit
-    const fitted = await fitReportForUpload(report);
+    // Device-only markers never go to the server
+    const { _send_error: _e, _photos_in_current: _p, ...clean } = report;
+    const fitted = await fitReportForUpload(clean as PMReport);
     if (!fitted.fits) {
       return {
         success: false,

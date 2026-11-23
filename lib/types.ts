@@ -383,6 +383,8 @@ export interface PMReport {
   _summary?: boolean;
   /** Device-only: this list entry has no photos; the full copy is the open BA (storage was full) */
   _photos_in_current?: boolean;
+  /** Device-only: why the last attempt to send this final BA failed */
+  _send_error?: { message: string; code?: string; at: string };
   _attachments_count?: number;
   _has_technician_signature?: boolean;
   _has_supervisor_signature?: boolean;

@@ -313,6 +313,12 @@ export const OfficialPdfPreview: React.FC<OfficialPdfPreviewProps> = ({
             <>
               <strong>Final, menunggu terkirim ke server.</strong> Berita Acara sudah terkunci dan tersimpan aman di perangkat ini; akan dikirim otomatis
               saat ada koneksi.
+              {report._send_error && (
+                <span className="block mt-2 rounded-md border border-red-200 bg-red-50 px-2.5 py-2 text-red-900">
+                  <strong>Percobaan terakhir gagal</strong> ({new Date(report._send_error.at).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' })}):{' '}
+                  {report._send_error.message}
+                </span>
+              )}
             </>
           )}
           {status === 'PENDING_SYNC' && onRemovePhoto && report.attachments.length > 0 && (

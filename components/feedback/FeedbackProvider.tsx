@@ -27,7 +27,7 @@ interface RunOptions<T> {
   /** Text shown in the blocking progress dialog while the action runs */
   pending: string;
   success: { title: string; message?: React.ReactNode } | ((result: T) => { title: string; message?: React.ReactNode });
-  error: { title: string; message?: React.ReactNode };
+  error: { title: string; message?: React.ReactNode } | ((result: any) => { title: string; message?: React.ReactNode; hideDetail?: boolean });
 }
 
 interface FeedbackApi {
@@ -100,11 +100,12 @@ export const FeedbackProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       } else if (result?.code === 'UNAUTHENTICATED') {
         // Session-expired dialog is raised globally by page.tsx
       } else {
+        const e = typeof opts.error === 'function' ? opts.error(result) : opts.error;
         await notify({
           variant: 'error',
-          title: opts.error.title,
-          message: opts.error.message,
-          detail: result?.message,
+          title: e.title,
+          message: e.message,
+          detail: 'hideDetail' in e && e.hideDetail ? undefined : result?.message,
         });
       }
       return result;

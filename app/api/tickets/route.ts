@@ -6,6 +6,7 @@ import { siteScope } from '@/lib/rbac';
 import { getTursoClient, ensureSchema } from '@/lib/turso';
 import { SPBUTicket, TechDivision } from '@/lib/types';
 import { asDivision, categoryAllowed, DIVISION_SHORT } from '@/lib/tickets';
+import { currentDivision } from '@/lib/user-division';
 import type { Client } from '@libsql/client';
 
 /**
@@ -58,7 +59,7 @@ export async function GET(req: Request) {
     if (session.role === 'TECHNICIAN') {
       // Technicians see tickets of their own division, plus any assigned to them
       query += " AND (COALESCE(division, 'IT') = ? OR LOWER(COALESCE(assigned_to, '')) LIKE ?)";
-      args.push(session.division || 'IT', `%${session.name.toLowerCase()}%`);
+      args.push(await currentDivision(db, session), `%${session.name.toLowerCase()}%`);
     }
 
     if (status && status !== 'ALL') {

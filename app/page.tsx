@@ -607,6 +607,18 @@ export default function Home() {
     saveCurrentReport(draft);
   };
 
+  /** Keep the reason of a failed send on the device copy, so the preview can show it. */
+  const rememberSendError = (r: PMReport, res: any) => {
+    const next: PMReport = { ...r, _send_error: { message: String(res?.message || 'Tidak ada respons dari server.'), code: res?.code, at: new Date().toISOString() } };
+    setReport((prev) => (prev.id === r.id ? { ...prev, _send_error: next._send_error } : prev));
+    setReports((prev) => prev.map((x) => (x.id === r.id ? { ...x, _send_error: next._send_error } : x)));
+    try {
+      persistLockedReport(next);
+    } catch {
+      // storage problems are reported elsewhere
+    }
+  };
+
   const sendFinalToServer = async (pending: PMReport) => {
     const result: any = await feedback.run(
       async () => {
@@ -640,15 +652,34 @@ export default function Home() {
                   </>
                 ),
               },
-        error: {
-          title: 'Belum Terkirim ke Server',
-          message:
-            'Berita Acara sudah final dan tersimpan aman di perangkat ini. Aplikasi akan mengirimkannya otomatis saat koneksi tersedia, atau tekan "Kirim Ulang" di halaman pratinjau.',
+        // Show WHY the server refused it, with what to do next
+        error: (r: any) => {
+          const reason: string = r?.message || 'Tidak ada respons dari server.';
+          const offline = typeof navigator !== 'undefined' && !navigator.onLine;
+          const hint =
+            r?.code === 'TOO_LARGE'
+              ? 'Hapus beberapa foto di panel "Kurangi foto" lalu tekan "Kirim Ulang ke Server".'
+              : r?.code === 'TIMEOUT' || offline || /terhubung|network|fetch|load failed/i.test(reason)
+              ? 'Pastikan koneksi internet stabil, lalu tekan "Kirim Ulang ke Server". BA juga dikirim otomatis saat koneksi kembali.'
+              : 'Kirim tangkapan layar pesan ini ke Admin bila masalah berulang.';
+          return {
+            title: 'Belum Terkirim ke Server',
+            hideDetail: true,
+            message: (
+              <>
+                <span className="block font-semibold text-slate-900">Alasan: {reason}</span>
+                <span className="block mt-1">{hint}</span>
+                <span className="block mt-1 text-[11px] text-slate-500">Berita Acara tetap terkunci dan tersimpan aman di perangkat ini.</span>
+              </>
+            ),
+          };
         },
       }
     );
     if (!result.success && (result.code === 'INCOMPLETE' || result.code === 'ID_CONFLICT')) {
       reopenDraft(pending, result.code === 'ID_CONFLICT');
+    } else if (!result.success && result.code !== 'UNAUTHENTICATED') {
+      rememberSendError(pending, result);
     } else if (result.success && result.drive?.success && result.drive.gdrive) {
       applyDriveInfo(pending.id, result.drive.gdrive);
     }
@@ -736,6 +767,9 @@ export default function Home() {
       let sent = 0;
       for (const r of pending) {
         const saved: any = await saveReportApi(r);
+        if (!saved.success && saved.code !== 'UNAUTHENTICATED' && saved.code !== 'INCOMPLETE' && saved.code !== 'ID_CONFLICT') {
+          rememberSendError(r, saved);
+        }
         if (saved.success && saved.report) {
           markFinal(saved.report);
           sent++;
